@@ -5,7 +5,6 @@ import { AuthService } from 'src/app/services/auth.service';
 import { BackendServices } from 'src/app/services/backend.services';
 import { SgcDashboardCacheService } from 'src/app/services/sgc-dashboard-cache.service';
 import Swal from 'sweetalert2';
-import { SGC_CAPITULOS_ORDEN } from './sgc-formatos.catalog';
 
 import {
   ApexAxisChartSeries,
@@ -307,7 +306,9 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
   mostrarFormQueja = false;
   guardandoQueja = false;
   mostrarComentariosSatisfaccion = false;
-  readonly encuestaSatisfaccionUrl = 'https://forms.gle/DQjgZ84iMETprXJN6';
+  /** Fallback solo si aún no hay ciclo cargado (2027 vigente). */
+  private readonly encuestaSatisfaccionUrlFallback = 'https://forms.gle/DQjgZ84iMETprXJN6';
+  private qrEncuestaUrlGenerada = '';
   qrEncuestaSatisfaccion = '';
   errorQrEncuesta = '';
   mostrarQrEncuestaSatisfaccion = false;
@@ -371,7 +372,6 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
     { id: 'satisfaccion', titulo: 'Satisfacción del cliente' },
     { id: 'quejas-sugerencias', titulo: 'Quejas y Sugerencias' },
     { id: 'avance', titulo: 'Avance de proyectos' },
-    { id: 'auditorias', titulo: 'Resultados de auditorías' },
     { id: 'proveedores-f29', titulo: 'Evaluación de proveedores' }
   ];
 
@@ -664,9 +664,11 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
       const activo = elegido || vigente;
       this.cicloSatisfaccionId = activo.ciclo || this.cicloSatisfaccionId;
       this.satisfaccionCurso = activo;
+      void this.generarQrEncuestaSatisfaccion();
       return;
     }
     this.satisfaccionCurso = res?.satisfaccionCurso || res?.satisfaccion || null;
+    void this.generarQrEncuestaSatisfaccion();
   }
 
   seleccionarCicloSatisfaccion(ciclo: string, event?: Event): void {
@@ -685,6 +687,16 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
     this.construirKpis();
     this.actualizarCharts();
     this.resetSatDonutCentro();
+    void this.generarQrEncuestaSatisfaccion();
+  }
+
+  /** URL pública del formulario del ciclo activo (2026 ≠ 2027). */
+  get encuestaSatisfaccionUrl(): string {
+    const url = String(this.satisfaccionCurso?.encuestaUrl || '').trim();
+    if (url) return url;
+    const formId = String(this.satisfaccionCurso?.formId || '').trim();
+    if (formId) return `https://docs.google.com/forms/d/${formId}/viewform`;
+    return this.encuestaSatisfaccionUrlFallback;
   }
 
   seleccionarVistaSatisfaccionCliente(vista: VistaSatisfaccionCliente, event?: Event): void {
@@ -1915,22 +1927,10 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
     const ec = this.eficaciaCapacitacion || {};
     const sCap = this.satisfaccionCapacitacion || {};
     const sc = this.satisfaccionCurso || {};
-    const auditorias = this.eficacia || {};
     const q = this.quejasSugerencias || {};
     const ep = this.proveedoresF29 || {};
     const ap = this.avanceProyectos || {};
-    const totalFormatos = SGC_CAPITULOS_ORDEN.reduce(
-      (total, capitulo) => total + capitulo.plantillas.length,
-      0
-    );
-    // Resultados de auditorías: abiertas, cerradas y total de la bitácora
-    // SGC-F-05, solo fuente Auditoría interna.
-    const ncAbiertasAud = Number(auditorias.ncAbiertasAuditoriaInterna) || 0;
-    const ncCerradasAud = Number(auditorias.ncCerradasAuditoriaInterna) || 0;
-    const totalNcAud = Number(auditorias.totalNcAuditoriaInterna) || 0;
     const quejasAbiertas = Number(q.abiertas || 0);
-    const estadoAuditorias: SgcKpiCard['estado'] =
-      ncAbiertasAud <= 2 ? 'verde' : ncAbiertasAud <= 4 ? 'amarillo' : 'rojo';
 
     this.kpiCardsSuperiores = [
       {
@@ -1942,19 +1942,12 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
         gradiente: `linear-gradient(135deg, ${this.palette.tealDark} 0%, ${this.palette.teal} 100%)`
       },
       {
-        titulo: 'Resultados de auditorías',
-        valor: `${totalNcAud} NC`,
-        subtitulo: `${ncCerradasAud} cerradas · ${ncAbiertasAud} abiertas`,
-        icono: 'fa-clipboard-check',
-        color: estadoAuditorias === 'verde'
-          ? this.palette.verde
-          : estadoAuditorias === 'amarillo' ? this.palette.ambar : this.palette.rojo,
-        gradiente: estadoAuditorias === 'verde'
-          ? 'linear-gradient(135deg, #15803d 0%, #4ade80 100%)'
-          : estadoAuditorias === 'amarillo'
-            ? 'linear-gradient(135deg, #b45309 0%, #fbbf24 100%)'
-            : 'linear-gradient(135deg, #be123c 0%, #fb7185 100%)',
-        estado: estadoAuditorias
+        titulo: 'Eficacia de la capacitación',
+        valor: `${ec.tasaAprobacion || 0}%`,
+        subtitulo: `${ec.totalAprobados || 0}/${ec.totalEvaluados || 0} evaluaciones aprobadas`,
+        icono: 'fa-graduation-cap',
+        color: this.palette.azul,
+        gradiente: `linear-gradient(135deg, #1d4ed8 0%, #60a5fa 100%)`
       },
       {
         titulo: 'Avance de proyectos',
@@ -1967,14 +1960,6 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
     ];
 
     this.kpiCardsInferiores = [
-      {
-        titulo: 'Eficacia de la capacitación',
-        valor: `${ec.tasaAprobacion || 0}%`,
-        subtitulo: `${ec.totalAprobados || 0}/${ec.totalEvaluados || 0} evaluaciones aprobadas`,
-        icono: 'fa-graduation-cap',
-        color: this.palette.azul,
-        gradiente: `linear-gradient(135deg, #1d4ed8 0%, #60a5fa 100%)`
-      },
       {
         titulo: 'Satisfacción de la capacitación',
         valor: `${sCap.indiceAnual || 0}%`,
@@ -2001,14 +1986,6 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
         icono: 'fa-truck',
         color: this.palette.morado,
         gradiente: `linear-gradient(135deg, #6d28d9 0%, #a78bfa 100%)`
-      },
-      {
-        titulo: 'Total de Formatos Implementados',
-        valor: `${totalFormatos}`,
-        subtitulo: 'Formatos corporativos',
-        icono: 'fa-file-alt',
-        color: this.palette.naranja,
-        gradiente: 'linear-gradient(135deg, #c2410c 0%, #fb923c 100%)'
       }
     ];
   }
@@ -3901,8 +3878,8 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
   clasePrioridadProyecto(prioridad: string): string {
     const p = (prioridad || '').toLowerCase();
     if (
-      p.includes('inmediat') || p.includes('alta') || p.includes('urgent') || p.includes('crít')
-      || p.includes('muy priorit') || p === 'prioritaria'
+      p.includes('inmediat') || p.includes('corto') || p.includes('alta') || p.includes('urgent')
+      || p.includes('crít') || p.includes('muy priorit') || p === 'prioritaria'
     ) return 'sgc-proyecto-prio--alta';
     if (p.includes('media') || p.includes('medio') || p.includes('normal') || p.includes('mediano')) {
       return 'sgc-proyecto-prio--media';
@@ -4348,20 +4325,28 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
   }
 
   private async generarQrEncuestaSatisfaccion(): Promise<void> {
+    const url = this.encuestaSatisfaccionUrl;
+    if (!url) return;
+    if (url === this.qrEncuestaUrlGenerada && this.qrEncuestaSatisfaccion) return;
+    this.errorQrEncuesta = '';
     try {
-      this.qrEncuestaSatisfaccion = await QRCode.toDataURL(this.encuestaSatisfaccionUrl, {
+      this.qrEncuestaSatisfaccion = await QRCode.toDataURL(url, {
         width: 320,
         margin: 1,
         color: { dark: '#0f766e', light: '#ffffff' },
         errorCorrectionLevel: 'M'
       });
+      this.qrEncuestaUrlGenerada = url;
     } catch (err) {
       console.error('[sgc] QR encuesta satisfacción:', err);
+      this.qrEncuestaSatisfaccion = '';
+      this.qrEncuestaUrlGenerada = '';
       this.errorQrEncuesta = 'No se pudo generar el código QR.';
     }
   }
 
   abrirQrEncuestaSatisfaccion(): void {
+    void this.generarQrEncuestaSatisfaccion();
     this.mostrarQrEncuestaSatisfaccion = true;
   }
 

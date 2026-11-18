@@ -2481,6 +2481,13 @@ export class BackendServices {
         return this.httpClient.get(`${this.baseUrl}/programacion-estudios/empresas`);
     }
 
+    guardarSiglasEmpresaProgramacion(empresaId: number, siglas: string): Observable<any> {
+        return this.httpClient.put(`${this.baseUrl}/programacion-estudios/empresas/${empresaId}/siglas`, {
+            siglas,
+            crear_si_falta: true
+        });
+    }
+
     obtenerProgramacionesEstudios(empresaId?: number): Observable<any> {
         const params = empresaId ? `?empresa_id=${empresaId}` : '';
         return this.httpClient.get(`${this.baseUrl}/programacion-estudios${params}`);

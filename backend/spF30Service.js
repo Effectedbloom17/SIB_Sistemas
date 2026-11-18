@@ -389,10 +389,25 @@ async function guardar(pool, body, nombreEmpresa, id) {
     if (!datos.empresaId) throw errorHttp('Selecciona la empresa.');
     const previo = id ? await obtenerPorId(pool, id) : null;
     if (id && !previo) throw errorHttp('No se encontró la programación.', 404);
-    const drive = await sincronizarEnDrive(datos, previo);
+
+    let drive = {
+        driveFileId: previo?.drive_file_id || null,
+        driveUrl: previo?.drive_url || null,
+        hojaTitulo: nombreHojaProgramacion(datos.fechaProgramacion, datos.siglas)
+    };
+    let driveWarning = '';
+    try {
+        drive = await sincronizarEnDrive(datos, previo);
+    } catch (error) {
+        driveWarning = error?.message || 'No se pudo sincronizar el Excel; la programación quedó en base de datos.';
+        console.error('[SP-F-30] Sync Drive falló; se guarda en BD:', driveWarning);
+    }
+
     const guardadoId = await guardarRegistro(pool, id || null, datos, drive);
     const row = await obtenerPorId(pool, guardadoId);
-    return filaPublica(row);
+    const publica = filaPublica(row);
+    if (driveWarning) publica.drive_warning = driveWarning;
+    return publica;
 }
 
 async function subirPdfFirmado(pool, id, body) {

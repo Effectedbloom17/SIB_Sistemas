@@ -2522,6 +2522,18 @@ function parsearProveedoresDesdeFilasSheet(rows) {
 /**
  * Lee hojas SGCF29-MMAA del año y arma filas de comparativa (última versión por mes).
  */
+/** Caché corta de comparativa mensual Drive (el dashboard la reutiliza tras guardar). */
+const CACHE_COMPARATIVA_DRIVE_TTL_MS = 15 * 60 * 1000;
+let cacheComparativaDrive = null; // { key, ts, filas }
+
+function invalidarCacheComparativaDrive() {
+    cacheComparativaDrive = null;
+}
+
+function claveMesComparativa(anio, mesNum) {
+    return `${Number(anio)}-${String(mesNum).padStart(2, '0')}`;
+}
+
 async function obtenerFilasComparativaDesdeDrive(spreadsheetId, anio) {
     if (!spreadsheetId || spreadsheetId === TEMPLATE_DRIVE_ID) return [];
     const anioNum = Number(anio);
@@ -2588,6 +2600,45 @@ async function obtenerFilasComparativaDesdeDrive(spreadsheetId, anio) {
         }
     }
     return filas;
+}
+
+/**
+ * Lectura Drive con caché y tope de espera (dashboard no debe bloquearse).
+ * Si vence el timeout, usa caché previa o [] y deja calentar en fondo.
+ */
+async function obtenerFilasComparativaDesdeDriveRapido(spreadsheetId, anio, maxMs = 0) {
+    const anioNum = Number(anio);
+    const key = `${spreadsheetId}|${anioNum}`;
+    const hit = cacheComparativaDrive;
+    if (hit?.key === key && (Date.now() - hit.ts) < CACHE_COMPARATIVA_DRIVE_TTL_MS) {
+        return hit.filas;
+    }
+
+    const fetchPromise = obtenerFilasComparativaDesdeDrive(spreadsheetId, anioNum)
+        .then((filas) => {
+            cacheComparativaDrive = { key, ts: Date.now(), filas: Array.isArray(filas) ? filas : [] };
+            return cacheComparativaDrive.filas;
+        })
+        .catch((err) => {
+            console.warn('[SGC-F-29] Comparativa Drive rápida falló:', err.message || err);
+            return hit?.key === key ? hit.filas : [];
+        });
+
+    const limite = Number(maxMs) || 0;
+    if (limite <= 0) {
+        return fetchPromise;
+    }
+
+    return Promise.race([
+        fetchPromise,
+        new Promise((resolve) => {
+            setTimeout(() => {
+                // Calentar caché en fondo aunque el dashboard ya siguió con BD.
+                fetchPromise.catch(() => {});
+                resolve(hit?.key === key ? hit.filas : []);
+            }, limite);
+        })
+    ]);
 }
 
 async function obtenerResumenProveedores(pool, opciones = {}) {
@@ -2740,21 +2791,26 @@ async function obtenerResumenProveedores(pool, opciones = {}) {
         || formatearFechaIso(datos.fechaElaboracion)
         || fechaHoyIso();
     let filasCmp = filasComparativaDesdeLista(lista, fechaFallback);
-    if (!incluirOcultos) {
+    if (!incluirOcultos && opciones.incluirComparativaDrive !== false) {
         try {
             const driveId = await resolverDriveFileIdRapido(registro);
             if (driveId) {
-                const filasDrive = await obtenerFilasComparativaDesdeDrive(driveId, anioCmp);
+                // Dashboard: tope corto para no retrasar KPIs; formato: espera completa.
+                const maxMs = Number(opciones.maxMsComparativaDrive);
+                const filasDrive = Number.isFinite(maxMs) && maxMs > 0
+                    ? await obtenerFilasComparativaDesdeDriveRapido(driveId, anioCmp, maxMs)
+                    : await obtenerFilasComparativaDesdeDriveRapido(driveId, anioCmp, 0);
                 if (filasDrive.length) {
-                    // Preferir historial Drive; completar con BD si el mes vigente aún no aparece.
-                    const clavesDrive = new Set(
-                        filasDrive.map((f) => `${f.anio}-${String(f.mes_num).padStart(2, '0')}`)
-                    );
+                    // Historial Drive para meses viejos; BD gana en meses que ya tiene
+                    // (tras guardar, el JSON está al día aunque Drive aún se sincronice).
                     const filasBdAnio = filasCmp.filter((f) => f.anio === anioCmp);
-                    const extrasBd = filasBdAnio.filter(
-                        (f) => !clavesDrive.has(`${f.anio}-${String(f.mes_num).padStart(2, '0')}`)
+                    const clavesBd = new Set(
+                        filasBdAnio.map((f) => claveMesComparativa(f.anio, f.mes_num))
                     );
-                    filasCmp = filasDrive.concat(extrasBd);
+                    const filasDriveSinBd = filasDrive.filter(
+                        (f) => !clavesBd.has(claveMesComparativa(f.anio, f.mes_num))
+                    );
+                    filasCmp = filasDriveSinBd.concat(filasBdAnio);
                 }
             }
         } catch (err) {
@@ -3048,6 +3104,7 @@ async function guardarFormato(pool, body, options = {}) {
                 fechaModificacionContenido: contenidoModificado ? fechaModificacion : null,
                 contenidoModificado
             });
+            invalidarCacheComparativaDrive();
             return construirRespuesta(await obtenerRegistroDb(pool), datosGuardar, archivoDrive, {
                 hojaEditor: tituloSync
             });
@@ -3091,6 +3148,7 @@ async function guardarFormato(pool, body, options = {}) {
         fechaModificacionContenido: contenidoModificado ? fechaModificacion : null,
         contenidoModificado
     });
+    invalidarCacheComparativaDrive();
     return construirRespuesta(await obtenerRegistroDb(pool), datosGuardar, archivoDrive, {
         hojaEditor: tituloNuevo
     });
@@ -3158,6 +3216,7 @@ async function sincronizarDesdeDrive(pool) {
         fechaModificacionContenido: contenidoModificado ? fechaModificacion : null,
         contenidoModificado
     });
+    invalidarCacheComparativaDrive();
 
     const registroFinal = await obtenerRegistroDb(pool);
     return construirRespuesta(registroFinal, datosDrive, archivoDriveInfo);
@@ -3279,6 +3338,7 @@ module.exports = {
     actualizarPlantillaDesdeSistema,
     asegurarAccesoEditor,
     obtenerResumenProveedores,
+    invalidarCacheComparativaDrive,
     listarProveedoresOcultos,
     establecerVisibilidadProveedor,
     listarCriterios,

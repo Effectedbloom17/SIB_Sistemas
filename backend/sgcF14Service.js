@@ -2,7 +2,7 @@
  * SGC-F-14 · Bitácora de proyectos de mejora — persistencia en biznaga_sgc y sync con Drive.
  *
  * Tabla simple: cada renglón es un proyecto de mejora con columnas
- *   # Folio | Nombre del proyecto | Responsable | Prioridad | Estatus | % Avance.
+ *   # Folio | Actividad | Responsable | Periodo | Estatus | % Avance.
  * Reutiliza el mismo esquema de persistencia/historial que SGC-F-07/F-08.
  */
 const ExcelJS = require('exceljs');
@@ -23,18 +23,26 @@ const DATA_START_ROW = 6;
 const MAX_FILAS = 60;
 const DATA_END_ROW = DATA_START_ROW + MAX_FILAS - 1;
 
-// Columnas según la plantilla (Nombre del proyecto está combinada B:C, % Avance combinada G:H).
+// Columnas según la plantilla (Actividad está combinada B:C, % Avance combinada G:H).
 const COLUMNAS = {
     folio: 1,            // A
-    nombreProyecto: 2,   // B (B:C)
+    nombreProyecto: 2,   // B (B:C) — etiqueta UI: Actividad
     responsable: 4,      // D
-    prioridad: 5,        // E
-    estatus: 6,          // F
+    prioridad: 5,        // E — etiqueta UI: Periodo
+    estatus: 6,          // F — automático según % Avance
     avance: 7            // G (G:H)
 };
 
-const PRIORIDADES_VALIDAS = ['Inmediato', 'Mediano plazo', 'Largo plazo'];
+const PRIORIDADES_VALIDAS = ['Corto plazo', 'Mediano plazo', 'Largo plazo'];
 const ESTATUS_VALIDOS = ['Concluido', 'En proceso', 'No iniciado'];
+const ENCABEZADOS_TABLA = {
+    folio: '# Folio',
+    nombreProyecto: 'Actividad',
+    responsable: 'Responsable',
+    prioridad: 'Periodo',
+    estatus: 'Estatus',
+    avance: '% Avance'
+};
 
 const PROYECTO_DEFECTO = {
     folio: '',
@@ -126,18 +134,28 @@ function normalizarOpcion(valor, opciones) {
     return encontrado || limpio;
 }
 
+function normalizarPeriodo(valor) {
+    const limpio = String(valor || '').trim();
+    if (!limpio) return '';
+    // Compatibilidad con registros previos que usaban «Inmediato».
+    if (/^inmediato$/i.test(limpio)) return 'Corto plazo';
+    return normalizarOpcion(limpio, PRIORIDADES_VALIDAS);
+}
+
 function sanitizarProyecto(item) {
     const folio = String(item?.folio || '').trim();
     // Folio es la clave estable (sobrevive sync Drive); si no hay folio, conservar id enviado.
     const id = String(item?.id || folio || '').trim().slice(0, 64);
+    const avance = parsearAvance(item?.avance);
     return {
         ...(id ? { id } : {}),
         folio,
         nombreProyecto: String(item?.nombreProyecto || '').trim(),
         responsable: String(item?.responsable || '').trim(),
-        prioridad: normalizarOpcion(item?.prioridad, PRIORIDADES_VALIDAS),
-        estatus: normalizarOpcion(item?.estatus, ESTATUS_VALIDOS),
-        avance: parsearAvance(item?.avance)
+        prioridad: normalizarPeriodo(item?.prioridad),
+        // Estatus siempre derivado del % de avance (no se edita a mano).
+        estatus: estatusDesdeAvance(avance),
+        avance
     };
 }
 
@@ -237,8 +255,19 @@ function escribirProyectosEnHoja(ws, proyectosRaw) {
     }
 }
 
+function escribirEncabezadosTabla(ws) {
+    const row = ws.getRow(HEADER_ROW);
+    asignarTextoSimple(row.getCell(COLUMNAS.folio), ENCABEZADOS_TABLA.folio, 'center');
+    asignarTextoSimple(row.getCell(COLUMNAS.nombreProyecto), ENCABEZADOS_TABLA.nombreProyecto, 'center');
+    asignarTextoSimple(row.getCell(COLUMNAS.responsable), ENCABEZADOS_TABLA.responsable, 'center');
+    asignarTextoSimple(row.getCell(COLUMNAS.prioridad), ENCABEZADOS_TABLA.prioridad, 'center');
+    asignarTextoSimple(row.getCell(COLUMNAS.estatus), ENCABEZADOS_TABLA.estatus, 'center');
+    asignarTextoSimple(row.getCell(COLUMNAS.avance), ENCABEZADOS_TABLA.avance, 'center');
+}
+
 function escribirDatosEnHoja(ws, datos) {
     const d = sanitizarDatos(datos);
+    escribirEncabezadosTabla(ws);
     escribirProyectosEnHoja(ws, d.proyectos);
 }
 
@@ -259,7 +288,14 @@ function rangoSheet(celda, sheetTitle) {
 
 function datosAActualizacionesSheet(datos, sheetTitle) {
     const d = sanitizarDatos(datos);
-    const actualizaciones = [];
+    const actualizaciones = [
+        { range: rangoSheet(`${columnaALetra(COLUMNAS.folio)}${HEADER_ROW}`, sheetTitle), values: [[ENCABEZADOS_TABLA.folio]] },
+        { range: rangoSheet(`${columnaALetra(COLUMNAS.nombreProyecto)}${HEADER_ROW}`, sheetTitle), values: [[ENCABEZADOS_TABLA.nombreProyecto]] },
+        { range: rangoSheet(`${columnaALetra(COLUMNAS.responsable)}${HEADER_ROW}`, sheetTitle), values: [[ENCABEZADOS_TABLA.responsable]] },
+        { range: rangoSheet(`${columnaALetra(COLUMNAS.prioridad)}${HEADER_ROW}`, sheetTitle), values: [[ENCABEZADOS_TABLA.prioridad]] },
+        { range: rangoSheet(`${columnaALetra(COLUMNAS.estatus)}${HEADER_ROW}`, sheetTitle), values: [[ENCABEZADOS_TABLA.estatus]] },
+        { range: rangoSheet(`${columnaALetra(COLUMNAS.avance)}${HEADER_ROW}`, sheetTitle), values: [[ENCABEZADOS_TABLA.avance]] }
+    ];
     for (let i = 0; i < MAX_FILAS; i++) {
         const rowNum = DATA_START_ROW + i;
         const p = i < d.proyectos.length ? d.proyectos[i] : { ...PROYECTO_DEFECTO };
@@ -678,12 +714,8 @@ function estatusDesdeAvance(avance) {
     return 'No iniciado';
 }
 
-function normalizarEstatusProyecto(estatus, avance) {
-    const limpio = String(estatus || '').trim();
-    if (limpio) {
-        const encontrado = ESTATUS_VALIDOS.find((op) => op.toLowerCase() === limpio.toLowerCase());
-        return encontrado || limpio;
-    }
+function normalizarEstatusProyecto(_estatus, avance) {
+    // Siempre automático según % avance (ignora valor manual previo).
     return estatusDesdeAvance(avance);
 }
 

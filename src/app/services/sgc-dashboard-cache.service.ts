@@ -87,14 +87,10 @@ export class SgcDashboardCacheService {
     }
 
     this.inflightAnio = y;
-    const softSwr = !!opts.ignorarCacheLocal && !refrescar;
+    // Soft refresh y carga normal: core (BD / F-29) primero, Forms después.
+    // Así el indicador de proveedores no espera Google Forms.
     this.inflight = new Observable<any>((subscriber) => {
-      if (softSwr) {
-        // Renovación en fondo: un solo request aprovecha SWR del backend.
-        this.cargarCompleto(y, false, subscriber);
-      } else {
-        this.cargarEnDosFases(y, refrescar, subscriber);
-      }
+      this.cargarEnDosFases(y, refrescar, subscriber);
     }).pipe(
       finalize(() => {
         this.inflight = null;

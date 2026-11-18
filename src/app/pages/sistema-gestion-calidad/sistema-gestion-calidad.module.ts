@@ -17,6 +17,7 @@ import { SgcNormativasComponent } from './sgc-normativas.component';
 import { SgcSolicitudDocumentosComponent } from './sgc-solicitud-documentos.component';
 import { SgcFirmasComponent } from './sgc-firmas.component';
 import { SgcPedirFirmaComponent } from './sgc-pedir-firma.component';
+import { SgcEficaciaAuditoriasComponent } from './sgc-eficacia-auditorias.component';
 
 const routes: Routes = [
   {
@@ -106,7 +107,8 @@ const routes: Routes = [
     SgcNormativasComponent,
     SgcSolicitudDocumentosComponent,
     SgcFirmasComponent,
-    SgcPedirFirmaComponent
+    SgcPedirFirmaComponent,
+    SgcEficaciaAuditoriasComponent
   ]
 })
 export class SistemaGestionCalidadModule {}

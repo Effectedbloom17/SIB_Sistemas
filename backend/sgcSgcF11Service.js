@@ -911,13 +911,17 @@ function construirRespuesta(registro, datos, archivoDrive) {
     const fechaOriginal = formatearFechaIso(registro?.fecha_elaboracion_original);
     const fechaMod = formatearFechaIso(registro?.fecha_modificacion_contenido);
     const modificado = !!registro?.contenido_modificado;
-    const fechaMostrar = modificado && fechaMod ? fechaMod : (fechaOriginal || datos.fechaElaboracion);
+    const activo = resolverAnalisisActivo(datos);
+    const fechaElaboracion = formatearFechaIso(activo?.fechaElaboracion)
+        || formatearFechaIso(datos?.fechaElaboracion)
+        || fechaOriginal
+        || DATOS_DEFECTO.fechaElaboracion;
     const driveId = archivoDrive?.id || registro?.drive_file_id || null;
 
     return {
         codigo: CODIGO_FORMATO,
-        datos: { ...datos, fechaElaboracion: fechaMostrar },
-        fechaElaboracionOriginal: fechaOriginal || datos.fechaElaboracion,
+        datos: { ...datos, fechaElaboracion },
+        fechaElaboracionOriginal: fechaOriginal || fechaElaboracion,
         fechaModificacionContenido: fechaMod || null,
         contenidoModificado: modificado,
         driveFileId: driveId,
@@ -1406,11 +1410,20 @@ async function guardarFormato(pool, body) {
         fechaModificacion = excelHistorial.fechaAhoraMexicoIso();
     }
 
+    const activoEntrada = resolverAnalisisActivo(datosEntrada);
+    const fechaUsuario = formatearFechaIso(datosEntrada.fechaElaboracion)
+        || formatearFechaIso(activoEntrada?.fechaElaboracion)
+        || fechaOriginal
+        || DATOS_DEFECTO.fechaElaboracion;
+
     const datosGuardar = {
         ...datosEntrada,
-        fechaElaboracion: contenidoModificado && fechaModificacion
-            ? fechaModificacion
-            : fechaOriginal
+        fechaElaboracion: fechaUsuario,
+        analisis: (datosEntrada.analisis || []).map((item) => (
+            !activoEntrada || item.id !== activoEntrada.id
+                ? item
+                : { ...item, fechaElaboracion: fechaUsuario }
+        ))
     };
 
     let driveId = await resolverDriveFileId(registroPrevio);
@@ -1507,7 +1520,6 @@ async function sincronizarDesdeDrive(pool) {
     if (huboCambio) {
         contenidoModificado = true;
         fechaModificacion = excelHistorial.fechaAhoraMexicoIso();
-        datosGuardar.fechaElaboracion = fechaModificacion;
     }
 
     await guardarRegistroDb(pool, {

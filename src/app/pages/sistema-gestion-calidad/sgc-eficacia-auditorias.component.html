@@ -1,0 +1,186 @@
+<section class="sgc-eficacia-aud" aria-labelledby="sgc-eficacia-aud-title">
+  <div class="sgc-eficacia-aud__head">
+    <div class="sgc-eficacia-aud__head-main">
+      <div class="sgc-eficacia-aud__badge" aria-hidden="true"><i class="fas fa-clipboard-check"></i></div>
+      <div>
+        <span class="sgc-eficacia-aud__label">Objetivo · Eficacia del SGC</span>
+        <h2 class="sgc-eficacia-aud__title" id="sgc-eficacia-aud-title">Resultados de auditorías</h2>
+        <p class="sgc-eficacia-aud__desc" *ngIf="hayAuditorias || hayNcBitacora">
+          {{ ncAbiertasAuditoriaDisplay }} abierta{{ ncAbiertasAuditoriaDisplay !== 1 ? 's' : '' }}
+          · {{ ncCerradasAuditoriaDisplay }} cerrada{{ ncCerradasAuditoriaDisplay !== 1 ? 's' : '' }}
+          · {{ totalNcAuditoriaDisplay }} no conformidad{{ totalNcAuditoriaDisplay !== 1 ? 'es' : '' }}
+          (Auditoría interna · SGC-F-05)
+          <ng-container *ngIf="hayAuditorias">
+            · {{ eficacia?.totalCerradas || 0 }} auditoría{{ (eficacia?.totalCerradas || 0) !== 1 ? 's' : '' }} cerrada{{ (eficacia?.totalCerradas || 0) !== 1 ? 's' : '' }}
+            · {{ nivelActualEtiquetaDisplay }}
+          </ng-container>
+        </p>
+        <p class="sgc-eficacia-aud__desc" *ngIf="!hayAuditorias && !hayNcBitacora && !cargando">
+          Las NC abiertas/cerradas salen de SGC-F-05 · Bitácora de no conformidades.
+        </p>
+      </div>
+    </div>
+    <div class="sgc-eficacia-aud__head-aside" *ngIf="!cargando && (hayAuditorias || hayNcBitacora)">
+      <div class="sgc-eficacia-aud__kpi">
+        <span class="sgc-eficacia-aud__kpi-val">{{ ncAbiertasAuditoriaDisplay }}</span>
+        <span class="sgc-eficacia-aud__kpi-lbl">NC abiertas</span>
+        <span class="sgc-eficacia-aud__kpi-sub">
+          {{ ncCerradasAuditoriaDisplay }} cerrada{{ ncCerradasAuditoriaDisplay !== 1 ? 's' : '' }}
+          · {{ totalNcAuditoriaDisplay }} NC
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <div class="sgc-eficacia-aud__body">
+    <div *ngIf="cargando" class="sgc-eficacia-aud__skeleton" aria-hidden="true"></div>
+
+    <div class="sgc-aud-dual" *ngIf="!cargando && hayAuditorias">
+      <div class="sgc-aud-panel sgc-aud-panel--gauge">
+        <div class="sgc-avance-panel__header">
+          <span class="sgc-avance-panel__icon sgc-avance-panel__icon--donut"><i class="fas fa-chart-pie"></i></span>
+          <div>
+            <span class="sgc-avance-panel__title" *ngIf="!esModoClasificacionAud">Nivel de eficacia</span>
+            <span class="sgc-avance-panel__title" *ngIf="esModoClasificacionAud">
+              Auditoría No. {{ auditoriaSeleccionada?.auditoriaNo }}
+            </span>
+            <span class="sgc-avance-panel__sub" *ngIf="esModoClasificacionAud">
+              Hallazgos · OP / NC menor / NC mayor
+            </span>
+          </div>
+        </div>
+        <div class="sgc-avance-donut-inner">
+          <div class="sgc-avance-donut-chart-wrap sgc-aud-donut-chart-wrap">
+            <apx-chart *ngIf="chartsReady"
+              [series]="eficaciaChart.series" [chart]="eficaciaChart.chart"
+              [labels]="eficaciaChart.labels" [colors]="eficaciaChart.colors"
+              [plotOptions]="eficaciaChart.plotOptions" [fill]="eficaciaChart.fill"
+              [dataLabels]="eficaciaChart.dataLabels" [stroke]="eficaciaChart.stroke"
+              [legend]="eficaciaChart.legend" [tooltip]="eficaciaChart.tooltip"
+              [responsive]="eficaciaChart.responsive"
+            ></apx-chart>
+            <div class="sgc-donut-center sgc-donut-center--eficacia" aria-live="polite">
+              <span class="sgc-donut-center__val">{{ eficaciaDonutCentroValor }}</span>
+              <span class="sgc-donut-center__lbl">{{ eficaciaDonutCentroEtiqueta }}</span>
+              <span class="sgc-donut-center__pct" *ngIf="eficaciaDonutCentroSub">{{ eficaciaDonutCentroSub }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="sgc-eficacia-legend sgc-eficacia-legend--rules" *ngIf="!esModoClasificacionAud">
+          <div class="sgc-eficacia-rule-card sgc-nivel--alto"
+            [class.sgc-eficacia-rule-card--activa]="nivelActualClaveDisplay === 'alto'">
+            <span class="sgc-eficacia-rule-card__dot"></span>
+            <div class="sgc-eficacia-rule-card__body">
+              <span class="sgc-eficacia-rule-card__range">0–2 NC</span>
+              <span class="sgc-eficacia-rule-card__desc">Alto nivel de eficacia</span>
+            </div>
+          </div>
+          <div class="sgc-eficacia-rule-card sgc-nivel--medio"
+            [class.sgc-eficacia-rule-card--activa]="nivelActualClaveDisplay === 'medio'">
+            <span class="sgc-eficacia-rule-card__dot"></span>
+            <div class="sgc-eficacia-rule-card__body">
+              <span class="sgc-eficacia-rule-card__range">3–4 NC</span>
+              <span class="sgc-eficacia-rule-card__desc">Nivel medio de eficacia</span>
+            </div>
+          </div>
+          <div class="sgc-eficacia-rule-card sgc-nivel--bajo"
+            [class.sgc-eficacia-rule-card--activa]="nivelActualClaveDisplay === 'bajo'">
+            <span class="sgc-eficacia-rule-card__dot"></span>
+            <div class="sgc-eficacia-rule-card__body">
+              <span class="sgc-eficacia-rule-card__range">≥5 NC</span>
+              <span class="sgc-eficacia-rule-card__desc">Bajo nivel de eficacia</span>
+            </div>
+          </div>
+        </div>
+        <div class="sgc-eficacia-legend sgc-eficacia-legend--rules" *ngIf="esModoClasificacionAud">
+          <div class="sgc-eficacia-rule-card" style="color:#0f766e">
+            <span class="sgc-eficacia-rule-card__dot" style="background:#15a596"></span>
+            <div class="sgc-eficacia-rule-card__body">
+              <span class="sgc-eficacia-rule-card__range">OP {{ auditoriaSeleccionada?.totalOp || 0 }}</span>
+              <span class="sgc-eficacia-rule-card__desc">Oportunidad de mejora</span>
+            </div>
+          </div>
+          <div class="sgc-eficacia-rule-card sgc-nivel--medio">
+            <span class="sgc-eficacia-rule-card__dot"></span>
+            <div class="sgc-eficacia-rule-card__body">
+              <span class="sgc-eficacia-rule-card__range">NC menor {{ auditoriaSeleccionada?.totalNcMenor || 0 }}</span>
+              <span class="sgc-eficacia-rule-card__desc">No conformidad menor</span>
+            </div>
+          </div>
+          <div class="sgc-eficacia-rule-card sgc-nivel--bajo">
+            <span class="sgc-eficacia-rule-card__dot"></span>
+            <div class="sgc-eficacia-rule-card__body">
+              <span class="sgc-eficacia-rule-card__range">NC mayor {{ auditoriaSeleccionada?.totalNcMayor || 0 }}</span>
+              <span class="sgc-eficacia-rule-card__desc">No conformidad mayor</span>
+            </div>
+          </div>
+        </div>
+        <button type="button" class="sgc-btn-add-text sgc-aud-panel__register"
+          *ngIf="esModoClasificacionAud"
+          (click)="limpiarSeleccionAuditoriaEficacia()">
+          <i class="fas fa-chart-pie mr-1"></i> Ver eficacia general
+        </button>
+        <button type="button" class="sgc-btn-add-text sgc-aud-panel__register"
+          *ngIf="!esModoClasificacionAud && mostrarAbrirFormato"
+          (click)="abrirFormAuditoria()">
+          <i class="fas fa-file-alt mr-1"></i> Abrir SGC-F-10
+        </button>
+      </div>
+
+      <div class="sgc-aud-panel sgc-aud-panel--timeline">
+        <div class="sgc-aud-panel__header">
+          <div class="sgc-aud-panel__header-main">
+            <span class="sgc-aud-panel__header-icon"><i class="fas fa-history"></i></span>
+            <div>
+              <span class="sgc-aud-panel__title">Histórico SGC-F-10</span>
+              <span class="sgc-aud-panel__sub">Haz clic en una auditoría para ver OP / NC menor / NC mayor.</span>
+            </div>
+          </div>
+          <span class="sgc-aud-panel__count">{{ eficacia?.totalAuditorias || 0 }}</span>
+        </div>
+        <div class="sgc-aud-timeline">
+          <article class="sgc-aud-timeline-item"
+                   *ngFor="let aud of auditoriasOrdenadas; let last = last"
+                   [class.sgc-aud-timeline-item--latest]="claveAuditoria(aud) === claveAuditoria(auditoriaUltimaTomada)"
+                   [class.sgc-aud-timeline-item--curso]="aud.enCurso"
+                   [class.sgc-aud-timeline-item--selected]="estaAuditoriaSeleccionada(aud)"
+                   (click)="seleccionarAuditoriaEficacia(aud)"
+                   role="button"
+                   tabindex="0"
+                   (keydown.enter)="seleccionarAuditoriaEficacia(aud)">
+            <div class="sgc-aud-timeline-rail" aria-hidden="true">
+              <span class="sgc-aud-timeline-dot" [ngClass]="getNivelClase(aud.nivel)"></span>
+              <span class="sgc-aud-timeline-line" *ngIf="!last"></span>
+            </div>
+            <div class="sgc-aud-timeline-card" [ngClass]="getNivelClase(aud.nivel)">
+              <div class="sgc-aud-timeline-card__head">
+                <time class="sgc-aud-timeline-date">{{ formatFecha(aud.fecha) }}</time>
+                <span class="sgc-aud-timeline-tag"
+                  *ngIf="claveAuditoria(aud) === claveAuditoria(auditoriaUltimaTomada) && !aud.enCurso">Última</span>
+                <span class="sgc-aud-timeline-tag sgc-aud-timeline-tag--curso" *ngIf="aud.enCurso">En curso</span>
+              </div>
+              <h4 class="sgc-aud-timeline-title">{{ aud.titulo }}</h4>
+              <div class="sgc-aud-timeline-foot">
+                <span class="sgc-aud-timeline-nc" [ngClass]="getNivelClase(aud.nivel)">
+                  {{ aud.no_conformidades }} NC
+                </span>
+                <span class="sgc-aud-timeline-nivel" [ngClass]="getNivelClase(aud.nivel)">
+                  {{ aud.nivelEtiqueta }}
+                </span>
+                <span class="sgc-aud-timeline-area" *ngIf="aud.area">{{ aud.area }}</span>
+              </div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div *ngIf="!cargando && !hayAuditorias" class="sgc-eficacia-aud__empty">
+      <i class="fas fa-clipboard-check fa-2x mb-2"></i>
+      <p class="mb-2">Aún no hay informes de auditoría en SGC-F-10.</p>
+      <button type="button" class="sgc-btn-add-text" *ngIf="mostrarAbrirFormato" (click)="abrirFormAuditoria()">
+        <i class="fas fa-file-alt mr-1"></i> Abrir SGC-F-10
+      </button>
+    </div>
+  </div>
+</section>

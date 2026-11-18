@@ -1,11 +1,11 @@
-<div class="header header-bg-image pb-4 pt-3 pt-md-4 d-flex align-items-center position-relative overflow-hidden">
+<div class="header header-bg-image pe-header pb-4 pt-3 pt-md-4 d-flex align-items-center position-relative overflow-hidden">
   <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
-    <div class="text-center">
-      <div class="icon icon-shape text-white rounded-circle shadow mb-2 header-icon">
+    <div class="text-center pe-header__inner">
+      <div class="icon icon-shape text-white rounded-circle shadow mb-2 pe-header__icon">
         <i class="fas fa-calendar-check"></i>
       </div>
-      <h1 class="text-white mb-0 header-title">Programación de estudios médicos</h1>
-      <p class="text-white-50 mb-0 mt-1">SP-F-30</p>
+      <h1 class="text-white mb-0 pe-header__title">Programación de estudios médicos</h1>
+      <p class="text-white-50 mb-0 mt-1 pe-header__sub">SP-F-30</p>
     </div>
   </div>
 </div>
@@ -14,83 +14,220 @@
   <div class="row justify-content-center">
     <div class="col-xl-11">
 
-      <div *ngIf="vistaActual === 'empresas'" class="card shadow-lg border-0 panel">
-        <div class="card-header border-0 panel-header">
-          <div class="row align-items-center">
-            <div class="col-lg-7">
-              <h6 class="text-uppercase text-muted ls-1 mb-1">Gestión</h6>
-              <h2 class="panel-title mb-0">Seleccionar empresa ({{ empresasFiltradas.length }})</h2>
+      <!-- ===== INICIO ===== -->
+      <ng-container *ngIf="vistaActual === 'inicio'">
+        <div class="card shadow-lg border-0 pe-panel pe-inicio">
+          <div class="card-body pe-inicio__body">
+            <div class="pe-inicio__glow" aria-hidden="true"></div>
+            <div class="pe-inicio__icon">
+              <i class="fas fa-stethoscope"></i>
             </div>
-            <div class="col-lg-5 mt-3 mt-lg-0">
-              <div class="input-group input-group-alternative">
-                <div class="input-group-prepend">
-                  <span class="input-group-text"><i class="fas fa-search"></i></span>
-                </div>
-                <input class="form-control" placeholder="Buscar por nombre o RFC..." [(ngModel)]="textoBusquedaEmpresa" (input)="filtrarEmpresas()">
-              </div>
-            </div>
+            <span class="pe-eyebrow">Médicos · SP-F-30</span>
+            <h2 class="pe-inicio__title">Programación de citas médicas</h2>
+            <p class="pe-inicio__desc">
+              Agenda estudios por empresa, registra trabajadores y genera la hoja en el archivero Excel sin modificar la plantilla.
+            </p>
+            <button type="button" class="pe-cta" (click)="iniciarProgramacion()">
+              <i class="fas fa-calendar-plus"></i>
+              <span>Programar una cita médica</span>
+            </button>
           </div>
         </div>
-        <div class="card-body">
-          <div *ngIf="cargandoEmpresas" class="text-center py-5 text-muted">
-            <i class="fas fa-spinner fa-spin fa-2x"></i>
-            <p class="mt-2 mb-0">Cargando empresas...</p>
+
+        <section class="pe-archivero-home pe-animate-in" *ngIf="!cargandoEmpresas">
+          <div class="pe-archivero-home__head">
+            <div>
+              <span class="pe-eyebrow">Archivero SP-F-30</span>
+              <h3 class="pe-archivero-home__title">Empresas con programación</h3>
+              <p class="pe-archivero-home__desc">Consulta las hojas ya registradas por empresa.</p>
+            </div>
+            <span class="pe-archivero-home__count" *ngIf="empresasConProgramacion.length">
+              {{ empresasConProgramacion.length }}
+            </span>
           </div>
-          <div *ngIf="!cargandoEmpresas && empresasFiltradas.length === 0" class="text-center py-5 text-muted">
-            <i class="fas fa-building fa-2x"></i>
-            <p class="mt-2 mb-0">No hay empresas registradas</p>
+
+          <div *ngIf="empresasConProgramacion.length === 0" class="pe-archivero-home__empty">
+            <i class="fas fa-folder-open"></i>
+            <p>Aún no hay programaciones. Usa el botón de arriba para crear la primera.</p>
           </div>
-          <div *ngIf="!cargandoEmpresas && empresasFiltradas.length > 0" class="row">
-            <div *ngFor="let empresa of empresasFiltradas" class="col-lg-4 col-md-6 mb-4">
-              <div class="card h-100 shadow-sm border-0 empresa-card" (click)="seleccionarEmpresa(empresa)">
-                <div class="card-body">
-                  <div class="d-flex align-items-center mb-3">
-                    <span *ngIf="!getLogoEmpresaUrl(empresa)" class="avatar-empresa">{{ getInicialesEmpresa(empresa.nombre_empresa) }}</span>
-                    <img *ngIf="getLogoEmpresaUrl(empresa)" [src]="getLogoEmpresaUrl(empresa)" [alt]="empresa.nombre_empresa" class="logo-empresa" (error)="onLogoEmpresaError(empresa)">
-                    <div>
-                      <h5 class="mb-0 empresa-nombre">{{ empresa.nombre_empresa }}</h5>
-                      <small class="text-muted d-block">RFC: {{ empresa.rfc || '—' }}</small>
+
+          <div class="row" *ngIf="empresasConProgramacion.length > 0">
+            <div class="col-lg-4 col-md-6 mb-4" *ngFor="let empresa of empresasConProgramacion">
+              <button type="button" class="pe-empresa-card" (click)="abrirArchiveroEmpresa(empresa)">
+                <div class="pe-empresa-card__head">
+                  <ng-container *ngIf="getLogoEmpresaUrl(empresa) as logoUrl; else homeInicial">
+                    <div class="pe-avatar pe-avatar--logo pe-avatar--lg">
+                      <img [src]="logoUrl" [alt]="empresa.nombre_empresa" (error)="onLogoEmpresaError(empresa)">
                     </div>
+                  </ng-container>
+                  <ng-template #homeInicial>
+                    <div class="pe-avatar pe-avatar--lg">{{ getInicialesEmpresa(empresa.nombre_empresa) }}</div>
+                  </ng-template>
+                  <div class="pe-empresa-card__meta">
+                    <h5 class="pe-empresa-card__name">{{ empresa.nombre_empresa }}</h5>
+                    <small class="pe-empresa-card__rfc">RFC: {{ empresa.rfc || '—' }}</small>
+                    <small class="pe-empresa-card__loc" *ngIf="empresa.ciudad || empresa.estado">
+                      <i class="fas fa-map-marker-alt"></i>
+                      {{ empresa.ciudad }}<span *ngIf="empresa.ciudad && empresa.estado">, </span>{{ empresa.estado }}
+                    </small>
                   </div>
+                </div>
+                <div class="pe-empresa-card__progress">
                   <div class="d-flex justify-content-between">
-                    <small class="text-muted">Programaciones</small>
+                    <small>Programaciones</small>
                     <small class="font-weight-bold">{{ empresa.programaciones_totales || 0 }}</small>
                   </div>
-                  <div class="text-right mt-3 ver-link">Ver programaciones <i class="fas fa-arrow-right ml-1"></i></div>
+                  <div class="pe-empresa-card__bar">
+                    <span [style.width.%]="empresa.programaciones_totales > 0 ? 100 : 0"></span>
+                  </div>
                 </div>
-              </div>
+                <div class="pe-empresa-card__cta">
+                  Ver programaciones <i class="fas fa-arrow-right ml-1"></i>
+                </div>
+              </button>
             </div>
+          </div>
+        </section>
+      </ng-container>
+
+      <!-- ===== PROGRAMAR (selector + formulario) ===== -->
+      <div *ngIf="vistaActual === 'programar'" class="card shadow-lg border-0 pe-panel">
+        <div class="card-header border-0 pe-panel__header">
+          <button class="pe-back" type="button" (click)="volverAInicio()">
+            <i class="fas fa-arrow-left"></i> Volver al inicio
+          </button>
+          <span class="pe-eyebrow">{{ modoArchivero ? 'Archivero' : 'Nueva programación' }}</span>
+          <h2 class="pe-panel__title">
+            {{ modoArchivero ? 'Selecciona la empresa del archivero' : '¿A qué empresa se programará?' }}
+          </h2>
+          <p class="pe-help">
+            <i class="fas fa-info-circle"></i>
+            {{ modoArchivero
+              ? 'Elige la empresa para ver o abrir sus programaciones SP-F-30.'
+              : 'Busca y selecciona la empresa. El formulario de programación aparecerá al confirmarla.' }}
+          </p>
+        </div>
+
+        <div class="card-body pe-panel__body">
+          <div class="pe-field">
+            <label class="pe-label">
+              <i class="fas fa-building"></i> Buscar empresa *
+            </label>
+            <div class="pe-input-wrap"
+                 [class.is-selected]="!!empresaSeleccionada"
+                 [class.is-open]="mostrarDropdownEmpresa">
+              <i class="fas fa-search pe-input-icon"></i>
+              <input type="text"
+                     class="pe-input"
+                     [(ngModel)]="textoBusquedaEmpresa"
+                     (input)="filtrarEmpresas()"
+                     (focus)="mostrarEmpresas()"
+                     (blur)="ocultarDropdownEmpresa()"
+                     placeholder="Nombre, RFC o ciudad..."
+                     autocomplete="off">
+              <button type="button"
+                      class="pe-clear"
+                      *ngIf="empresaSeleccionada"
+                      (mousedown)="limpiarEmpresa(); $event.preventDefault()"
+                      title="Quitar empresa"
+                      aria-label="Quitar empresa">
+                <i class="fas fa-times"></i>
+              </button>
+              <div class="pe-dropdown" *ngIf="mostrarDropdownEmpresa && empresasFiltradas.length > 0">
+                <button type="button"
+                        class="pe-dropdown__item"
+                        *ngFor="let empresa of empresasFiltradas"
+                        (mousedown)="seleccionarEmpresa(empresa)">
+                  <ng-container *ngIf="getLogoEmpresaUrl(empresa) as logoUrl; else empIniciales">
+                    <div class="pe-avatar pe-avatar--logo">
+                      <img [src]="logoUrl" [alt]="empresa.nombre_empresa" (error)="onLogoEmpresaError(empresa)">
+                    </div>
+                  </ng-container>
+                  <ng-template #empIniciales>
+                    <div class="pe-avatar">{{ getInicialesEmpresa(empresa.nombre_empresa) }}</div>
+                  </ng-template>
+                  <div class="pe-dropdown__meta">
+                    <span class="pe-dropdown__name">{{ empresa.nombre_empresa }}</span>
+                    <span class="pe-dropdown__loc">
+                      <span *ngIf="empresa.rfc">RFC: {{ empresa.rfc }}</span>
+                      <span *ngIf="empresa.ciudad || empresa.estado">
+                        <i class="fas fa-map-marker-alt"></i>
+                        {{ empresa.ciudad }}<span *ngIf="empresa.ciudad && empresa.estado">, </span>{{ empresa.estado }}
+                      </span>
+                    </span>
+                  </div>
+                  <span class="pe-dropdown__badge" *ngIf="empresa.programaciones_totales">
+                    {{ empresa.programaciones_totales }}
+                  </span>
+                </button>
+              </div>
+              <small class="pe-hint" *ngIf="mostrarDropdownEmpresa && !cargandoEmpresas && empresasFiltradas.length === 0">
+                No se encontraron empresas
+              </small>
+            </div>
+            <small class="pe-hint pe-hint--tip">
+              <i class="fas fa-lightbulb"></i>
+              Selecciona primero la empresa para continuar.
+            </small>
+          </div>
+
+          <div *ngIf="!empresaSeleccionada" class="pe-placeholder">
+            <div class="pe-placeholder__glow" aria-hidden="true"></div>
+            <div class="pe-placeholder__icon">
+              <i class="fas fa-hospital-user"></i>
+            </div>
+            <h3 class="pe-placeholder__title">
+              {{ modoArchivero ? '¿Qué archivero abrimos?' : '¿Listo para programar?' }}
+            </h3>
+            <p class="pe-placeholder__desc">
+              {{ modoArchivero
+                ? 'Elige una empresa arriba para consultar sus hojas SP-F-30.'
+                : 'Elige la empresa arriba. El formulario de la cita se desplegará con los datos de programación y trabajadores.' }}
+            </p>
+          </div>
+
+          <!-- Formulario nuevo (desprendimiento al elegir empresa) -->
+          <div *ngIf="empresaSeleccionada && !modoArchivero" class="pe-form-wrap pe-animate-in">
+            <ng-container *ngTemplateOutlet="chipEmpresa"></ng-container>
+            <ng-container *ngTemplateOutlet="formularioProgramacion"></ng-container>
           </div>
         </div>
       </div>
 
-      <div *ngIf="vistaActual === 'lista'" class="card shadow-lg border-0 panel">
-        <div class="card-header border-0 panel-header">
-          <button class="btn btn-link p-0 text-muted mb-2" type="button" (click)="volverAEmpresas()">
-            <i class="fas fa-arrow-left mr-1"></i> Volver a empresas
+      <!-- ===== LISTA / ARCHIVERO ===== -->
+      <div *ngIf="vistaActual === 'lista'" class="card shadow-lg border-0 pe-panel pe-animate-in">
+        <div class="card-header border-0 pe-panel__header">
+          <button class="pe-back" type="button" (click)="volverAEmpresas()">
+            <i class="fas fa-arrow-left"></i> Cambiar empresa
           </button>
-          <div class="d-flex align-items-center justify-content-between flex-wrap">
-            <div class="d-flex align-items-center mb-2">
-              <img *ngIf="getLogoEmpresaUrl()" [src]="getLogoEmpresaUrl()" class="logo-empresa mr-3" [alt]="empresaSeleccionada?.nombre_empresa" (error)="onLogoEmpresaError()">
+          <div class="pe-lista-head">
+            <div class="d-flex align-items-center">
+              <ng-container *ngIf="getLogoEmpresaUrl() as logoUrl; else listaInicial">
+                <img [src]="logoUrl" class="pe-avatar pe-avatar--logo pe-avatar--lg mr-3" [alt]="empresaSeleccionada?.nombre_empresa" (error)="onLogoEmpresaError()">
+              </ng-container>
+              <ng-template #listaInicial>
+                <span class="pe-avatar pe-avatar--lg mr-3">{{ getInicialesEmpresa(empresaSeleccionada?.nombre_empresa) }}</span>
+              </ng-template>
               <div>
-                <h2 class="panel-title mb-0">{{ empresaSeleccionada?.nombre_empresa }}</h2>
-                <h6 class="text-uppercase text-muted ls-1 mb-0 mt-1">Archivero SP-F-30</h6>
+                <span class="pe-eyebrow">Archivero SP-F-30</span>
+                <h2 class="pe-panel__title mb-0">{{ empresaSeleccionada?.nombre_empresa }}</h2>
               </div>
             </div>
-            <button class="btn btn-primary mb-2" type="button" (click)="nuevaProgramacion()">
+            <button class="btn pe-btn-primary" type="button" (click)="nuevaProgramacion()">
               <i class="fas fa-plus mr-1"></i> Nueva programación
             </button>
           </div>
         </div>
-        <div class="card-body">
+        <div class="card-body pe-panel__body">
           <div *ngIf="cargandoLista" class="text-center py-5 text-muted">
             <i class="fas fa-spinner fa-spin fa-2x"></i>
           </div>
-          <div *ngIf="!cargandoLista && programaciones.length === 0" class="text-center py-5 text-muted">
+          <div *ngIf="!cargandoLista && programaciones.length === 0" class="pe-empty-lista">
+            <i class="fas fa-folder-open"></i>
             <p class="mb-0">Esta empresa todavía no tiene programaciones.</p>
           </div>
-          <div class="table-responsive" *ngIf="!cargandoLista && programaciones.length">
-            <table class="table align-items-center mb-0">
+          <div class="table-responsive pe-table-wrap" *ngIf="!cargandoLista && programaciones.length">
+            <table class="table align-items-center mb-0 pe-table">
               <thead>
                 <tr>
                   <th>Hoja</th>
@@ -122,97 +259,204 @@
         </div>
       </div>
 
-      <div *ngIf="vistaActual === 'formulario'" class="card shadow-lg border-0 panel">
-        <div class="card-header border-0 panel-header">
-          <button class="btn btn-link p-0 text-muted mb-2" type="button" (click)="volverALista()">
-            <i class="fas fa-arrow-left mr-1"></i> Volver al archivero
+      <!-- ===== EDITAR (desde archivero) ===== -->
+      <div *ngIf="vistaActual === 'formulario'" class="card shadow-lg border-0 pe-panel pe-animate-in">
+        <div class="card-header border-0 pe-panel__header">
+          <button class="pe-back" type="button" (click)="volverALista()">
+            <i class="fas fa-arrow-left"></i> Volver al archivero
           </button>
-          <h2 class="panel-title mb-1">{{ editandoId ? 'Editar programación' : 'Nueva programación' }}</h2>
-          <p class="text-muted mb-0">
+          <span class="pe-eyebrow">Edición · SP-F-30</span>
+          <h2 class="pe-panel__title">{{ editandoId ? 'Editar programación' : 'Nueva programación' }}</h2>
+          <p class="pe-help">
+            <i class="fas fa-info-circle"></i>
             La plantilla de Excel no se modifica. Cada guardado escribe una hoja en el archivero.
             <span *ngIf="nombreHoja"> El nombre de la hoja será <strong>{{ nombreHoja }}</strong>.</span>
           </p>
         </div>
-        <div class="card-body">
-          <div class="form-row">
-            <div class="form-group col-md-4">
-              <label>Fecha de la programación</label>
-              <input class="form-control" type="date" [(ngModel)]="formulario.fechaProgramacion">
-            </div>
-            <div class="form-group col-md-3">
-              <label>Siglas de la empresa</label>
-              <input class="form-control text-uppercase" maxlength="12" [(ngModel)]="formulario.siglas">
-            </div>
-            <div class="form-group col-md-5">
-              <label>Persona que acude</label>
-              <input class="form-control" [(ngModel)]="formulario.personaAcude">
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group col-md-4">
-              <label>Fecha de realización de estudios</label>
-              <input class="form-control" type="date" [(ngModel)]="formulario.fechaRealizacion">
-            </div>
-            <div class="form-group col-md-8 d-flex align-items-end">
-              <p class="text-muted mb-3">Empresa: {{ empresaSeleccionada?.nombre_empresa }}</p>
-            </div>
-          </div>
-
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h5 class="mb-0">Trabajadores</h5>
-            <button class="btn btn-sm btn-outline-primary" type="button" (click)="agregarFila()">Agregar fila</button>
-          </div>
-          <div class="table-responsive mb-3">
-            <table class="table table-sm">
-              <thead>
-                <tr>
-                  <th>Día</th>
-                  <th>Nombre</th>
-                  <th>Área / puesto</th>
-                  <th>Tipo de estudio</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngFor="let fila of formulario.filas; let i = index">
-                  <td><input class="form-control form-control-sm" [(ngModel)]="fila.dia" placeholder="Día"></td>
-                  <td><input class="form-control form-control-sm" [(ngModel)]="fila.nombre"></td>
-                  <td><input class="form-control form-control-sm" [(ngModel)]="fila.areaPuesto"></td>
-                  <td>
-                    <div class="tipos-estudio">
-                      <label *ngFor="let tipo of tiposEstudio" class="tipo-check">
-                        <input type="checkbox" [checked]="tieneTipo(fila, tipo)" (change)="cambiarTipo(fila, tipo, $event)">
-                        {{ tipo }}
-                      </label>
-                    </div>
-                  </td>
-                  <td><button class="btn btn-sm btn-link text-danger" type="button" (click)="quitarFila(i)">Quitar</button></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div class="form-group">
-            <label>Observaciones</label>
-            <textarea class="form-control" rows="3" [(ngModel)]="formulario.observaciones"></textarea>
-          </div>
-
-          <div class="d-flex flex-wrap align-items-center">
-            <button class="btn btn-primary mr-2 mb-2" type="button" (click)="guardar()" [disabled]="guardando">
-              <i class="fas fa-save mr-1"></i> {{ guardando ? 'Guardando...' : 'Guardar' }}
-            </button>
-            <button class="btn btn-outline-primary mr-2 mb-2" type="button" (click)="abrirExcel()" [disabled]="!driveUrl">
-              Abrir Excel
-            </button>
-            <label class="btn btn-outline-secondary mb-2 mr-2" [class.disabled]="!editandoId || subiendoPdf">
-              {{ subiendoPdf ? 'Subiendo PDF...' : 'Subir versión firmada' }}
-              <input type="file" accept="application/pdf,.pdf" hidden (change)="onPdfSeleccionado($event)" [disabled]="!editandoId || subiendoPdf">
-            </label>
-            <button *ngIf="pdfUrl" class="btn btn-link mb-2" type="button" (click)="abrirPdf()">{{ pdfNombre || 'Ver PDF firmado' }}</button>
-          </div>
+        <div class="card-body pe-panel__body">
+          <ng-container *ngIf="empresaSeleccionada">
+            <ng-container *ngTemplateOutlet="chipEmpresa"></ng-container>
+          </ng-container>
+          <ng-container *ngTemplateOutlet="formularioProgramacion"></ng-container>
         </div>
       </div>
 
     </div>
   </div>
 </div>
+
+<!-- Chip empresa + siglas editables -->
+<ng-template #chipEmpresa>
+  <div class="pe-chip">
+    <ng-container *ngIf="getLogoEmpresaUrl() as logoUrl; else chipInicial">
+      <div class="pe-avatar pe-avatar--logo pe-avatar--sm">
+        <img [src]="logoUrl" [alt]="empresaSeleccionada.nombre_empresa" (error)="onLogoEmpresaError()">
+      </div>
+    </ng-container>
+    <ng-template #chipInicial>
+      <div class="pe-avatar pe-avatar--sm">{{ getInicialesEmpresa(empresaSeleccionada.nombre_empresa) }}</div>
+    </ng-template>
+    <div class="pe-chip__text">
+      <strong>{{ empresaSeleccionada.nombre_empresa }}</strong>
+      <small class="pe-chip__meta">
+        <span>RFC: {{ empresaSeleccionada.rfc || '—' }}</span>
+        <span class="pe-chip__siglas" *ngIf="!editandoSiglas">
+          Siglas:
+          <b>{{ siglasEmpresaActual || '—' }}</b>
+          <button type="button"
+                  class="pe-chip__edit"
+                  (click)="iniciarEdicionSiglas()"
+                  title="Editar siglas"
+                  aria-label="Editar siglas">
+            <i class="fas fa-pencil-alt"></i>
+          </button>
+          <span class="pe-chip__info"
+                *ngIf="!siglasEnBd"
+                title="Esta empresa aún no tiene siglas registradas. Se guardarán en el sistema al confirmarlas o al guardar la programación."
+                aria-label="Sin siglas registradas: se guardarán en el sistema">
+            <i class="fas fa-info-circle"></i>
+          </span>
+        </span>
+        <span class="pe-chip__siglas-edit" *ngIf="editandoSiglas">
+          Siglas:
+          <input class="pe-siglas-input text-uppercase"
+                 maxlength="12"
+                 [(ngModel)]="siglasEdicion"
+                 (keydown.enter)="confirmarEdicionSiglas()"
+                 (keydown.escape)="cancelarEdicionSiglas()"
+                 [disabled]="guardandoSiglas"
+                 aria-label="Siglas de la empresa">
+          <button type="button" class="pe-chip__edit pe-chip__edit--ok" (click)="confirmarEdicionSiglas()" [disabled]="guardandoSiglas" title="Guardar siglas">
+            <i class="fas" [ngClass]="guardandoSiglas ? 'fa-spinner fa-spin' : 'fa-check'"></i>
+          </button>
+          <button type="button" class="pe-chip__edit pe-chip__edit--cancel" (click)="cancelarEdicionSiglas()" [disabled]="guardandoSiglas" title="Cancelar">
+            <i class="fas fa-times"></i>
+          </button>
+        </span>
+      </small>
+    </div>
+  </div>
+</ng-template>
+
+<!-- Formulario densificado -->
+<ng-template #formularioProgramacion>
+  <div class="pe-form">
+    <section class="pe-section">
+      <div class="pe-section__head">
+        <h3 class="pe-section__title"><i class="fas fa-clipboard-list"></i> Datos de la programación</h3>
+        <span class="pe-sheet-badge" *ngIf="nombreHoja" title="Nombre de hoja en Excel">
+          <i class="fas fa-file-excel"></i> {{ nombreHoja }}
+        </span>
+      </div>
+      <div class="pe-grid pe-grid--datos">
+        <div class="pe-form-group">
+          <label>Fecha de la programación</label>
+          <input class="form-control pe-control" type="date" [(ngModel)]="formulario.fechaProgramacion">
+        </div>
+        <div class="pe-form-group pe-form-group--wide">
+          <label>Persona que acude</label>
+          <input class="form-control pe-control" [(ngModel)]="formulario.personaAcude" placeholder="Nombre de quien asiste">
+        </div>
+        <div class="pe-form-group">
+          <label>Fecha de realización de estudios</label>
+          <input class="form-control pe-control" type="date" [(ngModel)]="formulario.fechaRealizacion">
+        </div>
+      </div>
+    </section>
+
+    <section class="pe-section pe-section--dias">
+      <div class="pe-section__head">
+        <h3 class="pe-section__title">
+          <i class="fas fa-calendar-day"></i> Días de atención
+        </h3>
+        <button class="btn btn-sm pe-btn-outline" type="button" (click)="asignarOtroDia()">
+          <i class="fas fa-calendar-plus"></i> Asignar otro día
+        </button>
+      </div>
+
+      <div class="pe-days">
+        <article class="pe-day" *ngFor="let dia of formulario.dias; let di = index">
+          <header class="pe-day__head">
+            <div class="pe-day__title-wrap">
+              <span class="pe-day__badge"><i class="fas fa-calendar-check"></i></span>
+              <div class="pe-form-group mb-0 pe-day__title-field">
+                <label>Día de la programación</label>
+                <input class="form-control pe-control pe-control--sm"
+                       [(ngModel)]="dia.dia"
+                       [placeholder]="'Ej. 10 de Noviembre'"
+                       [attr.aria-label]="'Día ' + (di + 1)">
+              </div>
+            </div>
+            <div class="pe-day__actions">
+              <button type="button" class="pe-day__btn pe-day__btn--danger" (click)="quitarDia(di)" title="Quitar día">
+                <i class="fas fa-trash-alt"></i>
+              </button>
+            </div>
+          </header>
+
+          <div class="pe-day__label" *ngIf="dia.dia">{{ tituloDia(dia, di) }}</div>
+
+          <div class="pe-workers">
+            <div class="pe-worker" *ngFor="let fila of dia.trabajadores; let ti = index">
+              <div class="pe-worker__index">{{ ti + 1 }}</div>
+              <div class="pe-worker__fields pe-worker__fields--row">
+                <div class="pe-form-group pe-form-group--name">
+                  <label>Nombre</label>
+                  <input class="form-control pe-control pe-control--sm" [(ngModel)]="fila.nombre" placeholder="Nombre del trabajador">
+                </div>
+                <div class="pe-form-group pe-form-group--area">
+                  <label>Área / puesto</label>
+                  <input class="form-control pe-control pe-control--sm" [(ngModel)]="fila.areaPuesto" placeholder="Área o puesto">
+                </div>
+                <div class="pe-form-group pe-form-group--tipos">
+                  <label>Tipo de estudio</label>
+                  <div class="pe-tipos pe-tipos--row">
+                    <button type="button"
+                            class="pe-tipo pe-tipo--chip"
+                            *ngFor="let tipo of tiposEstudio"
+                            [class.is-on]="tieneTipo(fila, tipo.key)"
+                            (click)="toggleTipo(fila, tipo.key)"
+                            [attr.aria-pressed]="tieneTipo(fila, tipo.key)"
+                            [title]="tipo.key">
+                      <i class="fas" [ngClass]="tipo.icon"></i>
+                      <span>{{ tipo.short }}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <button class="pe-worker__remove" type="button" (click)="quitarTrabajador(dia, ti)" title="Quitar trabajador" aria-label="Quitar trabajador">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+          </div>
+
+          <button type="button" class="pe-add-worker" (click)="agregarTrabajador(dia)">
+            <i class="fas fa-user-plus"></i> Asignar trabajador
+          </button>
+        </article>
+      </div>
+    </section>
+
+    <section class="pe-section pe-section--obs">
+      <div class="pe-form-group mb-0">
+        <label>Observaciones</label>
+        <textarea class="form-control pe-control" rows="2" [(ngModel)]="formulario.observaciones" placeholder="Notas adicionales de la programación..."></textarea>
+      </div>
+    </section>
+
+    <div class="pe-actions pe-actions--end">
+      <div class="pe-save-block">
+        <div class="pe-save-progress" *ngIf="guardando || progresoGuardado > 0">
+          <div class="pe-save-progress__track">
+            <div class="pe-save-progress__bar" [style.width.%]="progresoGuardado"></div>
+          </div>
+          <span class="pe-save-progress__label">{{ mensajeProgreso || 'Procesando...' }}</span>
+        </div>
+        <button class="btn pe-btn-primary pe-btn-primary--wide" type="button" (click)="guardar()" [disabled]="guardando || guardandoSiglas">
+          <i class="fas" [ngClass]="guardando ? 'fa-spinner fa-spin' : 'fa-save'"></i>
+          {{ guardando ? 'Guardando programación...' : 'Guardar programación' }}
+        </button>
+      </div>
+    </div>
+  </div>
+</ng-template>

@@ -6058,10 +6058,12 @@
                           <thead>
                             <tr>
                               <th class="sgc-f-14-table__col--folio"># Folio</th>
-                              <th class="sgc-f-14-table__col--nombre">Nombre del proyecto</th>
+                              <th class="sgc-f-14-table__col--nombre">Actividad</th>
                               <th class="sgc-f-14-table__col--resp">Responsable</th>
-                              <th class="sgc-f-14-table__col--prio">Prioridad</th>
-                              <th class="sgc-f-14-table__col--estatus">Estatus</th>
+                              <th class="sgc-f-14-table__col--prio"
+                                title="Corto plazo: 6 meses · Mediano plazo: 6 meses a un año · Largo plazo: más de un año">Periodo</th>
+                              <th class="sgc-f-14-table__col--estatus"
+                                title="Se calcula automáticamente según el % de avance">Estatus</th>
                               <th class="sgc-f-14-table__col--avance">% Avance</th>
                               <th class="sgc-f-14-table__col--evid" title="Documentos / evidencias">Docs</th>
                               <th class="dg-f05-table__act sgc-f-14-table__col--act" aria-label="Acciones"></th>
@@ -6110,30 +6112,35 @@
                                 </div>
                               </td>
                               <td class="sgc-f-14-table__cell">
-                                <div class="sgc-f-14-pick sgc-f-14-pick--prioridad" (click)="$event.stopPropagation()">
+                                <div class="sgc-f-14-pick sgc-f-14-pick--prioridad"
+                                  [attr.title]="ayudaPeriodoSgcF14(proyecto.prioridad)"
+                                  (click)="$event.stopPropagation()">
                                   <select class="dg-f05-field sgc-f-14-table__select sgc-f-14-pick__input"
-                                    [(ngModel)]="proyecto.prioridad" [name]="'sgcF14_prio' + i">
-                                    <option value="">—</option>
-                                    <option *ngFor="let p of sgcF14Prioridades" [value]="p">{{ p }}</option>
+                                    [(ngModel)]="proyecto.prioridad" [name]="'sgcF14_prio' + i"
+                                    [attr.title]="ayudaPeriodoSgcF14(proyecto.prioridad)"
+                                    [attr.aria-label]="'Periodo: ' + ayudaPeriodoSgcF14(proyecto.prioridad)">
+                                    <option value="" title="Selecciona el periodo de la actividad">—</option>
+                                    <option *ngFor="let p of sgcF14Periodos" [value]="p.value" [title]="p.ayuda">{{ p.value }}</option>
                                   </select>
                                   <i class="fas fa-chevron-down sgc-f-14-pick__icon" aria-hidden="true"></i>
                                 </div>
                               </td>
                               <td class="sgc-f-14-table__cell">
-                                <div class="sgc-f-14-pick sgc-f-14-pick--estatus" (click)="$event.stopPropagation()">
-                                  <select class="dg-f05-field sgc-f-14-table__select sgc-f-14-pick__input"
-                                    [(ngModel)]="proyecto.estatus" [name]="'sgcF14_estatus' + i">
-                                    <option value="">—</option>
-                                    <option *ngFor="let e of sgcF14Estatus" [value]="e">{{ e }}</option>
-                                  </select>
-                                  <i class="fas fa-chevron-down sgc-f-14-pick__icon" aria-hidden="true"></i>
+                                <div class="sgc-f-14-pick sgc-f-14-pick--estatus sgc-f-14-pick--readonly"
+                                  [attr.data-estatus]="proyecto.estatus"
+                                  (click)="$event.stopPropagation()"
+                                  title="Automático: 0% No iniciado · 1–99% En proceso · 100% Concluido">
+                                  <span class="sgc-f-14-pick__display sgc-f-14-pick__display--estatus">
+                                    {{ proyecto.estatus || 'No iniciado' }}
+                                  </span>
                                 </div>
                               </td>
                               <td class="sgc-f-14-table__cell sgc-f-14-table__cell--avance">
                                 <div class="sgc-f-14-avance" (click)="$event.stopPropagation()">
                                   <input class="dg-f05-field dg-f05-field--center sgc-f-14-avance__num" type="number"
                                     min="0" max="100" step="1"
-                                    [(ngModel)]="proyecto.avance" [name]="'sgcF14_avance' + i">
+                                    [(ngModel)]="proyecto.avance" [name]="'sgcF14_avance' + i"
+                                    (ngModelChange)="onAvanceSgcF14Cambiado(proyecto)">
                                 </div>
                               </td>
                               <td class="sgc-f-14-table__cell sgc-f-14-table__cell--evid">
@@ -10353,11 +10360,21 @@
                           <div class="sgc-f-09-item__grid">
                             <div class="sgc-f-09-item__field">
                               <span class="sgc-f-09-item__label">Pregunta(s)</span>
-                              <p class="sgc-f-09-item__text">{{ item.preguntas }}</p>
+                              <ul class="sgc-f-09-item__lines sgc-f-09-item__lines--preguntas"
+                                *ngIf="item.preguntas?.length">
+                                <li *ngFor="let pregunta of item.preguntas">{{ pregunta }}</li>
+                              </ul>
+                              <p class="sgc-f-09-item__text sgc-f-09-item__text--empty"
+                                *ngIf="!item.preguntas?.length">—</p>
                             </div>
                             <div class="sgc-f-09-item__field">
                               <span class="sgc-f-09-item__label">Posibles evidencias</span>
-                              <p class="sgc-f-09-item__text">{{ item.evidencias }}</p>
+                              <ul class="sgc-f-09-item__lines sgc-f-09-item__lines--evidencias"
+                                *ngIf="item.evidencias?.length">
+                                <li *ngFor="let evidencia of item.evidencias">{{ evidencia }}</li>
+                              </ul>
+                              <p class="sgc-f-09-item__text sgc-f-09-item__text--empty"
+                                *ngIf="!item.evidencias?.length">—</p>
                             </div>
                           </div>
 
@@ -10390,6 +10407,11 @@
 
                   <article class="dg-f05-doc sgc-f-10-doc" *ngIf="!sgcF10Cargando && sgcF10Vista === 'archivero'">
                     <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'SGC-F-10', titulo: 'Informe de auditoría', icono: 'fa-file-alt', extraClass: 'sgc-f-10-doc__header' }"></ng-container>
+
+                    <app-sgc-eficacia-auditorias
+                      [mostrarAbrirFormato]="false"
+                      [refreshKey]="sgcF10EficaciaRefreshKey">
+                    </app-sgc-eficacia-auditorias>
 
                     <div class="sgc-f-04-archivero sgc-f-10-archivero">
                       <div class="sgc-f-04-archivero__intro">
@@ -10425,15 +10447,19 @@
 
                       <div class="sgc-f-04-archivero__stats">
                         <span class="sgc-f-04-archivero__stat">1 informe en captura</span>
+                        <span class="sgc-f-04-archivero__stat"
+                          *ngIf="sgcF10HistorialVista.length">
+                          · {{ sgcF10HistorialVista.length }} cerrado{{ sgcF10HistorialVista.length !== 1 ? 's' : '' }}
+                        </span>
                         <span class="sgc-f-04-archivero__stat sgc-f-04-archivero__stat--muted"
-                          *ngIf="sgcF10Busqueda.trim() && !sgcF10CoincideBusquedaVigente">
+                          *ngIf="sgcF10Busqueda.trim() && !sgcF10CoincideBusquedaVigente && !sgcF10HistorialVista.length">
                           · sin coincidencias
                         </span>
                       </div>
 
                       <ul class="sgc-f-04-archivero__grid"
-                        *ngIf="sgcF10CoincideBusquedaVigente; else sgcF10ArchiveroVacio">
-                        <li class="sgc-f-04-book sgc-f-04-book--vigente">
+                        *ngIf="sgcF10CoincideBusquedaVigente || sgcF10HistorialVista.length; else sgcF10ArchiveroVacio">
+                        <li class="sgc-f-04-book sgc-f-04-book--vigente" *ngIf="sgcF10CoincideBusquedaVigente">
                           <button type="button" class="sgc-f-04-book__tap"
                             (click)="abrirInformeVigenteSgcF10()"
                             [attr.aria-label]="'Abrir informe vigente No. ' + (sgcF10Form.auditoriaNo || '')">
@@ -10475,12 +10501,60 @@
                             </span>
                           </button>
                         </li>
+
+                        <li class="sgc-f-04-book sgc-f-04-book--cerrado"
+                          *ngFor="let h of sgcF10HistorialVista"
+                          [class.sgc-f-04-book--pdf]="!!h.pdfDriveFileId">
+                          <button type="button" class="sgc-f-04-book__tap"
+                            (click)="abrirHistoricoSgcF10(h)"
+                            [attr.aria-label]="'Abrir histórico No. ' + (h.auditoriaNo || '')">
+                            <span class="sgc-f-04-book__binding" aria-hidden="true">
+                              <span class="sgc-f-04-book__ring"></span>
+                              <span class="sgc-f-04-book__ring"></span>
+                              <span class="sgc-f-04-book__ring"></span>
+                              <span class="sgc-f-04-book__ring"></span>
+                              <span class="sgc-f-04-book__ring"></span>
+                              <span class="sgc-f-04-book__ring"></span>
+                            </span>
+                            <span class="sgc-f-04-book__page">
+                              <span class="sgc-f-04-book__corner" aria-hidden="true"></span>
+                              <span class="sgc-f-04-book__head">
+                                <span class="sgc-f-04-book__icon"
+                                  [class.sgc-f-04-book__icon--pdf]="!!h.pdfDriveFileId">
+                                  <i class="fas"
+                                    [ngClass]="h.pdfDriveFileId ? 'fa-file-pdf' : 'fa-file-alt'"
+                                    aria-hidden="true"></i>
+                                </span>
+                                <span class="sgc-f-04-book__estado sgc-f-04-book__estado--cerrado">Cerrado</span>
+                              </span>
+                              <span class="sgc-f-04-book__origen">Auditoría No. {{ h.auditoriaNo || '—' }}</span>
+                              <span class="sgc-f-04-book__folio">{{ h.empresa?.trim() || h.ubicaciones || 'Informe histórico' }}</span>
+                              <span class="sgc-f-24-book-tipos" *ngIf="h.totalNc || h.totalOp">
+                                <span class="sgc-f-24-book-tipos__badge sgc-f-10-book-badge sgc-f-10-book-badge--nc"
+                                  *ngIf="h.totalNc">
+                                  {{ h.totalNc }} NC
+                                </span>
+                                <span class="sgc-f-24-book-tipos__badge sgc-f-10-book-badge sgc-f-10-book-badge--op"
+                                  *ngIf="h.totalOp">
+                                  {{ h.totalOp }} OP
+                                </span>
+                              </span>
+                              <span class="sgc-f-04-book__lines" aria-hidden="true">
+                                <span></span><span></span><span></span>
+                              </span>
+                              <span class="sgc-f-04-book__foot">
+                                <span class="sgc-f-04-book__fecha" *ngIf="h.fechasAuditoria">{{ h.fechasAuditoria }}</span>
+                                <span class="sgc-f-04-book__fuente">Histórico</span>
+                              </span>
+                            </span>
+                          </button>
+                        </li>
                       </ul>
                       <ng-template #sgcF10ArchiveroVacio>
                         <div class="sgc-f-04-archivero__empty">
                           <i class="fas fa-archive" aria-hidden="true"></i>
                           <p class="mb-0" *ngIf="sgcF10Busqueda.trim(); else sgcF10SinInformes">
-                            El informe en captura no coincide con la búsqueda.
+                            Ningún informe coincide con la búsqueda.
                           </p>
                           <ng-template #sgcF10SinInformes>
                             <p class="mb-0">No hay informe en captura. Usa «Nuevo informe» para comenzar.</p>
@@ -15696,8 +15770,10 @@
                       </label>
                       <label class="dg-f05-meta-field">
                         <span class="dg-f05-meta-field__label">Fecha elaboración</span>
-                        <input class="dg-f05-field dg-f05-field--readonly sgc-f-11-meta-date" type="date" name="sgcF11_fechaElab"
-                          [(ngModel)]="sgcF11Form.fechaElaboracion" readonly>
+                        <input class="dg-f05-field dg-f05-field--date sgc-f-11-meta-date" type="date" name="sgcF11_fechaElab"
+                          [(ngModel)]="sgcF11Form.fechaElaboracion"
+                          [readonly]="sgcF11Form.edicionBloqueada"
+                          [class.dg-f05-field--readonly]="sgcF11Form.edicionBloqueada">
                       </label>
                       <label class="dg-f05-meta-field dg-f05-meta-field--wide">
                         <span class="dg-f05-meta-field__label">Proceso</span>
@@ -15775,8 +15851,8 @@
                               <th class="sgc-f-11-table__col--num">RPN</th>
                               <th>Acciones</th>
                               <th>Responsable</th>
-                              <th>Fecha compromiso</th>
-                              <th>Resultado</th>
+                              <th>Fecha de implementación</th>
+                              <th>Resultados post-evaluación</th>
                               <th class="sgc-f-11-table__col--num sgc-f-11-table__col--seguimiento">
                                 <span class="sgc-f-11-guia-trigger" tabindex="0"
                                   (mouseenter)="abrirGuiaSgcF11('severidad', $event)"

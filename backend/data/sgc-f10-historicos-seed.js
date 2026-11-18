@@ -145,8 +145,9 @@ const HISTORICOS = [
         auditores: AUDITORES,
         participantes: PARTICIPANTES,
         otrosParticipantes: 'Ninguno.',
-        driveFileId: '1pz_-AZ963GdIRR2sYIR9b7AY4hjSiGaW',
-        driveFileName: 'Informe de auditoria BIZNAGA ABR26-2.docx',
+        // Google Doc histórico del informe No.02 (SGC-F-10).
+        driveFileId: '1O_PL0EKCkqkJ6_mcCuPrDH6O1vBohARwOOYvfz6IK1c',
+        driveFileName: 'SGC-F-10 Informe de auditoría No.02 (histórico)',
         conclusiones:
             'De acuerdo con toda la evidencia objetiva presentada durante la auditoría y la verificación de ésta con los criterios de auditoría (Norma Internacional ISO 9001:2015 Sistema de Gestión de la Calidad - Requisitos) se determinaron 8 no conformidades y 1 oportunidad de mejora. Dichas no conformidades se consideran 1 mayor, porque hay incumplimiento total de la cláusula 8.1 y 7 menores, puesto que la evidencia mostró un cumplimiento parcial de las cláusulas 4.1, 7.1.3, 7.5, 8.2.3, 8.5.1, 8.5.2 y 9.1.2. La oportunidad de mejora se refiere a la cláusula 7.2.\n\n'
             + 'El grado de cumplimiento de los objetivos de auditoría se determina de la siguiente manera: El primer objetivo se considera en 100%, debido a que se logró determinar la eficacia y el grado de conformidad del SGC con los criterios de auditoría. El grado de cumplimiento del segundo objetivo de la auditoría, se considera en un 100%, pues se pudieron identificar las oportunidades de mejora para el mantenimiento y adecuación del Sistema de Gestión de Calidad de BIZNAGA.\n\n'

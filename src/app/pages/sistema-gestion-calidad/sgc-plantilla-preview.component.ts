@@ -1380,8 +1380,10 @@ interface SgcF09Requisito {
   seccion: string;
   requisito: string;
   descripcion: string;
-  preguntas: string;
-  evidencias: string;
+  /** Cada pregunta en su propia línea, como en el formato SGC-F-09 original. */
+  preguntas: string[];
+  /** Cada evidencia en su propia línea (viñeta), como en el formato original. */
+  evidencias: string[];
   marca: SgcF09Marca;
   hallazgo: string;
 }
@@ -2539,6 +2541,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF10Form: SgcF10FormData = this.crearSgcF10FormVacio();
   sgcF10Vista: 'archivero' | 'editor' = 'archivero';
   sgcF10Busqueda = '';
+  /** Fuerza recarga del gráfico de eficacia encima del archivero. */
+  sgcF10EficaciaRefreshKey = 0;
   sgcF10Cargando = false;
   sgcF10Guardando = false;
   sgcF10GuardandoHistorico = false;
@@ -2614,8 +2618,15 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   private sgcF10HallazgoEditorBorrador = '';
   private sgcF10HallazgoRangoGuardado: Range | null = null;
   @ViewChild('sgcF10HallazgoRichEditor') sgcF10HallazgoRichEditor?: ElementRef<HTMLDivElement>;
-  readonly sgcF14Prioridades: string[] = ['Inmediato', 'Mediano plazo', 'Largo plazo'];
+  readonly sgcF14Periodos: Array<{ value: string; ayuda: string }> = [
+    { value: 'Corto plazo', ayuda: '6 meses' },
+    { value: 'Mediano plazo', ayuda: '6 meses a un año' },
+    { value: 'Largo plazo', ayuda: 'más de un año' }
+  ];
+  readonly sgcF14Prioridades: string[] = ['Corto plazo', 'Mediano plazo', 'Largo plazo'];
   readonly sgcF14Estatus: string[] = ['Concluido', 'En proceso', 'No iniciado'];
+  readonly sgcF14AyudaPeriodoGeneral =
+    'Corto plazo: 6 meses · Mediano plazo: 6 meses a un año · Largo plazo: más de un año';
   sgcF14Form: SgcF14FormData = this.crearSgcF14FormVacio();
   sgcF14Responsables: string[] = [];
   sgcF14Cargando = false;
@@ -9653,6 +9664,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   volverArchiveroSgcF10(): void {
     this.sgcF10Vista = 'archivero';
     this.cerrarClasifSgcF10();
+    this.sgcF10EficaciaRefreshKey += 1;
     this.cargarDocumentosFisicosSgcF10();
   }
 
@@ -10380,6 +10392,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         next: (res) => {
           this.limpiarBorradorLocalSgc();
           this.sgcF10Guardando = false;
+          this.sgcDashboardCache.invalidar();
+          this.sgcF10EficaciaRefreshKey += 1;
           this.aplicarEstadoSgcF10(res);
         },
         error: () => {
@@ -10659,8 +10673,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       nombreProyecto: '',
       responsable: '',
       prioridad: '',
-      estatus: '',
-      avance: ''
+      estatus: 'No iniciado',
+      avance: '0'
     };
   }
 
@@ -10671,6 +10685,51 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return `f14-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
   }
 
+  /** Leyenda al pasar el mouse / enfocar Periodo. */
+  ayudaPeriodoSgcF14(valor: string | null | undefined): string {
+    const limpio = String(valor || '').trim();
+    const hallado = this.sgcF14Periodos.find((p) => p.value === limpio);
+    if (hallado) {
+      return `${hallado.value}: ${hallado.ayuda}`;
+    }
+    return this.sgcF14AyudaPeriodoGeneral;
+  }
+
+  /** Estatus automático según % avance: 0 → No iniciado, 1–99 → En proceso, 100 → Concluido. */
+  estatusDesdeAvanceSgcF14(avance: unknown): string {
+    const crudo = this.normalizarAvanceSgcF14(avance);
+    const n = crudo === '' ? 0 : Number(crudo);
+    if (n >= 100) {
+      return 'Concluido';
+    }
+    if (n > 0) {
+      return 'En proceso';
+    }
+    return 'No iniciado';
+  }
+
+  onAvanceSgcF14Cambiado(proyecto: SgcF14ProyectoItem): void {
+    if (!proyecto) {
+      return;
+    }
+    proyecto.avance = this.normalizarAvanceSgcF14(proyecto.avance);
+    proyecto.estatus = this.estatusDesdeAvanceSgcF14(proyecto.avance);
+    this.onSgcF14Editado();
+  }
+
+  private normalizarPeriodoSgcF14(valor: unknown): string {
+    const limpio = String(valor || '').trim();
+    if (!limpio) {
+      return '';
+    }
+    // Compatibilidad con registros previos que usaban «Inmediato».
+    if (/^inmediato$/i.test(limpio)) {
+      return 'Corto plazo';
+    }
+    const hallado = this.sgcF14Prioridades.find((p) => p.toLowerCase() === limpio.toLowerCase());
+    return hallado || limpio;
+  }
+
   private normalizarProyectosSgcF14(items: SgcF14ProyectoItem[] | undefined): SgcF14ProyectoItem[] {
     if (!Array.isArray(items) || !items.length) {
       return [];
@@ -10679,14 +10738,15 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       const folio = String(item?.folio || '').trim();
       // Folio estable: evita perder evidencias al recargar (Drive no guarda UUID).
       const id = String(item?.id || folio || '').trim() || this.generarIdProyectoSgcF14();
+      const avance = this.normalizarAvanceSgcF14(item?.avance);
       return {
         id,
         folio,
         nombreProyecto: String(item?.nombreProyecto || '').trim(),
         responsable: String(item?.responsable || '').trim(),
-        prioridad: String(item?.prioridad || '').trim(),
-        estatus: String(item?.estatus || '').trim(),
-        avance: this.normalizarAvanceSgcF14(item?.avance)
+        prioridad: this.normalizarPeriodoSgcF14(item?.prioridad),
+        estatus: this.estatusDesdeAvanceSgcF14(avance),
+        avance
       };
     });
   }
@@ -10794,7 +10854,14 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (!this.sgcF14Listo || this.sgcF14IgnorarAutoSave) {
       return;
     }
+    this.sincronizarEstatusProyectosSgcF14();
     this.sgcF14CambiosPendientes = true;
+  }
+
+  private sincronizarEstatusProyectosSgcF14(): void {
+    for (const proyecto of this.sgcF14Form?.proyectos || []) {
+      proyecto.estatus = this.estatusDesdeAvanceSgcF14(proyecto.avance);
+    }
   }
 
   agregarFilaProyectoSgcF14(): void {
@@ -10836,6 +10903,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (!this.sgcF14Listo || this.sgcF14Guardando) {
       return;
     }
+    this.sincronizarEstatusProyectosSgcF14();
     this.sgcF14Guardando = true;
     const editorAbierto = this.mostrarSgcF14Editor;
     const editorActivo = false;
@@ -11955,7 +12023,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug !== 'sgc-f-14') {
       return '';
     }
-    return 'Registra los proyectos de mejora con su folio (PM-DDMMAA-NN), responsable, prioridad, estatus y avance. Usa «Guardar información» para conservar los cambios y reflejarlos en el Excel de Drive.';
+    return 'Registra las actividades de mejora con su folio (PM-DDMMAA-NN), responsable, periodo, avance y estatus automático. Usa «Guardar información» para conservar los cambios y reflejarlos en el Excel de Drive.';
   }
 
   // ===================== SGC-F-25 · Actividades posteriores a la entrega =====================
@@ -22754,6 +22822,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .subscribe({
         next: (res) => {
           this.sgcF29Guardando = false;
+          this.sgcDashboardCache.invalidar();
           this.aplicarEstadoSgcF29(res, false, false);
         },
         error: () => {
@@ -22806,6 +22875,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         next: (res) => {
           this.limpiarBorradorLocalSgc();
           this.sgcF29Guardando = false;
+          // El indicador del Centro SGC debe leer datos frescos al volver.
+          this.sgcDashboardCache.invalidar();
           this.aplicarEstadoSgcF29(res, editorAbierto, false, false);
         },
         error: () => {
@@ -28065,161 +28136,201 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         seccion: 'Contexto de la organización',
         requisito: '4.1',
         descripcion: 'Comprensión de la organización y de su contexto.',
-        preguntas:
-          '¿Se determinan las cuestiones internas y externas? ¿Con qué frecuencia? ¿Quiénes participan? ¿Cómo se da seguimiento?',
-        evidencias: 'FODA, lluvia de ideas, CANVAS, PEST, 5 fuerzas de Porter.'
+        preguntas: [
+          '¿Se determinan las cuestiones internas y externas?',
+          '¿Con qué frecuencia?',
+          '¿Quiénes participan?',
+          '¿Cómo se da seguimiento?'
+        ],
+        evidencias: ['FODA', 'Lluvia de ideas', 'CANVAS', 'PEST', '5 fuerzas de Porter']
       },
       {
         seccion: 'Contexto de la organización',
         requisito: '4.2',
         descripcion: 'Comprensión de las necesidades y expectativas de las partes interesadas.',
-        preguntas:
-          '¿Quiénes son las partes interesadas? ¿Dónde se documentan sus necesidades y expectativas?',
-        evidencias: 'Lista maestra de partes interesadas, procedimiento.'
+        preguntas: [
+          '¿Quiénes son las partes interesadas?',
+          '¿Dónde se documentan sus necesidades y expectativas?'
+        ],
+        evidencias: ['Lista maestra de partes interesadas', 'Procedimiento']
       },
       {
         seccion: 'Contexto de la organización',
         requisito: '4.3',
         descripcion: 'Determinación del alcance del sistema de gestión de la calidad.',
-        preguntas:
-          '¿Dónde está documentado el alcance? ¿Dónde está disponible? ¿Cuáles son las exclusiones?',
-        evidencias: 'Manual, formato, certificado.'
+        preguntas: [
+          '¿Dónde está documentado el alcance?',
+          '¿Dónde está disponible?',
+          '¿Cuáles son las exclusiones?'
+        ],
+        evidencias: ['Manual', 'Formato', 'Certificado']
       },
       {
         seccion: 'Contexto de la organización',
         requisito: '4.4',
         descripcion: 'Sistema de gestión de la calidad y sus procesos.',
-        preguntas:
-          '¿Se han determinado los procesos necesarios? ¿Cómo se gestionan entradas, salidas, controles e indicadores?',
-        evidencias: 'Mapa de procesos, fichas de proceso, indicadores.'
+        preguntas: [
+          '¿Se han determinado los procesos necesarios?',
+          '¿Cómo se gestionan entradas, salidas, controles e indicadores?'
+        ],
+        evidencias: ['Mapa de procesos', 'Fichas de proceso', 'Indicadores']
       },
       {
         seccion: 'Liderazgo',
         requisito: '5.1',
         descripcion: 'Liderazgo y compromiso.',
-        preguntas:
-          '¿Cómo demuestra la alta dirección liderazgo y compromiso con el SGC? ¿Se comunican la importancia y los resultados?',
-        evidencias: 'Actas de revisión, comunicados, evidencias de participación.'
+        preguntas: [
+          '¿Cómo demuestra la alta dirección liderazgo y compromiso con el SGC?',
+          '¿Se comunican la importancia y los resultados?'
+        ],
+        evidencias: ['Actas de revisión', 'Comunicados', 'Evidencias de participación']
       },
       {
         seccion: 'Liderazgo',
         requisito: '5.2',
         descripcion: 'Política.',
-        preguntas:
-          '¿Existe política de calidad? ¿Está disponible, se comunica y se mantiene como información documentada?',
-        evidencias: 'SGC-PO-01, difusión, registros de comunicación.'
+        preguntas: [
+          '¿Existe política de calidad?',
+          '¿Está disponible, se comunica y se mantiene como información documentada?'
+        ],
+        evidencias: ['SGC-PO-01', 'Difusión', 'Registros de comunicación']
       },
       {
         seccion: 'Liderazgo',
         requisito: '5.3',
         descripcion: 'Roles, responsabilidades y autoridades en la organización.',
-        preguntas:
-          '¿Están definidos y comunicados los roles, responsabilidades y autoridades del SGC?',
-        evidencias: 'Organigrama, descripciones de puesto, matriz RACI.'
+        preguntas: [
+          '¿Están definidos y comunicados los roles, responsabilidades y autoridades del SGC?'
+        ],
+        evidencias: ['Organigrama', 'Descripciones de puesto', 'Matriz RACI']
       },
       {
         seccion: 'Planificación',
         requisito: '6.1',
         descripcion: 'Acciones para abordar riesgos y oportunidades.',
-        preguntas:
-          '¿Se determinan riesgos y oportunidades? ¿Qué acciones se planifican y cómo se evalúa su eficacia?',
-        evidencias: 'Matriz de riesgos, planes de acción, seguimiento.'
+        preguntas: [
+          '¿Se determinan riesgos y oportunidades?',
+          '¿Qué acciones se planifican y cómo se evalúa su eficacia?'
+        ],
+        evidencias: ['Matriz de riesgos', 'Planes de acción', 'Seguimiento']
       },
       {
         seccion: 'Planificación',
         requisito: '6.2',
         descripcion: 'Objetivos de la calidad y planificación para lograrlos.',
-        preguntas:
-          '¿Hay objetivos medibles? ¿Quién es responsable? ¿Qué recursos y plazos se definen?',
-        evidencias: 'Objetivos de calidad, tablero de indicadores, planes.'
+        preguntas: [
+          '¿Hay objetivos medibles?',
+          '¿Quién es responsable?',
+          '¿Qué recursos y plazos se definen?'
+        ],
+        evidencias: ['Objetivos de calidad', 'Tablero de indicadores', 'Planes']
       },
       {
         seccion: 'Apoyo',
         requisito: '7.1',
         descripcion: 'Recursos.',
-        preguntas:
-          '¿Se determinan y proporcionan los recursos necesarios (personas, infraestructura, ambiente, seguimiento)?',
-        evidencias: 'Presupuestos, inventarios, mantenimiento, calibración.'
+        preguntas: [
+          '¿Se determinan y proporcionan los recursos necesarios (personas, infraestructura, ambiente, seguimiento)?'
+        ],
+        evidencias: ['Presupuestos', 'Inventarios', 'Mantenimiento', 'Calibración']
       },
       {
         seccion: 'Apoyo',
         requisito: '7.2',
         descripcion: 'Competencia.',
-        preguntas:
-          '¿Cómo se determina la competencia requerida? ¿Se mantiene información documentada como evidencia?',
-        evidencias: 'Matriz de competencia, DC-3, evaluaciones, capacitación.'
+        preguntas: [
+          '¿Cómo se determina la competencia requerida?',
+          '¿Se mantiene información documentada como evidencia?'
+        ],
+        evidencias: ['Matriz de competencia', 'DC-3', 'Evaluaciones', 'Capacitación']
       },
       {
         seccion: 'Apoyo',
         requisito: '7.5',
         descripcion: 'Información documentada.',
-        preguntas:
-          '¿Cómo se controla la creación, actualización y control de la información documentada?',
-        evidencias: 'SGC-F-01, SGC-F-02, SGC-F-03, control de registros.'
+        preguntas: [
+          '¿Cómo se controla la creación, actualización y control de la información documentada?'
+        ],
+        evidencias: ['SGC-F-01', 'SGC-F-02', 'SGC-F-03', 'Control de registros']
       },
       {
         seccion: 'Operación',
         requisito: '8.1',
         descripcion: 'Planificación y control operacional.',
-        preguntas:
-          '¿Se planifican, implementan y controlan los procesos necesarios para cumplir los requisitos?',
-        evidencias: 'Planes de trabajo, instructivos, registros operativos.'
+        preguntas: [
+          '¿Se planifican, implementan y controlan los procesos necesarios para cumplir los requisitos?'
+        ],
+        evidencias: ['Planes de trabajo', 'Instructivos', 'Registros operativos']
       },
       {
         seccion: 'Operación',
         requisito: '8.2',
         descripcion: 'Requisitos para los productos y servicios.',
-        preguntas:
-          '¿Cómo se determinan y revisan los requisitos del cliente? ¿Cómo se comunica con el cliente?',
-        evidencias: 'Cotizaciones, contratos, bitácoras de atención, quejas.'
+        preguntas: [
+          '¿Cómo se determinan y revisan los requisitos del cliente?',
+          '¿Cómo se comunica con el cliente?'
+        ],
+        evidencias: ['Cotizaciones', 'Contratos', 'Bitácoras de atención', 'Quejas']
       },
       {
         seccion: 'Operación',
         requisito: '8.5',
         descripcion: 'Producción y provisión del servicio.',
-        preguntas:
-          '¿Existen controles para la provisión del servicio? ¿Cómo se identifica y se preserva el producto/servicio?',
-        evidencias: 'Procedimientos operativos, checklists, registros de servicio.'
+        preguntas: [
+          '¿Existen controles para la provisión del servicio?',
+          '¿Cómo se identifica y se preserva el producto/servicio?'
+        ],
+        evidencias: ['Procedimientos operativos', 'Checklists', 'Registros de servicio']
       },
       {
         seccion: 'Evaluación del desempeño',
         requisito: '9.1',
         descripcion: 'Seguimiento, medición, análisis y evaluación.',
-        preguntas:
-          '¿Qué se mide? ¿Con qué frecuencia? ¿Cómo se analiza y evalúa el desempeño y la satisfacción del cliente?',
-        evidencias: 'Cuadro de mando, encuestas, análisis de indicadores.'
+        preguntas: [
+          '¿Qué se mide?',
+          '¿Con qué frecuencia?',
+          '¿Cómo se analiza y evalúa el desempeño y la satisfacción del cliente?'
+        ],
+        evidencias: ['Cuadro de mando', 'Encuestas', 'Análisis de indicadores']
       },
       {
         seccion: 'Evaluación del desempeño',
         requisito: '9.2',
         descripcion: 'Auditoría interna.',
-        preguntas:
-          '¿Se planifica y realiza el programa de auditoría? ¿Se reportan resultados y se dan seguimientos?',
-        evidencias: 'SGC-F-07, SGC-F-08, SGC-F-09, SGC-F-10, evidencias de seguimiento.'
+        preguntas: [
+          '¿Se planifica y realiza el programa de auditoría?',
+          '¿Se reportan resultados y se dan seguimientos?'
+        ],
+        evidencias: ['SGC-F-07', 'SGC-F-08', 'SGC-F-09', 'SGC-F-10', 'Evidencias de seguimiento']
       },
       {
         seccion: 'Evaluación del desempeño',
         requisito: '9.3',
         descripcion: 'Revisión por la dirección.',
-        preguntas:
-          '¿Se realiza la revisión por la dirección? ¿Se consideran entradas y salidas requeridas por la norma?',
-        evidencias: 'Acta de revisión por la dirección, acuerdos y seguimiento.'
+        preguntas: [
+          '¿Se realiza la revisión por la dirección?',
+          '¿Se consideran entradas y salidas requeridas por la norma?'
+        ],
+        evidencias: ['Acta de revisión por la dirección', 'Acuerdos y seguimiento']
       },
       {
         seccion: 'Mejora',
         requisito: '10.2',
         descripcion: 'No conformidad y acción correctiva.',
-        preguntas:
-          '¿Cómo se reaccionan ante NC? ¿Se analiza causa, se implementan acciones y se verifica eficacia?',
-        evidencias: 'SGC-F-04, SGC-F-05, análisis de causa raíz, evidencias de cierre.'
+        preguntas: [
+          '¿Cómo se reaccionan ante NC?',
+          '¿Se analiza causa, se implementan acciones y se verifica eficacia?'
+        ],
+        evidencias: ['SGC-F-04', 'SGC-F-05', 'Análisis de causa raíz', 'Evidencias de cierre']
       },
       {
         seccion: 'Mejora',
         requisito: '10.3',
         descripcion: 'Mejora continua.',
-        preguntas:
-          '¿Cómo se determina e implementa la mejora continua del SGC?',
-        evidencias: 'Planes de mejora, proyectos Kaizen, resultados de indicadores.'
+        preguntas: [
+          '¿Cómo se determina e implementa la mejora continua del SGC?'
+        ],
+        evidencias: ['Planes de mejora', 'Proyectos Kaizen', 'Resultados de indicadores']
       }
     ];
 

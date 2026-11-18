@@ -9980,6 +9980,7 @@ app.get('/api/empresas', async (req, res) => {
     try {
         await asegurarColumnaServicioProteccionCivilEmpresa(pool);
         await asegurarColumnaColaboradorEmpresa(pool);
+        await asegurarColumnaSiglasEmpresa(pool);
         await empresaRepositorioService.asegurarTablas(pool);
         const [rows] = await pool.query(
             `SELECT e.*,
@@ -10081,6 +10082,20 @@ async function asegurarColumnaAreaDepartamentoUsuario(db) {
         }
     }
     usuarioAreaDepartamentoColumnChecked = true;
+}
+
+let empresaSiglasColumnChecked = false;
+async function asegurarColumnaSiglasEmpresa(db) {
+    if (!db || typeof db.query !== 'function') return;
+    if (empresaSiglasColumnChecked) return;
+    try {
+        await db.query('ALTER TABLE empresa ADD COLUMN siglas VARCHAR(12) NULL');
+    } catch (error) {
+        if (error.code !== 'ER_DUP_FIELDNAME') {
+            throw error;
+        }
+    }
+    empresaSiglasColumnChecked = true;
 }
 
 async function asegurarColumnaLogoEmpresa(db) {
@@ -11962,7 +11977,7 @@ const EMPRESA_CAMPOS_PERMITIDOS = [
     'direccion', 'ciudad', 'estado', 'codigo_postal',
     'telefono', 'email', 'contacto_nombre',
     'puesto', 'contacto_telefono', 'contacto_email', 'logo',
-    'servicio_proteccion_civil', 'colaborador'
+    'servicio_proteccion_civil', 'colaborador', 'siglas'
 ];
 
 app.put('/api/empresas/:id', (req, res, next) => {
@@ -11985,6 +12000,7 @@ app.put('/api/empresas/:id', (req, res, next) => {
         await asegurarColumnaPuestoEmpresa(pool);
         await asegurarColumnaColaboradorEmpresa(pool);
         await asegurarColumnaLogoEmpresa(pool);
+        await asegurarColumnaSiglasEmpresa(pool);
         const fields = { ...req.body };
         const logoFile = req.files?.logo?.[0] || null;
 

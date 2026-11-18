@@ -33,6 +33,9 @@ const CICLOS_SATISFACCION_CLIENTE = [
         formId: process.env.SGC_SATISFACCION_CLIENTE_FORM_ID_2526
             || process.env.SGC_SATISFACCION_CLIENTE_FORM_ID
             || '1otY7kAA7Ko5CICg2-HwpdLjVEU5hsj6onUM-0NC5tDs',
+        // URL pública de respuesta (QR / abrir encuesta).
+        encuestaUrl: process.env.SGC_SATISFACCION_CLIENTE_FORM_URL_2526
+            || 'https://docs.google.com/forms/d/e/1FAIpQLSdqxfKmHBndhe3yuUj7JRDciDq60Zuegnh_1zBxN53Qa9jP-Q/viewform',
         vigente: false
     },
     {
@@ -40,6 +43,8 @@ const CICLOS_SATISFACCION_CLIENTE = [
         etiqueta: '2027',
         formId: process.env.SGC_SATISFACCION_CLIENTE_FORM_ID_2627
             || '1U1--K0OLk5iVe-17NIlB2kyeB620S-PMnpy8akkc9qo',
+        encuestaUrl: process.env.SGC_SATISFACCION_CLIENTE_FORM_URL_2627
+            || 'https://forms.gle/DQjgZ84iMETprXJN6',
         vigente: true
     }
 ];
@@ -69,6 +74,9 @@ function invalidarCacheDashboard() {
     dashboardCache.clear();
     try {
         googleFormsService.invalidarCacheForms();
+    } catch (_e) { /* noop */ }
+    try {
+        sgcF29Service.invalidarCacheComparativaDrive();
     } catch (_e) { /* noop */ }
 }
 
@@ -218,11 +226,23 @@ function construirPreguntasAgregadasForms(preguntasForm = [], responses = []) {
     return Array.from(mapa.values());
 }
 
+function metaEncuestaCiclo(ciclo = CICLO_SATISFACCION_VIGENTE) {
+    const formId = ciclo?.formId || CICLO_SATISFACCION_VIGENTE.formId;
+    return {
+        ciclo: ciclo?.id || CICLO_SATISFACCION_VIGENTE.id,
+        etiqueta: ciclo?.etiqueta || CICLO_SATISFACCION_VIGENTE.etiqueta,
+        vigente: !!ciclo?.vigente,
+        formId,
+        encuestaUrl: ciclo?.encuestaUrl
+            || `https://docs.google.com/forms/d/${formId}/viewform`,
+        encuestaEditUrl: `https://docs.google.com/forms/d/${formId}/edit`
+    };
+}
+
 function payloadSatisfaccionVacio(anioNum, extra = {}) {
     return {
         anio: anioNum,
-        ciclo: CICLO_SATISFACCION_VIGENTE.id,
-        etiqueta: CICLO_SATISFACCION_VIGENTE.etiqueta,
+        ...metaEncuestaCiclo(CICLO_SATISFACCION_VIGENTE),
         vigente: true,
         indiceAnual: 0,
         totalRespuestas: 0,
@@ -230,7 +250,6 @@ function payloadSatisfaccionVacio(anioNum, extra = {}) {
         cursosConEncuesta: 0,
         recomiendaPct: 0,
         fuente: 'google_forms',
-        formId: CICLO_SATISFACCION_VIGENTE.formId,
         ultimaRespuesta: null,
         servicios: [],
         comentarios: [],
@@ -316,12 +335,7 @@ function serieMensualDesdeBuckets(buckets, anioRespaldo) {
  */
 async function obtenerSatisfaccionCurso(_pool, anio, ciclo = CICLO_SATISFACCION_VIGENTE, opciones = {}) {
     const anioNum = Number(anio) || new Date().getFullYear();
-    const metaCiclo = {
-        ciclo: ciclo.id,
-        etiqueta: ciclo.etiqueta,
-        vigente: !!ciclo.vigente,
-        formId: ciclo.formId
-    };
+    const metaCiclo = metaEncuestaCiclo(ciclo);
 
     let formulario;
     try {
@@ -478,9 +492,7 @@ async function obtenerSatisfaccionCurso(_pool, anio, ciclo = CICLO_SATISFACCION_
 
     return {
         anio: anioNum,
-        ciclo: ciclo.id,
-        etiqueta: ciclo.etiqueta,
-        vigente: !!ciclo.vigente,
+        ...metaCiclo,
         indiceAnual: indiceEscalaCuatro(evaluacionAnual),
         totalRespuestas: responsesAnio.length,
         empresas,
@@ -488,7 +500,6 @@ async function obtenerSatisfaccionCurso(_pool, anio, ciclo = CICLO_SATISFACCION_
         cursosConEncuesta: empresas,
         recomiendaPct: 0,
         fuente: 'google_forms',
-        formId: ciclo.formId,
         formTitulo: formulario.info?.title || 'Encuesta de Satisfacción',
         ultimaRespuesta,
         servicios,
@@ -2082,7 +2093,7 @@ async function obtenerAvanceProyectos(poolSgc) {
         enProcesoGrafico: 0,
         porEstatus: { Concluido: 0, 'En proceso': 0, 'No iniciado': 0 },
         porPrioridad: {
-            Inmediato: 0,
+            'Corto plazo': 0,
             'Mediano plazo': 0,
             'Largo plazo': 0
         },
@@ -2110,7 +2121,9 @@ async function obtenerAvanceProyectos(poolSgc) {
 async function obtenerProveedoresF29(poolSgc, anio) {
     try {
         return await sgcF29Service.obtenerResumenProveedores(poolSgc, {
-            anio: Number(anio) || new Date().getFullYear()
+            anio: Number(anio) || new Date().getFullYear(),
+            // KPIs desde BD al instante; Drive solo si responde en <2.5s (o caché).
+            maxMsComparativaDrive: 2500
         });
     } catch (e) {
         return {

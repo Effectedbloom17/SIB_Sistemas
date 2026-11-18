@@ -3191,7 +3191,7 @@ async function aplicarFormatoFilasDgF05(spreadsheetId, sheetTitle, filaInicio, n
 
 /**
  * Replica el formato de tabla del SGC-F-14 en cada fila de datos (Google Sheets).
- * Aplica alineación por columna, bordes y fusiona B:C (Nombre del proyecto) y G:H
+ * Aplica alineación por columna, bordes y fusiona B:C (Actividad) y G:H
  * (% Avance) en cada renglón con datos, además de limpiar bordes/fusiones de las
  * filas vacías por debajo para que la tabla crezca/encoja respetando el diseño.
  *
