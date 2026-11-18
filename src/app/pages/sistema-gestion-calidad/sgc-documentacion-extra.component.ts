@@ -7,6 +7,7 @@ import Swal from 'sweetalert2';
 import { AuthService } from 'src/app/services/auth.service';
 import { BackendServices } from 'src/app/services/backend.services';
 import { PdfThumbnailService } from 'src/app/services/pdf-thumbnail.service';
+import { UploadSourceChooserService } from 'src/app/services/upload-source-chooser.service';
 
 export interface SgcDocExtraItem {
   id: number;
@@ -71,6 +72,7 @@ export class SgcDocumentacionExtraComponent implements OnInit, OnDestroy {
   miniaturas: Record<number, MiniaturaEstado> = {};
 
   mostrarSubida = false;
+  modoSubida: 'galeria' | 'pegar' = 'galeria';
   subiendo = false;
   errorSubida: string | null = null;
   archivosSeleccionados: File[] = [];
@@ -101,7 +103,8 @@ export class SgcDocumentacionExtraComponent implements OnInit, OnDestroy {
     private route: ActivatedRoute,
     private sanitizer: DomSanitizer,
     private pdfThumbnail: PdfThumbnailService,
-    private ngZone: NgZone
+    private ngZone: NgZone,
+    private uploadSourceChooser: UploadSourceChooserService
   ) {}
 
   @HostListener('document:keydown.escape', ['$event'])
@@ -354,8 +357,18 @@ export class SgcDocumentacionExtraComponent implements OnInit, OnDestroy {
     if (!files || files.length === 0) {
       return;
     }
-    this.abrirPanelSubida();
-    this.agregarArchivos(files);
+    void this.abrirPanelSubida({ omitirChooser: true, modo: 'galeria' }).then(() => {
+      this.agregarArchivos(files);
+    });
+  }
+
+  onDropzonePaste(files: File[]): void {
+    if (!files?.length) {
+      return;
+    }
+    void this.abrirPanelSubida({ omitirChooser: true, modo: 'galeria', conservarArchivos: true }).then(() => {
+      this.agregarArchivos(files);
+    });
   }
 
   private obtenerCarpetasHijas(rutaPadre: string): SgcDocExtraCarpeta[] {
@@ -709,10 +722,48 @@ export class SgcDocumentacionExtraComponent implements OnInit, OnDestroy {
     );
   }
 
-  abrirPanelSubida(): void {
+  async abrirPanelSubida(opciones?: {
+    omitirChooser?: boolean;
+    modo?: 'galeria' | 'pegar';
+    conservarArchivos?: boolean;
+  }): Promise<void> {
+    let modo: 'galeria' | 'pegar' = opciones?.modo || 'galeria';
+    if (!opciones?.omitirChooser) {
+      const origen = await this.uploadSourceChooser.elegir({
+        titulo: '¿Cómo quieres agregar el documento?',
+        subtitulo: 'Elige si lo tomas de tu galería/archivos o si lo pegas desde el portapapeles.'
+      });
+      if (!origen) {
+        return;
+      }
+      modo = origen;
+    }
+
+    if (modo === 'pegar' && !opciones?.omitirChooser) {
+      const pegados = await this.uploadSourceChooser.esperarPegado({
+        titulo: 'Pega el documento',
+        subtitulo: 'Copia la imagen o archivo y pégalo con Ctrl+V.'
+      });
+      if (!pegados?.length) {
+        return;
+      }
+      this.modoSubida = 'galeria';
+      this.mostrarSubida = true;
+      this.errorSubida = null;
+      this.archivosSeleccionados = [];
+      this.progresoActual = 0;
+      this.progresoTotal = 0;
+      this.progresoNombre = '';
+      this.agregarArchivos(pegados);
+      return;
+    }
+
+    this.modoSubida = modo;
     this.mostrarSubida = true;
     this.errorSubida = null;
-    this.archivosSeleccionados = [];
+    if (!opciones?.conservarArchivos) {
+      this.archivosSeleccionados = [];
+    }
     this.progresoActual = 0;
     this.progresoTotal = 0;
     this.progresoNombre = '';
@@ -723,6 +774,19 @@ export class SgcDocumentacionExtraComponent implements OnInit, OnDestroy {
       return;
     }
     this.mostrarSubida = false;
+    this.modoSubida = 'galeria';
+  }
+
+  onPasteEnPanelSubida(files: File[]): void {
+    if (!files?.length) {
+      return;
+    }
+    this.agregarArchivos(files);
+    this.modoSubida = 'galeria';
+  }
+
+  volverAGaleriaSubida(): void {
+    this.modoSubida = 'galeria';
   }
 
   onArchivoElegido(event: Event): void {
@@ -738,12 +802,12 @@ export class SgcDocumentacionExtraComponent implements OnInit, OnDestroy {
     input.value = '';
   }
 
-  private agregarArchivos(lista: FileList | null): void {
+  private agregarArchivos(lista: FileList | File[] | null): void {
     if (!lista || lista.length === 0) {
       return;
     }
     this.errorSubida = null;
-    const nuevos = Array.from(lista).filter(f => f.size > 0 || f.name);
+    const nuevos = Array.from(lista as ArrayLike<File>).filter(f => f.size > 0 || f.name);
     // Evita duplicados por nombre + tamaño.
     for (const file of nuevos) {
       const yaExiste = this.archivosSeleccionados.some(

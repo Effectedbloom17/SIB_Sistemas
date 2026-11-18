@@ -2385,6 +2385,211 @@ async function guardarRegistroDb(pool, payload) {
     await persistirRegistroSgc(pool, CODIGO_FORMATO, payload);
 }
 
+const MESES_CORTOS_F29 = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+function metaMesF29(anio, mesNum) {
+    const y = Number(anio);
+    const m = Number(mesNum);
+    if (!Number.isFinite(y) || !Number.isFinite(m) || m < 1 || m > 12) return null;
+    return {
+        clave: `${y}-${String(m).padStart(2, '0')}`,
+        anio: y,
+        mes_num: m,
+        etiqueta: MESES_CORTOS_F29[m - 1] || `M${m}`
+    };
+}
+
+function metaMesDesdeIsoF29(iso) {
+    const m = String(iso || '').match(/^(\d{4})-(\d{2})/);
+    if (!m) return null;
+    return metaMesF29(Number(m[1]), Number(m[2]));
+}
+
+/**
+ * Comparativa mensual: solo meses con al menos una evaluación calificada.
+ * filas: [{ anio, mes_num, proveedor, calificacion }]
+ */
+function construirComparativaMensualProveedores(filas, anioFiltro = null) {
+    const anioNum = Number(anioFiltro);
+    const filtrarAnio = Number.isFinite(anioNum) && anioNum > 0;
+    const mesesMap = new Map();
+
+    for (const fila of filas || []) {
+        const calif = Number(fila?.calificacion);
+        if (!Number.isFinite(calif)) continue;
+        const meta = metaMesF29(fila.anio, fila.mes_num);
+        if (!meta) continue;
+        if (filtrarAnio && meta.anio !== anioNum) continue;
+
+        if (!mesesMap.has(meta.clave)) {
+            mesesMap.set(meta.clave, {
+                ...meta,
+                sum: 0,
+                count: 0,
+                proveedores: new Map()
+            });
+        }
+        const mes = mesesMap.get(meta.clave);
+        mes.sum += calif;
+        mes.count += 1;
+
+        const claveProv = String(fila.proveedor || '').trim().toLowerCase() || '__sin__';
+        const nombre = String(fila.proveedor || '').trim() || 'Sin nombre';
+        if (!mes.proveedores.has(claveProv)) {
+            mes.proveedores.set(claveProv, { proveedor: nombre, sum: 0, count: 0 });
+        }
+        const p = mes.proveedores.get(claveProv);
+        p.sum += calif;
+        p.count += 1;
+        if (nombre !== 'Sin nombre') p.proveedor = nombre;
+    }
+
+    const meses = Array.from(mesesMap.values())
+        .filter((m) => m.count > 0)
+        .sort((a, b) => (a.anio - b.anio) || (a.mes_num - b.mes_num))
+        .map((m) => {
+            const promedio = Math.round(m.sum / m.count);
+            const proveedores = Array.from(m.proveedores.values())
+                .map((p) => {
+                    const promedioProv = Math.round(p.sum / p.count);
+                    return {
+                        proveedor: p.proveedor,
+                        promedioCalificacion: promedioProv,
+                        totalEvaluaciones: p.count,
+                        aprobado: promedioProv >= 80
+                    };
+                })
+                .sort((a, b) => b.promedioCalificacion - a.promedioCalificacion);
+            return {
+                clave: m.clave,
+                anio: m.anio,
+                mes_num: m.mes_num,
+                etiqueta: m.etiqueta,
+                promedioCalificacion: promedio,
+                totalEvaluaciones: m.count,
+                totalProveedores: proveedores.length,
+                aprobados: proveedores.filter((p) => p.aprobado).length,
+                reprobados: proveedores.filter((p) => !p.aprobado).length,
+                proveedores
+            };
+        });
+
+    return {
+        anio: filtrarAnio ? anioNum : null,
+        totalMeses: meses.length,
+        meses
+    };
+}
+
+function filasComparativaDesdeLista(lista, fechaFallbackIso = '') {
+    const fallback = metaMesDesdeIsoF29(fechaFallbackIso);
+    const filas = [];
+    for (const ev of lista || []) {
+        if (ev?.calificacion == null || !Number.isFinite(Number(ev.calificacion))) continue;
+        const meta = metaMesDesdeIsoF29(ev.fecha) || fallback;
+        if (!meta) continue;
+        filas.push({
+            anio: meta.anio,
+            mes_num: meta.mes_num,
+            proveedor: ev.proveedor || 'Sin nombre',
+            calificacion: Number(ev.calificacion)
+        });
+    }
+    return filas;
+}
+
+function parsearProveedoresDesdeFilasSheet(rows) {
+    const headerRow = rows[0] || [];
+    const cols = resolverColumnasDesdeHeaders(headerRow[2] || '', headerRow[3] || '', headerRow[8] || '');
+    const proveedores = [];
+    for (let i = 1; i < rows.length; i++) {
+        const row = rows[i] || [];
+        const fila = leerFilaProveedorDesdeCeldas(
+            (col) => row[col - 1] || '',
+            cols
+        );
+        if (esProveedorVacio(fila) || pareceNotaPlantilla(fila.proveedor)) continue;
+        const calif = fila.calificacion !== '' ? Number(fila.calificacion) : null;
+        if (!Number.isFinite(calif)) continue;
+        proveedores.push({
+            proveedor: fila.proveedor || 'Sin nombre',
+            calificacion: calif
+        });
+    }
+    return proveedores;
+}
+
+/**
+ * Lee hojas SGCF29-MMAA del año y arma filas de comparativa (última versión por mes).
+ */
+async function obtenerFilasComparativaDesdeDrive(spreadsheetId, anio) {
+    if (!spreadsheetId || spreadsheetId === TEMPLATE_DRIVE_ID) return [];
+    const anioNum = Number(anio);
+    if (!Number.isFinite(anioNum) || anioNum < 2000) return [];
+
+    const yy = String(anioNum).slice(-2);
+    let titulos = [];
+    try {
+        titulos = await driveService.listarHojasGoogleSheet(spreadsheetId);
+    } catch (err) {
+        console.warn('[SGC-F-29] Comparativa: no se listaron hojas:', err.message);
+        return [];
+    }
+
+    const porMes = new Map();
+    for (const titulo of titulos || []) {
+        const fecha = excelHistorial.parsearFechaHojaHistorial(titulo, CODIGO_FORMATO);
+        if (!fecha || String(fecha.yy) !== yy) continue;
+        const mesNum = Number(fecha.mm);
+        if (!Number.isFinite(mesNum) || mesNum < 1 || mesNum > 12) continue;
+        const prev = porMes.get(mesNum);
+        if (!prev || Number(fecha.version || 1) > Number(prev.version || 1)) {
+            porMes.set(mesNum, { titulo, mes_num: mesNum, version: Number(fecha.version || 1) });
+        }
+    }
+    if (!porMes.size) return [];
+
+    const hojas = Array.from(porMes.values()).sort((a, b) => a.mes_num - b.mes_num);
+    const { google } = require('googleapis');
+    const auth = driveService.getAuthClient();
+    if (!auth) return [];
+    const sheetsApi = google.sheets({ version: 'v4', auth });
+    const ranges = hojas.map((h) => {
+        const esc = String(h.titulo).replace(/'/g, "''");
+        return `'${esc}'!A${HEADER_ROW}:L${DATA_END_ROW + 40}`;
+    });
+
+    let valueRanges = [];
+    try {
+        const res = await sheetsApi.spreadsheets.values.batchGet({
+            spreadsheetId,
+            ranges,
+            majorDimension: 'ROWS'
+        });
+        valueRanges = Array.isArray(res.data.valueRanges) ? res.data.valueRanges : [];
+    } catch (err) {
+        console.warn('[SGC-F-29] Comparativa batchGet falló:', err.message);
+        return [];
+    }
+
+    const filas = [];
+    for (let i = 0; i < hojas.length; i++) {
+        const hoja = hojas[i];
+        const rows = Array.isArray(valueRanges[i]?.values) ? valueRanges[i].values : [];
+        if (!rows.length) continue;
+        const proveedores = parsearProveedoresDesdeFilasSheet(rows);
+        for (const p of proveedores) {
+            filas.push({
+                anio: anioNum,
+                mes_num: hoja.mes_num,
+                proveedor: p.proveedor,
+                calificacion: p.calificacion
+            });
+        }
+    }
+    return filas;
+}
+
 async function obtenerResumenProveedores(pool, opciones = {}) {
     await asegurarTablaSgcFormatoDatos(pool);
     const registro = await obtenerRegistroDb(pool);
@@ -2397,6 +2602,7 @@ async function obtenerResumenProveedores(pool, opciones = {}) {
             proveedor: p.proveedor || '',
             referencia: p.referencia || '',
             fecha: p.fecha || '',
+            areaClave: String(p.areaClave || p.area_clave || '').trim().slice(0, 64),
             entregaTiempo: p.entregaTiempo !== '' ? Number(p.entregaTiempo) : null,
             entregaDomicilio: p.entregaDomicilio !== '' ? Number(p.entregaDomicilio) : null,
             precio: p.precio !== '' ? Number(p.precio) : null,
@@ -2422,6 +2628,47 @@ async function obtenerResumenProveedores(pool, opciones = {}) {
         if (!vals.length) return 0;
         return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
     };
+
+    let catalogoAreas = [];
+    try {
+        catalogoAreas = await listarAreas(pool);
+    } catch (err) {
+        console.warn('[SGC-F-29] No se pudieron listar áreas para resumen:', err.message);
+        catalogoAreas = AREAS_SISTEMA.map((a) => ({ ...a }));
+    }
+    const areaMeta = new Map(
+        (catalogoAreas || []).map((a) => [String(a.clave || '').trim(), a])
+    );
+    const areasMap = new Map();
+    for (const ev of conCalif) {
+        const clave = String(ev.areaClave || '').trim() || '__sin_area';
+        if (!areasMap.has(clave)) {
+            const meta = areaMeta.get(clave);
+            areasMap.set(clave, {
+                clave: clave === '__sin_area' ? '' : clave,
+                nombre: meta?.nombre || (clave === '__sin_area' ? 'Sin área' : clave),
+                color: meta?.color || '#94a3b8',
+                sum: 0,
+                count: 0
+            });
+        }
+        const row = areasMap.get(clave);
+        row.sum += Number(ev.calificacion) || 0;
+        row.count += 1;
+    }
+    const promedioPorArea = Array.from(areasMap.values())
+        .map((a) => {
+            const promedioArea = a.count ? Math.round(a.sum / a.count) : 0;
+            return {
+                clave: a.clave,
+                nombre: a.nombre,
+                color: a.color,
+                promedioCalificacion: promedioArea,
+                totalEvaluaciones: a.count,
+                aprobado: promedioArea >= 80
+            };
+        })
+        .sort((a, b) => b.promedioCalificacion - a.promedioCalificacion);
 
     // Agrupa evaluaciones del mismo proveedor (nombre normalizado).
     const gruposMap = new Map();
@@ -2488,6 +2735,34 @@ async function obtenerResumenProveedores(pool, opciones = {}) {
         }))
     }));
 
+    const anioCmp = Number(opciones.anio) || new Date().getFullYear();
+    const fechaFallback = formatearFechaIso(datos.fechaEvaluacion)
+        || formatearFechaIso(datos.fechaElaboracion)
+        || fechaHoyIso();
+    let filasCmp = filasComparativaDesdeLista(lista, fechaFallback);
+    if (!incluirOcultos) {
+        try {
+            const driveId = await resolverDriveFileIdRapido(registro);
+            if (driveId) {
+                const filasDrive = await obtenerFilasComparativaDesdeDrive(driveId, anioCmp);
+                if (filasDrive.length) {
+                    // Preferir historial Drive; completar con BD si el mes vigente aún no aparece.
+                    const clavesDrive = new Set(
+                        filasDrive.map((f) => `${f.anio}-${String(f.mes_num).padStart(2, '0')}`)
+                    );
+                    const filasBdAnio = filasCmp.filter((f) => f.anio === anioCmp);
+                    const extrasBd = filasBdAnio.filter(
+                        (f) => !clavesDrive.has(`${f.anio}-${String(f.mes_num).padStart(2, '0')}`)
+                    );
+                    filasCmp = filasDrive.concat(extrasBd);
+                }
+            }
+        } catch (err) {
+            console.warn('[SGC-F-29] Comparativa mensual Drive omitida:', err.message);
+        }
+    }
+    const comparativaMensual = construirComparativaMensualProveedores(filasCmp, anioCmp);
+
     return {
         total: lista.length,
         totalProveedoresUnicos: proveedoresAgrupados.length,
@@ -2504,8 +2779,10 @@ async function obtenerResumenProveedores(pool, opciones = {}) {
             servicio: promedioCriterio('servicio'),
             calidad: promedioCriterio('calidad')
         },
+        promedioPorArea,
         proveedores: listaConEvidencias,
-        proveedoresAgrupados: agrupadosConEvidencias
+        proveedoresAgrupados: agrupadosConEvidencias,
+        comparativaMensual
     };
 }
 

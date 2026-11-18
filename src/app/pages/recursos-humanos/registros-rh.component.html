@@ -1,0 +1,458 @@
+<div class="header header-bg-image rrhh-hero rrhh-hero--compact pb-5 pt-4 pt-md-5 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="rrhh-hero-icon icon icon-shape text-white rounded-circle shadow mb-2">
+            <i class="fas fa-archive" aria-hidden="true"></i>
+          </div>
+          <h1 class="text-white mb-0 rrhh-hero-title">Registros Recursos Humanos</h1>
+          <p class="text-white-50 rrhh-hero-sub mb-0">
+            Formatos, entregas y CVs · acceso restringido
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid rrhh-main mt--4">
+  <div class="row justify-content-center">
+    <div class="col-12">
+      <div class="card rrhh-shell border-0 shadow-sm">
+        <div class="rrhh-shell-accent" aria-hidden="true"></div>
+        <div class="card-body rrhh-shell-body rr-shell">
+
+          <header class="rr-top">
+            <div class="rr-top__copy">
+              <span class="rr-badge">Privado</span>
+              <h2>Carpeta de Talento Humano</h2>
+              <p>Documentos internos · solo root, Rozana y María Fernanda</p>
+            </div>
+            <div class="rr-top__actions">
+              <button type="button" class="rr-btn rr-btn--ghost" (click)="abrirEnDrive()" title="Abrir en Google Drive">
+                <i class="fab fa-google-drive"></i>
+                <span>Drive</span>
+              </button>
+              <button type="button" class="rr-btn rr-btn--ghost" (click)="abrirDialogoNuevaCarpeta()">
+                <i class="fas fa-folder-plus"></i>
+                <span>Nueva carpeta</span>
+              </button>
+              <button type="button" class="rr-btn rr-btn--primary" (click)="dispararSubida()" [disabled]="subiendo">
+                <i class="fas" [ngClass]="subiendo ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'"></i>
+                <span>{{ subiendo ? 'Subiendo…' : 'Subir' }}</span>
+              </button>
+            </div>
+          </header>
+
+          <div class="rr-alert rr-alert--error" *ngIf="errorCarga">
+            <i class="fas fa-exclamation-triangle"></i>
+            <span>{{ errorCarga }}</span>
+            <button type="button" class="rr-alert__close" (click)="errorCarga = ''" aria-label="Cerrar">×</button>
+          </div>
+          <div class="rr-alert rr-alert--ok" *ngIf="mensajeOk && !errorCarga">
+            <i class="fas fa-check-circle"></i>
+            <span>{{ mensajeOk }}</span>
+            <button type="button" class="rr-alert__close" (click)="mensajeOk = ''" aria-label="Cerrar">×</button>
+          </div>
+
+          <div class="rr-layout">
+            <!-- Panel izquierdo: resumen + subida a carpeta Drive fija -->
+            <aside class="rr-hub"
+                   appPasteFiles
+                   tabindex="0"
+                   title="También puedes pegar archivos con Ctrl+V"
+                   (filesPasted)="onHubPaste($event)"
+                   [class.is-drop]="dropOverHub"
+                   (dragover)="onHubDragOver($event)"
+                   (dragleave)="onHubDragLeave($event)"
+                   (drop)="onHubDrop($event)">
+              <div class="rr-hub__head">
+                <span class="rr-hub__eyebrow">Biblioteca RH</span>
+                <h3>Talento Humano</h3>
+              </div>
+
+              <div class="rr-storage">
+                <div class="rr-storage__head">
+                  <span class="rr-storage__label">Almacenamiento</span>
+                  <span class="rr-storage__used">{{ formatearTamanoBytes(totalBytesUsados) }}</span>
+                </div>
+                <div class="rr-storage__bar" aria-hidden="true">
+                  <div class="rr-storage__fill" [style.width.%]="porcentajeUsoVisual"></div>
+                </div>
+                <p class="rr-storage__hint">
+                  {{ totalesRaiz.archivos }} documento{{ totalesRaiz.archivos !== 1 ? 's' : '' }}
+                  · {{ totalesRaiz.carpetas }} carpeta{{ totalesRaiz.carpetas !== 1 ? 's' : '' }}
+                </p>
+              </div>
+
+              <div class="rr-repo-nav" role="group" aria-label="Filtrar por tipo">
+                <p class="rr-repo-nav__title">Repositorio</p>
+                <button type="button" class="rr-repo-nav__item"
+                        [class.is-active]="filtroTipo === 'todos'"
+                        (click)="setFiltroTipo('todos')">
+                  <i class="fas fa-folder-open"></i>
+                  <span>Todo</span>
+                  <em>{{ totalesNivel.archivos }}</em>
+                </button>
+                <button type="button" class="rr-repo-nav__item"
+                        [class.is-active]="filtroTipo === 'pdf'"
+                        (click)="setFiltroTipo('pdf')">
+                  <i class="fas fa-file-pdf"></i>
+                  <span>PDF</span>
+                  <em>{{ conteoPdf }}</em>
+                </button>
+                <button type="button" class="rr-repo-nav__item"
+                        [class.is-active]="filtroTipo === 'documentos'"
+                        (click)="setFiltroTipo('documentos')">
+                  <i class="fas fa-file-alt"></i>
+                  <span>Documentos</span>
+                  <em>{{ conteoDocumentos }}</em>
+                </button>
+                <button type="button" class="rr-repo-nav__item"
+                        [class.is-active]="filtroTipo === 'imagenes'"
+                        (click)="setFiltroTipo('imagenes')">
+                  <i class="fas fa-image"></i>
+                  <span>Imágenes</span>
+                  <em>{{ conteoImagenes }}</em>
+                </button>
+              </div>
+
+              <button type="button"
+                      class="rr-hub__upload"
+                      (click)="dispararSubidaHub()"
+                      [disabled]="subiendoHub || subiendo"
+                      [attr.aria-label]="subiendoHub ? 'Subiendo archivo' : (dropOverHub ? 'Suelta el archivo' : 'Subir archivo')">
+                <span class="rr-hub__upload-icon">
+                  <i class="fas" [ngClass]="(subiendoHub || subiendo) ? 'fa-spinner fa-spin' : (dropOverHub ? 'fa-file-import' : 'fa-cloud-upload-alt')"></i>
+                </span>
+                <span class="rr-hub__upload-label">{{ (subiendoHub || subiendo) ? 'Subiendo…' : (dropOverHub ? 'Suelta aquí' : 'Subir') }}</span>
+                <span class="rr-hub__upload-meta">PDF · Office · Imagen</span>
+              </button>
+
+              <div class="rr-upload-progress" *ngIf="(subiendo || subiendoHub) && progresoSubida >= 0">
+                <div class="rr-upload-progress__meta">
+                  <span>{{ subiendoNombre || 'Subiendo…' }}</span>
+                  <strong>{{ progresoSubida }}%</strong>
+                </div>
+                <div class="rr-upload-progress__bar" aria-hidden="true">
+                  <div class="rr-upload-progress__fill" [style.width.%]="progresoSubida"></div>
+                </div>
+              </div>
+
+              <div class="rr-hub__ligar" [class.is-open]="ligarAbierto">
+                <button type="button"
+                        class="rr-hub__ligar-toggle"
+                        (click)="toggleLigar()"
+                        [attr.aria-expanded]="ligarAbierto">
+                  <span class="rr-hub__ligar-icon"><i class="fas fa-link"></i></span>
+                  <span class="rr-hub__ligar-copy">
+                    <strong>Ligar documento</strong>
+                    <small>Sin duplicar</small>
+                  </span>
+                  <i class="fas fa-chevron-down rr-hub__ligar-chevron"></i>
+                </button>
+
+                <div class="rr-hub__ligar-panel" *ngIf="ligarAbierto" (click)="$event.stopPropagation()">
+                  <label class="rr-hub__ligar-search">
+                    <i class="fas fa-search"></i>
+                    <input type="search"
+                           [(ngModel)]="ligarQuery"
+                           (ngModelChange)="onLigarQueryChange($event)"
+                           placeholder="Buscar por nombre o código…"
+                           autocomplete="off">
+                  </label>
+
+                  <div class="rr-hub__ligar-status" *ngIf="ligarBuscando">
+                    <i class="fas fa-spinner fa-spin"></i> Cargando catálogo…
+                  </div>
+                  <div class="rr-hub__ligar-status" *ngIf="!ligarBuscando && !ligarResultados.length">
+                    Sin coincidencias
+                  </div>
+
+                  <div class="rr-hub__ligar-list" *ngIf="!ligarBuscando && ligarResultados.length">
+                    <button type="button"
+                            class="rr-hub__ligar-item"
+                            *ngFor="let doc of ligarResultados; trackBy: trackByLigarDoc"
+                            [disabled]="ligarProcesandoId === (doc.codigo || doc.nombreDocumento)"
+                            (click)="confirmarLigar(doc)">
+                      <span class="rr-hub__ligar-item-icon">
+                        <i class="fas fa-file-alt"></i>
+                      </span>
+                      <span class="rr-hub__ligar-item-text">
+                        <strong [title]="doc.nombreDocumento">
+                          <ng-container *ngIf="doc.codigo">{{ doc.codigo }} </ng-container>{{ doc.nombreDocumento }}
+                          <ng-container *ngIf="doc.versionVigente"> v{{ doc.versionVigente }}</ng-container>
+                        </strong>
+                        <small>{{ doc.tipoDocumento || doc.especie || 'Documento del sistema' }}</small>
+                      </span>
+                      <i class="fas"
+                         [ngClass]="ligarProcesandoId === (doc.codigo || doc.nombreDocumento) ? 'fa-spinner fa-spin' : 'fa-plus'"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </aside>
+
+            <div class="rr-panel"
+               appPasteFiles
+               [pasteListenDocument]="true"
+               tabindex="0"
+               title="También puedes pegar archivos con Ctrl+V"
+               (filesPasted)="onPanelPaste($event)"
+               [class.is-drop]="dropOverBody"
+               (dragover)="onDragOver($event)"
+               (dragleave)="onDragLeave($event)"
+               (drop)="onDrop($event)">
+
+            <div class="rr-toolbar">
+              <nav class="rr-crumbs" aria-label="Ruta">
+                <button type="button" class="rr-crumbs__back" *ngIf="!esRaiz" (click)="regresarNivel()" title="Regresar">
+                  <i class="fas fa-arrow-left"></i>
+                </button>
+                <button type="button" class="rr-crumbs__item" [class.is-current]="esRaiz" (click)="irARaiz()">
+                  Registros
+                </button>
+                <ng-container *ngFor="let m of migas; let i = index; let last = last">
+                  <ng-container *ngIf="i > 0 || !esRaiz">
+                    <span class="rr-crumbs__sep" aria-hidden="true">/</span>
+                    <button type="button"
+                            class="rr-crumbs__item"
+                            [class.is-current]="last"
+                            (click)="irAMiga(m)">{{ m.nombre }}</button>
+                  </ng-container>
+                </ng-container>
+              </nav>
+
+              <label class="rr-search">
+                <i class="fas fa-search" aria-hidden="true"></i>
+                <input type="search"
+                       [(ngModel)]="busquedaDoc"
+                       placeholder="Buscar archivo o carpeta…"
+                       autocomplete="off">
+              </label>
+
+              <div class="rr-toolbar__meta">
+                <span class="rr-count">{{ carpetasFiltradas.length + archivosFiltrados.length }} ítems</span>
+                <div class="rr-view" role="group" aria-label="Vista">
+                  <button type="button"
+                          class="rr-view__btn"
+                          [class.is-active]="vista === 'lista'"
+                          (click)="cambiarVista('lista')"
+                          title="Vista lista">
+                    <i class="fas fa-list"></i>
+                  </button>
+                  <button type="button"
+                          class="rr-view__btn"
+                          [class.is-active]="vista === 'cuadricula'"
+                          (click)="cambiarVista('cuadricula')"
+                          title="Vista cuadrícula">
+                    <i class="fas fa-th-large"></i>
+                  </button>
+                </div>
+                <button type="button"
+                        class="rr-icon-btn"
+                        (click)="cargarContenido(carpetaActualId, true)"
+                        [disabled]="cargando"
+                        title="Actualizar">
+                  <i class="fas" [ngClass]="cargando ? 'fa-spinner fa-spin' : 'fa-sync-alt'"></i>
+                </button>
+              </div>
+            </div>
+
+            <div class="rr-newfolder" *ngIf="mostrarNuevaCarpeta">
+              <i class="fas fa-folder"></i>
+              <input type="text"
+                     [(ngModel)]="nombreNuevaCarpeta"
+                     placeholder="Nombre de la carpeta"
+                     (keyup.enter)="crearCarpeta()"
+                     (keyup.escape)="mostrarNuevaCarpeta = false">
+              <button type="button" class="rr-btn rr-btn--primary rr-btn--sm" (click)="crearCarpeta()" [disabled]="creandoCarpeta">
+                Crear
+              </button>
+              <button type="button" class="rr-btn rr-btn--ghost rr-btn--sm" (click)="mostrarNuevaCarpeta = false">
+                Cancelar
+              </button>
+            </div>
+
+            <div class="rr-drop-hint" *ngIf="dropOverBody">
+              <i class="fas fa-cloud-upload-alt"></i>
+              Suelta para subir aquí
+            </div>
+
+            <div class="rr-loading" *ngIf="cargando">
+              <i class="fas fa-spinner fa-spin"></i>
+              <span>Cargando contenido…</span>
+            </div>
+
+            <div class="rr-empty" *ngIf="vacio">
+              <div class="rr-empty__icon"><i class="fas fa-folder-open"></i></div>
+              <h3>Esta carpeta está vacía</h3>
+              <p>Crea una carpeta o liga un documento desde la biblioteca.</p>
+              <div class="rr-empty__actions">
+                <button type="button" class="rr-btn rr-btn--primary" (click)="abrirDialogoNuevaCarpeta()" [disabled]="creandoCarpeta">
+                  <i class="fas fa-folder-plus"></i>
+                  Creación de carpeta
+                </button>
+              </div>
+            </div>
+
+            <!-- Vista lista -->
+            <div class="rr-list" *ngIf="!cargando && !vacio && vista === 'lista'">
+              <div class="rr-list__head" aria-hidden="true">
+                <span class="rr-list__col rr-list__col--name">Nombre</span>
+                <span class="rr-list__col rr-list__col--type">Tipo</span>
+                <span class="rr-list__col rr-list__col--size">Tamaño</span>
+                <span class="rr-list__col rr-list__col--date">Modificado</span>
+                <span class="rr-list__col rr-list__col--actions"></span>
+              </div>
+
+              <button type="button"
+                      class="rr-row rr-row--folder"
+                      *ngFor="let f of carpetasFiltradas"
+                      (click)="entrarCarpeta(f)">
+                <span class="rr-row__name" [title]="f.nombre">
+                  <span class="rr-row__icon rr-row__icon--folder"><i class="fas fa-folder"></i></span>
+                  <span class="rr-row__label">{{ f.nombre }}</span>
+                </span>
+                <span class="rr-row__type"><span class="rr-tag rr-tag--folder">Carpeta</span></span>
+                <span class="rr-row__size">{{ f.archivos || 0 }} arch.</span>
+                <span class="rr-row__date">—</span>
+                <span class="rr-row__actions" (click)="$event.stopPropagation()">
+                  <button type="button" class="rr-icon-btn rr-icon-btn--danger" (click)="eliminarItem('carpeta', f.id, f.nombre, $event)" title="Eliminar">
+                    <i class="fas fa-trash-alt"></i>
+                  </button>
+                </span>
+              </button>
+
+              <button type="button"
+                      class="rr-row"
+                      *ngFor="let doc of archivosFiltrados"
+                      (click)="abrirDocumento(doc)">
+                <span class="rr-row__name" [title]="doc.nombre">
+                  <span class="rr-row__icon" [ngClass]="'rr-row__icon--' + claseTipo(doc)">
+                    <img *ngIf="miniatura(doc).urlStr"
+                         [src]="miniatura(doc).urlStr | safe:'url'"
+                         [alt]="doc.nombre"
+                         (load)="onLoadMiniatura(doc)"
+                         (error)="onErrorMiniatura(doc, $event)">
+                    <i *ngIf="!miniatura(doc).urlStr" class="fas"
+                       [ngClass]="miniatura(doc).cargando ? 'fa-spinner fa-spin' : iconoArchivo(doc)"></i>
+                  </span>
+                  <span class="rr-row__label">{{ doc.nombre }}</span>
+                </span>
+                <span class="rr-row__type"><span class="rr-tag" [ngClass]="'rr-tag--' + claseTipo(doc)">{{ etiquetaTipo(doc) }}</span></span>
+                <span class="rr-row__size">{{ doc.tamanoLabel || '—' }}</span>
+                <span class="rr-row__date">{{ formatearFecha(doc.modificado) }}</span>
+                <span class="rr-row__actions" (click)="$event.stopPropagation()">
+                  <button type="button" class="rr-icon-btn" (click)="abrirDocumento(doc)" title="Abrir">
+                    <i class="fas fa-external-link-alt"></i>
+                  </button>
+                  <button type="button" class="rr-icon-btn rr-icon-btn--danger" (click)="eliminarItem('archivo', doc.id, doc.nombre, $event)" title="Eliminar">
+                    <i class="fas fa-trash-alt"></i>
+                  </button>
+                </span>
+              </button>
+            </div>
+
+            <!-- Vista cuadrícula -->
+            <ng-container *ngIf="!cargando && !vacio && vista === 'cuadricula'">
+              <div class="rr-section" *ngIf="carpetasFiltradas.length">
+                <h3 class="rr-section__title">Carpetas</h3>
+                <div class="rr-folders" role="list" aria-label="Carpetas">
+                  <div class="rr-folder-card" *ngFor="let f of carpetasFiltradas" role="listitem">
+                    <button type="button"
+                            class="rr-folder-card__main"
+                            (click)="entrarCarpeta(f)"
+                            [attr.aria-label]="'Abrir carpeta ' + f.nombre"
+                            [title]="'Abrir «' + f.nombre + '»'">
+                      <span class="rr-folder-card__icon" aria-hidden="true">
+                        <i class="fas fa-folder"></i>
+                      </span>
+                      <span class="rr-folder-card__body">
+                        <span class="rr-folder-card__name">{{ f.nombre }}</span>
+                        <span class="rr-folder-card__meta">
+                          {{ f.archivos || 0 }} archivo{{ (f.archivos || 0) === 1 ? '' : 's' }}
+                          <ng-container *ngIf="f.tamanoLabel"> · {{ f.tamanoLabel }}</ng-container>
+                        </span>
+                      </span>
+                    </button>
+                    <button type="button"
+                            class="rr-folder-card__action rr-folder-card__action--danger"
+                            title="Eliminar carpeta"
+                            (click)="eliminarItem('carpeta', f.id, f.nombre, $event)">
+                      <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="rr-section" *ngIf="archivosFiltrados.length">
+                <h3 class="rr-section__title" *ngIf="carpetasFiltradas.length">Archivos</h3>
+                <div class="rr-grid">
+                  <button type="button"
+                          class="rr-tile"
+                          [ngClass]="'rr-tile--' + claseTipo(doc)"
+                          *ngFor="let doc of archivosFiltrados"
+                          (click)="abrirDocumento(doc)">
+                    <span class="rr-tile__rail" aria-hidden="true"></span>
+                    <span class="rr-tile__toolbar" (click)="$event.stopPropagation()">
+                      <button type="button" class="rr-tile__tool" *ngIf="puedeRenombrar(doc)"
+                              (click)="renombrarDocumento(doc, $event)" title="Renombrar">
+                        <i class="fas fa-pen"></i>
+                      </button>
+                      <button type="button" class="rr-tile__tool"
+                              (click)="descargarDocumento(doc, $event)" title="Descargar">
+                        <i class="fas fa-download"></i>
+                      </button>
+                      <button type="button" class="rr-tile__tool"
+                              (click)="imprimirDocumento(doc, $event)" title="Imprimir">
+                        <i class="fas fa-print"></i>
+                      </button>
+                      <button type="button" class="rr-tile__tool rr-tile__tool--danger"
+                              (click)="eliminarItem('archivo', doc.id, doc.nombre, $event)" title="Eliminar">
+                        <i class="fas fa-trash-alt"></i>
+                      </button>
+                    </span>
+                    <span class="rr-tile__preview"
+                          [ngClass]="[
+                            'rr-tile__preview--' + claseTipo(doc),
+                            miniatura(doc).urlStr ? 'has-thumb' : ''
+                          ]">
+                      <span class="rr-tile__badge" [ngClass]="'rr-tile__badge--' + claseTipo(doc)">{{ etiquetaTipo(doc) }}</span>
+                      <img *ngIf="miniatura(doc).urlStr"
+                           class="rr-tile__thumb"
+                           [src]="miniatura(doc).urlStr | safe:'url'"
+                           [alt]="doc.nombre"
+                           (load)="onLoadMiniatura(doc)"
+                           (error)="onErrorMiniatura(doc, $event)">
+                      <span class="rr-tile__icon-wrap" *ngIf="!miniatura(doc).urlStr">
+                        <i class="fas" [ngClass]="miniatura(doc).cargando ? 'fa-spinner fa-spin' : iconoArchivo(doc)"></i>
+                      </span>
+                    </span>
+                    <span class="rr-tile__body">
+                      <span class="rr-tile__name" [title]="doc.nombre">{{ doc.nombre }}</span>
+                      <span class="rr-tile__meta">
+                        <span>{{ doc.tamanoLabel || '—' }}</span>
+                        <span *ngIf="doc.modificado">· {{ formatearFecha(doc.modificado) }}</span>
+                      </span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </ng-container>
+          </div>
+
+          </div><!-- /.rr-layout -->
+
+          <input #fileInput type="file" hidden multiple
+                 accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.rtf"
+                 (change)="onFileSelected($event)">
+          <input #hubFileInput type="file" hidden multiple
+                 accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.rtf"
+                 (change)="onHubFileSelected($event)">
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

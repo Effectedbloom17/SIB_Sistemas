@@ -121,10 +121,20 @@
           </div>
 
           <ng-container *ngIf="!cargandoCatalogo">
-          <div *ngIf="!hayDocumentosPipc" class="text-center py-5">
+          <div *ngIf="!hayDocumentosPipc && !empresaSinPipcAsignado" class="text-center py-5">
             <i class="fas fa-inbox fa-2x text-muted"></i>
             <p class="text-muted mt-2 mb-0">
               No hay plantillas PIPC en el catálogo para esta empresa
+            </p>
+          </div>
+
+          <div *ngIf="empresaSinPipcAsignado" class="text-center py-5">
+            <i class="fas fa-user-shield fa-2x mb-2" style="color:#d97248;"></i>
+            <p class="mb-1" style="color:#334155;font-weight:600;">
+              Esta empresa aún no tiene PIPC asignados
+            </p>
+            <p class="text-muted mb-0" style="max-width: 28rem; margin: 0 auto;">
+              Solo un administrador puede asignar PIPC nuevos. Cuando exista una asignación, aquí podrás gestionarla y volver a desplegar requisitos eliminados.
             </p>
           </div>
 
@@ -136,12 +146,22 @@
               <div class="pipc-section__titles">
                 <h3 class="pipc-section__title">Programa Interno de Protección Civil (PIPC)</h3>
                 <p class="pipc-section__subtitle">
-                  Selecciona plantillas PIPC para desplegarlas. Las ya asignadas permanecen visibles y marcadas.
+                  <ng-container *ngIf="puedeAsignarPlantillasNuevas; else subtituloGestion">
+                    Selecciona plantillas PIPC para desplegarlas. Las ya asignadas permanecen visibles y marcadas.
+                  </ng-container>
+                  <ng-template #subtituloGestion>
+                    Abre el PIPC ya asignado para volver a agregar requisitos eliminados. No se pueden asignar plantillas nuevas desde este perfil.
+                  </ng-template>
                   <span *ngIf="totalPlantillasCatalogo > 0" class="pipc-section__progress">
-                    {{ totalPlantillasAsignadas }}/{{ totalPlantillasCatalogo }} asignadas
-                    <ng-container *ngIf="totalPlantillasDisponibles > 0">
-                      · {{ totalPlantillasDisponibles }} disponibles
+                    <ng-container *ngIf="puedeAsignarPlantillasNuevas; else progresoGestion">
+                      {{ totalPlantillasAsignadas }}/{{ totalPlantillasCatalogo }} asignadas
+                      <ng-container *ngIf="totalPlantillasDisponibles > 0">
+                        · {{ totalPlantillasDisponibles }} disponibles
+                      </ng-container>
                     </ng-container>
+                    <ng-template #progresoGestion>
+                      {{ totalPlantillasCatalogo }} PIPC asignado(s) para gestionar
+                    </ng-template>
                   </span>
                 </p>
               </div>

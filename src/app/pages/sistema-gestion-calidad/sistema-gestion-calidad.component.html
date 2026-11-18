@@ -463,6 +463,25 @@
                     </div>
                   </div>
                   <div class="sgc-avance-hero-head__aside">
+                    <div class="sgc-sat-periodo-filter"
+                         *ngIf="!cargandoDashboard && hayDatosSatisfaccionCap"
+                         role="group"
+                         aria-label="Vista de satisfacción de la capacitación">
+                      <button type="button"
+                              class="sgc-sat-periodo-filter__btn"
+                              [class.is-active]="vistaSatisfaccionCap === 'actual'"
+                              (click)="seleccionarVistaSatisfaccionCap('actual', $event)"
+                              [attr.aria-pressed]="vistaSatisfaccionCap === 'actual'">
+                        Actual
+                      </button>
+                      <button type="button"
+                              class="sgc-sat-periodo-filter__btn sgc-sat-periodo-filter__btn--cuatri"
+                              [class.is-active]="vistaSatisfaccionCap === 'comparativa'"
+                              (click)="seleccionarVistaSatisfaccionCap('comparativa', $event)"
+                              [attr.aria-pressed]="vistaSatisfaccionCap === 'comparativa'">
+                        Comparativa
+                      </button>
+                    </div>
                     <button type="button"
                             class="sgc-sat-comentarios-btn sgc-sat-comentarios-btn--preguntas sgc-sat-comentarios-btn--sat-cap"
                             (click)="abrirPreguntasSatCap()"
@@ -489,7 +508,8 @@
                   </div>
                 </div>
 
-                <div class="sgc-chart-kpi-row sgc-chart-kpi-row--compact" [class.sgc-chart-kpi-row--intro]="indicadoresIntro" *ngIf="!cargandoDashboard && hayDatosSatisfaccionCap">
+                <div class="sgc-chart-kpi-row sgc-chart-kpi-row--compact" [class.sgc-chart-kpi-row--intro]="indicadoresIntro"
+                     *ngIf="!cargandoDashboard && hayDatosSatisfaccionCap && !esComparativaSatisfaccionCap">
                   <div class="sgc-chart-kpi" *ngFor="let item of resumenSatisfaccionCap; let i = index"
                        [style.--c-accent]="item.color" [style.--kpi-delay]="(i * 0.07) + 's'">
                     <div class="sgc-chart-kpi-icon" [style.background]="item.gradiente"><i class="fas {{ item.icono }}"></i></div>
@@ -502,7 +522,110 @@
 
                 <div class="sgc-analytics-card-body sgc-analytics-card-body--carousel-chart">
                   <div *ngIf="cargandoDashboard" class="sgc-shimmer sgc-chart-skeleton sgc-chart-skeleton--carousel"></div>
-                  <div class="sgc-cap-dual sgc-cap-dual--sat-cap" *ngIf="!cargandoDashboard && chartsReady && hayDatosSatisfaccionCap">
+
+                  <div class="sgc-sat-cap-cmp" *ngIf="!cargandoDashboard && hayDatosSatisfaccionCap && esComparativaSatisfaccionCap"
+                       aria-label="Comparativa cuatrimestral de proveedores">
+                    <div class="sgc-prov-cmp sgc-sat-cap-cmp__board">
+                      <div class="sgc-prov-cmp__top">
+                        <div class="sgc-prov-cmp__heading">
+                          <span class="sgc-prov-cmp__icon" aria-hidden="true"><i class="fas fa-balance-scale"></i></span>
+                          <div>
+                            <p class="sgc-prov-cmp__title">Proveedores por cuatrimestre</p>
+                            <p class="sgc-prov-cmp__hint">Detalle del índice SP-F-14 · {{ anioSeleccionado }}</p>
+                          </div>
+                        </div>
+                        <span class="sgc-prov-cmp__count">
+                          <strong>3</strong> periodos
+                        </span>
+                      </div>
+
+                      <div class="sgc-prov-cmp__track sgc-sat-cap-cmp__track">
+                        <article class="sgc-prov-cmp__mes"
+                                 *ngFor="let c of cuatrimestresComparativaSatCap; trackBy: trackByCuatrimestreSatCap"
+                                 [class.sgc-prov-cmp__mes--ok]="c.tieneDatos && c.indice >= 80"
+                                 [class.sgc-prov-cmp__mes--warn]="c.tieneDatos && c.indice >= 50 && c.indice < 80"
+                                 [class.sgc-prov-cmp__mes--baja]="c.tieneDatos && c.indice < 50"
+                                 [class.sgc-sat-cap-cmp__col--empty]="!c.tieneDatos"
+                                 [style.--accent]="c.tieneDatos ? colorCalificacionProveedor(c.indice) : '#94a3b8'">
+                          <header class="sgc-prov-cmp__mes-head">
+                            <div class="sgc-prov-cmp__mes-meta">
+                              <span class="sgc-prov-cmp__mes-lbl">{{ c.clave }} · {{ c.etiqueta }}</span>
+                              <span class="sgc-prov-cmp__mes-anio">{{ c.rango }} · {{ anioSeleccionado }}</span>
+                            </div>
+                            <div class="sgc-prov-cmp__mes-score">
+                              <strong>{{ c.tieneDatos ? (c.indice + '%') : '—' }}</strong>
+                              <span>{{ c.tieneDatos ? 'evaluación' : 'sin datos' }}</span>
+                            </div>
+                          </header>
+
+                          <div class="sgc-prov-cmp__mes-meter" *ngIf="c.tieneDatos" aria-hidden="true">
+                            <span [style.width.%]="c.indice"
+                                  [style.background]="gradienteCalificacionProveedor(c.indice)"></span>
+                            <i></i>
+                          </div>
+
+                          <p class="sgc-prov-cmp__mes-stats" *ngIf="c.tieneDatos">
+                            {{ c.proveedores.length }} proveedor{{ c.proveedores.length === 1 ? '' : 'es' }}
+                            · {{ c.respuestas }} resp. · {{ c.cursosConEncuesta }} curso{{ c.cursosConEncuesta === 1 ? '' : 's' }}
+                          </p>
+                          <p class="sgc-prov-cmp__mes-stats" *ngIf="!c.tieneDatos">Sin encuestas en este cuatrimestre.</p>
+
+                          <ul class="sgc-prov-cmp__mes-list" *ngIf="c.proveedores.length">
+                            <li *ngFor="let p of c.proveedores; trackBy: trackByProveedorSatCap"
+                                [class.is-ok]="p.indice >= 80"
+                                [class.is-baja]="p.indice < 50">
+                              <span class="sgc-prov-cmp__mes-name" [attr.title]="p.proveedor">{{ p.proveedor }}</span>
+                              <span class="sgc-prov-cmp__mes-bar" aria-hidden="true">
+                                <i [style.width.%]="p.indice"
+                                   [style.background]="gradienteCalificacionProveedor(p.indice)"></i>
+                              </span>
+                              <strong class="sgc-prov-cmp__mes-pct">{{ p.indice }}%</strong>
+                            </li>
+                          </ul>
+                        </article>
+                      </div>
+                    </div>
+
+                    <div class="sgc-sat-cap-cmp__charts sgc-sat-cap-cmp__charts--solo" *ngIf="chartsReady">
+                      <section class="sgc-sat-cap-cmp__panel">
+                        <div class="sgc-avance-panel__header sgc-sat-cap-cmp__panel-head">
+                          <div class="sgc-avance-panel__header-main">
+                            <span class="sgc-avance-panel__icon"><i class="fas fa-chart-line"></i></span>
+                            <div>
+                              <span class="sgc-avance-panel__title">Evaluación cuatrimestral</span>
+                              <span class="sgc-avance-panel__sub">Meses del año agrupados en C1–C3 · umbral 80% · {{ anioSeleccionado }}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div class="sgc-sat-cap-cmp__canvas sgc-chart-canvas-wrap sgc-chart-canvas-wrap--cuatri">
+                          <div class="sgc-sat-cuatri-guides" aria-hidden="true">
+                            <span class="sgc-sat-cuatri-guides__col"
+                                  *ngFor="let c of cuatrimestresComparativaSatCap; trackBy: trackByCuatrimestreSatCap"></span>
+                          </div>
+                          <apx-chart
+                            [series]="satisfaccionCapCmpChart.series"
+                            [chart]="satisfaccionCapCmpChart.chart"
+                            [xaxis]="satisfaccionCapCmpChart.xaxis"
+                            [yaxis]="satisfaccionCapCmpChart.yaxis"
+                            [dataLabels]="satisfaccionCapCmpChart.dataLabels"
+                            [stroke]="satisfaccionCapCmpChart.stroke"
+                            [fill]="satisfaccionCapCmpChart.fill"
+                            [tooltip]="satisfaccionCapCmpChart.tooltip"
+                            [grid]="satisfaccionCapCmpChart.grid"
+                            [colors]="satisfaccionCapCmpChart.colors"
+                            [markers]="satisfaccionCapCmpChart.markers"
+                            [annotations]="satisfaccionCapCmpChart.annotations"
+                            [legend]="satisfaccionCapCmpChart.legend"
+                            [plotOptions]="satisfaccionCapCmpChart.plotOptions"
+                          ></apx-chart>
+                        </div>
+                      </section>
+                    </div>
+                  </div>
+
+                  <div class="sgc-cap-dual sgc-cap-dual--sat-cap"
+                       *ngIf="!cargandoDashboard && chartsReady && hayDatosSatisfaccionCap && !esComparativaSatisfaccionCap">
                     <div class="sgc-cap-dual__chart">
                       <div class="sgc-avance-panel__header">
                         <span class="sgc-avance-panel__icon sgc-avance-panel__icon--donut"><i class="fas fa-chart-line"></i></span>
@@ -1643,6 +1766,26 @@
                   </div>
                 </div>
                 <div class="sgc-prov-head__aside">
+                  <div class="sgc-cap-semestre-filter sgc-cap-semestre-filter--teal"
+                       *ngIf="!cargandoDashboard && hayDatosProveedoresF29"
+                       role="group"
+                       aria-label="Vista de evaluación de proveedores">
+                    <button type="button"
+                            class="sgc-cap-semestre-filter__btn"
+                            [class.is-active]="vistaProveedoresF29 === 'actual'"
+                            (click)="seleccionarVistaProveedoresF29('actual', $event)"
+                            [attr.aria-pressed]="vistaProveedoresF29 === 'actual'">
+                      Actual
+                    </button>
+                    <button type="button"
+                            class="sgc-cap-semestre-filter__btn sgc-cap-semestre-filter__btn--comparativa"
+                            [class.is-active]="vistaProveedoresF29 === 'mensual'"
+                            (click)="seleccionarVistaProveedoresF29('mensual', $event)"
+                            [attr.aria-pressed]="vistaProveedoresF29 === 'mensual'"
+                            [disabled]="!hayComparativaMensualProveedoresF29">
+                      Mensual
+                    </button>
+                  </div>
                   <a class="sgc-btn-add-text sgc-prov-head__formato"
                      routerLink="/sistema-gestion-calidad/capitulo-8/plantilla/sgc-f-29">
                     <i class="fas fa-file-alt mr-1"></i> Abrir SGC-F-29
@@ -1664,7 +1807,7 @@
               <div class="sgc-analytics-card-body sgc-prov-body">
                 <div *ngIf="cargandoDashboard" class="sgc-shimmer sgc-chart-skeleton sgc-chart-skeleton--wide"></div>
 
-                <div class="sgc-prov-layout sgc-prov-stack" *ngIf="!cargandoDashboard && hayDatosProveedoresF29">
+                <div class="sgc-prov-layout sgc-prov-stack" *ngIf="!cargandoDashboard && hayDatosProveedoresF29 && !esVistaMensualProveedoresF29">
                   <section class="sgc-prov-rank" aria-label="Proveedores evaluados">
                     <div class="sgc-prov-rank__top">
                       <div class="sgc-prov-rank__heading">
@@ -1783,25 +1926,111 @@
                       </div>
                     </div>
 
-                    <div class="sgc-prov-bars" *ngIf="criteriosProveedoresF29.length">
+                    <div class="sgc-prov-bars" *ngIf="areasProveedoresF29.length">
                       <div class="sgc-prov-bars__head">
-                        <h3 class="sgc-prov-bars__title">Promedio por criterio</h3>
+                        <h3 class="sgc-prov-bars__title">Promedio por área</h3>
                         <span class="sgc-prov-bars__legend">Umbral 80%</span>
                       </div>
-                      <div class="sgc-prov-bar" *ngFor="let c of criteriosProveedoresF29; trackBy: trackByCriterioProveedor"
-                           [style.--bar-color]="colorCalificacionProveedor(c.valor)">
+                      <div class="sgc-prov-bar" *ngFor="let a of areasProveedoresF29; trackBy: trackByAreaProveedor"
+                           [style.--bar-color]="a.color || colorCalificacionProveedor(a.valor)">
                         <div class="sgc-prov-bar__head">
-                          <span class="sgc-prov-bar__lbl">{{ c.label }}</span>
-                          <strong class="sgc-prov-bar__pct">{{ c.valor }}%</strong>
+                          <span class="sgc-prov-bar__lbl">
+                            <i class="sgc-prov-bar__dot" [style.background]="a.color || colorCalificacionProveedor(a.valor)" aria-hidden="true"></i>
+                            {{ a.label }}
+                          </span>
+                          <strong class="sgc-prov-bar__pct">{{ a.valor }}%</strong>
                         </div>
                         <div class="sgc-prov-bar__track" aria-hidden="true">
-                          <span class="sgc-prov-bar__fill" [style.width.%]="c.valor"></span>
+                          <span class="sgc-prov-bar__fill" [style.width.%]="a.valor"></span>
                           <span class="sgc-prov-bar__mark"></span>
                         </div>
                       </div>
                     </div>
 
                   </aside>
+                </div>
+
+                <div class="sgc-prov-mensual" *ngIf="!cargandoDashboard && hayDatosProveedoresF29 && esVistaMensualProveedoresF29"
+                     aria-label="Comparativa mensual de proveedores">
+                  <div class="sgc-prov-mensual__kpis" *ngIf="resumenKpisComparativaMensualF29.length">
+                    <div class="sgc-prov-mensual__kpi" *ngFor="let k of resumenKpisComparativaMensualF29"
+                         [style.--kpi-accent]="k.color">
+                      <span class="sgc-prov-mensual__kpi-lbl">{{ k.etiqueta }}</span>
+                      <strong class="sgc-prov-mensual__kpi-val">{{ k.valor }}</strong>
+                      <span class="sgc-prov-mensual__kpi-sub">{{ k.sub }}</span>
+                    </div>
+                  </div>
+
+                  <div class="sgc-prov-mensual__charts" *ngIf="chartsReady && hayComparativaMensualProveedoresF29">
+                    <section class="sgc-prov-mensual__panel">
+                      <div class="sgc-avance-panel__header sgc-prov-mensual__panel-head">
+                        <div class="sgc-avance-panel__header-main">
+                          <span class="sgc-avance-panel__icon"><i class="fas fa-chart-line"></i></span>
+                          <div>
+                            <span class="sgc-avance-panel__title">Evolución del promedio</span>
+                            <span class="sgc-avance-panel__sub">% de evaluación por mes · umbral 80% · {{ anioSeleccionado }}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="sgc-prov-mensual__canvas">
+                        <apx-chart
+                          [series]="proveedoresF29MensualChart.series"
+                          [chart]="proveedoresF29MensualChart.chart"
+                          [xaxis]="proveedoresF29MensualChart.xaxis"
+                          [yaxis]="proveedoresF29MensualChart.yaxis"
+                          [dataLabels]="proveedoresF29MensualChart.dataLabels"
+                          [stroke]="proveedoresF29MensualChart.stroke"
+                          [fill]="proveedoresF29MensualChart.fill"
+                          [tooltip]="proveedoresF29MensualChart.tooltip"
+                          [grid]="proveedoresF29MensualChart.grid"
+                          [colors]="proveedoresF29MensualChart.colors"
+                          [markers]="proveedoresF29MensualChart.markers"
+                          [annotations]="proveedoresF29MensualChart.annotations"
+                          [legend]="proveedoresF29MensualChart.legend"
+                        ></apx-chart>
+                      </div>
+                    </section>
+
+                    <section class="sgc-prov-mensual__panel sgc-prov-mensual__panel--crit">
+                      <div class="sgc-avance-panel__header sgc-prov-mensual__panel-head">
+                        <div class="sgc-avance-panel__header-main">
+                          <span class="sgc-avance-panel__icon sgc-avance-panel__icon--donut"><i class="fas fa-layer-group"></i></span>
+                          <div>
+                            <span class="sgc-avance-panel__title">Promedio por área</span>
+                            <span class="sgc-avance-panel__sub">Evaluación por área del proveedor · umbral 80%</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="sgc-prov-mensual__canvas sgc-prov-mensual__canvas--crit"
+                           *ngIf="areasProveedoresF29.length; else sinAreasMensual">
+                        <apx-chart
+                          [series]="proveedoresF29MensualDistChart.series"
+                          [chart]="proveedoresF29MensualDistChart.chart"
+                          [xaxis]="proveedoresF29MensualDistChart.xaxis"
+                          [yaxis]="proveedoresF29MensualDistChart.yaxis"
+                          [dataLabels]="proveedoresF29MensualDistChart.dataLabels"
+                          [stroke]="proveedoresF29MensualDistChart.stroke"
+                          [fill]="proveedoresF29MensualDistChart.fill"
+                          [tooltip]="proveedoresF29MensualDistChart.tooltip"
+                          [grid]="proveedoresF29MensualDistChart.grid"
+                          [colors]="proveedoresF29MensualDistChart.colors"
+                          [plotOptions]="proveedoresF29MensualDistChart.plotOptions"
+                          [legend]="proveedoresF29MensualDistChart.legend"
+                          [annotations]="proveedoresF29MensualDistChart.annotations"
+                        ></apx-chart>
+                      </div>
+                      <ng-template #sinAreasMensual>
+                        <div class="sgc-dash-empty sgc-dash-empty--small">
+                          <p class="mb-0">Sin áreas con evaluación aún.</p>
+                        </div>
+                      </ng-template>
+                    </section>
+                  </div>
+
+                  <div *ngIf="!hayComparativaMensualProveedoresF29" class="sgc-dash-empty sgc-dash-empty--small">
+                    <i class="fas fa-calendar-alt fa-lg mb-2"></i>
+                    <p class="mb-0">Sin meses con evaluación para {{ anioSeleccionado }}.</p>
+                  </div>
                 </div>
 
                 <div *ngIf="!cargandoDashboard && !hayDatosProveedoresF29" class="sgc-dash-empty">

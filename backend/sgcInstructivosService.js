@@ -50,6 +50,22 @@ function nombreSeguroArchivo(nombre) {
     return base || 'instructivo.pdf';
 }
 
+/** Infiere título desde `SGC-I-01 Número....pdf` si el cliente no envía titulo. */
+function tituloDesdeNombreArchivo(nombreArchivo, codigo) {
+    const sinExt = String(nombreArchivo || '').replace(/\.pdf$/i, '').trim();
+    if (!sinExt) {
+        return '';
+    }
+    const match = sinExt.match(/^[A-Za-z]{2,4}-I-\d{2}\s*(.*)$/i);
+    if (match) {
+        return sanitizarTexto(match[1], 255);
+    }
+    if (codigo && sinExt.toUpperCase() === String(codigo).toUpperCase()) {
+        return '';
+    }
+    return sanitizarTexto(sinExt, 255);
+}
+
 function bufferDesdeBase64(archivoBase64) {
     const raw = String(archivoBase64 || '').trim();
     if (!raw) {
@@ -296,10 +312,13 @@ async function reemplazarInstructivo(pool, id, body, usuario) {
 
     const buffer = bufferDesdeBase64(body?.archivo_base64 || body?.archivoBase64);
     const mimeType = 'application/pdf';
-    const tituloNuevo = sanitizarTexto(body?.titulo, 255);
     const nombreArchivo = nombreSeguroArchivo(
         body?.nombre_archivo || body?.nombreArchivo || doc.nombreArchivo || `${doc.codigo}.pdf`
     );
+    let tituloNuevo = sanitizarTexto(body?.titulo, 255);
+    if (!tituloNuevo) {
+        tituloNuevo = tituloDesdeNombreArchivo(nombreArchivo, doc.codigo);
+    }
 
     let driveFileId = doc.driveFileId;
     let webViewLink = doc.webViewLink;
@@ -359,11 +378,75 @@ async function reemplazarInstructivo(pool, id, body, usuario) {
     return obtenerInstructivo(pool, id);
 }
 
+/**
+ * Renombra el título (y nombre de archivo mostrado) de un instructivo.
+ */
+async function renombrarInstructivo(pool, id, body, usuario) {
+    await asegurarTablaSgcInstructivos(pool);
+    const doc = await obtenerInstructivo(pool, id);
+    if (!doc || !doc.activo) {
+        throw new Error('Instructivo no encontrado.');
+    }
+
+    const titulo = sanitizarTexto(body?.titulo ?? body?.nombre, 255);
+    if (!titulo) {
+        throw new Error('El título no puede estar vacío.');
+    }
+
+    const nombreArchivo = nombreSeguroArchivo(
+        body?.nombre_archivo || body?.nombreArchivo || `${doc.codigo} ${titulo}.pdf`
+    );
+
+    await pool.query(
+        `UPDATE sgc_instructivos
+         SET titulo = ?,
+             nombre_archivo = ?,
+             actualizado_por = ?,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = ? AND activo = 1`,
+        [titulo, nombreArchivo, sanitizarTexto(usuario, 128) || null, id]
+    );
+
+    return obtenerInstructivo(pool, id);
+}
+
+/**
+ * Soft-delete del instructivo (activo = 0). Intenta borrar el PDF en Drive.
+ */
+async function eliminarInstructivo(pool, id, usuario) {
+    await asegurarTablaSgcInstructivos(pool);
+    const doc = await obtenerInstructivo(pool, id);
+    if (!doc || !doc.activo) {
+        throw new Error('Instructivo no encontrado.');
+    }
+
+    await pool.query(
+        `UPDATE sgc_instructivos
+         SET activo = 0,
+             actualizado_por = ?,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [sanitizarTexto(usuario, 128) || null, id]
+    );
+
+    if (doc.driveFileId) {
+        try {
+            await driveService.eliminarArchivo(doc.driveFileId);
+        } catch (driveErr) {
+            console.warn('[SGC-INST] No se pudo eliminar el PDF en Drive:', driveErr.message);
+        }
+    }
+
+    return { id: doc.id, codigo: doc.codigo, eliminado: true };
+}
+
 module.exports = {
     CATALOGO_INICIAL,
     asegurarTablaSgcInstructivos,
     listarInstructivos,
     obtenerInstructivo,
     subirInstructivo,
-    reemplazarInstructivo
+    reemplazarInstructivo,
+    renombrarInstructivo,
+    eliminarInstructivo
 };

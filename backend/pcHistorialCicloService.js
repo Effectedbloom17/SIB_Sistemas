@@ -173,20 +173,8 @@ async function snapshotCicloAlCerrar(pool, { ciclo, empresaId, allDocs }) {
     const operacionId = Number(ciclo?.operacion_id);
     if (!operacionId) return resumenVacio();
 
-    const [existentes] = await pool.query(
-        'SELECT COUNT(*) AS cnt FROM pc_historial_ciclo_item WHERE operacion_id = ?',
-        [operacionId]
-    );
-    if (Number(existentes?.[0]?.cnt || 0) > 0) {
-        const [rows] = await pool.query(
-            `SELECT apartado, COUNT(*) AS cnt FROM pc_historial_ciclo_item
-             WHERE operacion_id = ? GROUP BY apartado`,
-            [operacionId]
-        );
-        const resumen = resumenVacio();
-        for (const r of rows || []) incrementarResumen(resumen, r.apartado);
-        return resumen;
-    }
+    // Si el ciclo se reabrió y vuelve a cerrarse, regenerar el snapshot completo.
+    await pool.query('DELETE FROM pc_historial_ciclo_item WHERE operacion_id = ?', [operacionId]);
 
     const docs = Array.isArray(allDocs) ? allDocs : [];
     const padres = new Map();
@@ -415,6 +403,104 @@ async function listarEmpresasConHistorial(poolPC, poolBiznaga) {
         .sort((a, b) => String(a.nombre_empresa).localeCompare(String(b.nombre_empresa), 'es'));
 }
 
+function normalizarNombrePipc(valor) {
+    return String(valor || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function parseFechaCalendario(valor) {
+    if (!valor) return null;
+    if (valor instanceof Date && !Number.isNaN(valor.getTime())) {
+        const iso = valor.toISOString();
+        if (iso.endsWith('T00:00:00.000Z')) {
+            return new Date(valor.getUTCFullYear(), valor.getUTCMonth(), valor.getUTCDate());
+        }
+        return new Date(valor.getFullYear(), valor.getMonth(), valor.getDate());
+    }
+    const s = String(valor).trim();
+    const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (iso) return new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+    const mx = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+    if (mx) return new Date(Number(mx[3]), Number(mx[2]) - 1, Number(mx[1]));
+    return null;
+}
+
+function isoDesdeFecha(fecha) {
+    if (!fecha || Number.isNaN(fecha.getTime())) return null;
+    const y = fecha.getFullYear();
+    const m = String(fecha.getMonth() + 1).padStart(2, '0');
+    const d = String(fecha.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+}
+
+/** El PIPC vence un año después de la fecha de aprobación del resolutivo. */
+function vencimientoDesdeAprobacion(valor) {
+    const fa = parseFechaCalendario(valor);
+    if (!fa) return null;
+    return isoDesdeFecha(new Date(fa.getFullYear() + 1, fa.getMonth(), fa.getDate()));
+}
+
+function vencimientoDesdeFilaCiclo(row) {
+    const fechas = parseJsonSafe(row?.fechas_workflow, {});
+    const candidatos = [];
+    if (fechas && typeof fechas === 'object' && !Array.isArray(fechas)) {
+        for (const [clave, valor] of Object.entries(fechas)) {
+            const k = String(clave || '').toLowerCase();
+            if (k === 'ops_resolutivo_pipc' || k.startsWith('ops_resolutivo_pipc_')) {
+                const iso = vencimientoDesdeAprobacion(valor);
+                if (iso) candidatos.push(iso);
+            }
+        }
+    }
+    if (!candidatos.length) {
+        const iso = vencimientoDesdeAprobacion(row?.fecha_aprobacion_pipc || row?.fecha_aprobacion);
+        if (iso) candidatos.push(iso);
+    }
+    if (!candidatos.length) return null;
+    candidatos.sort();
+    return candidatos[0];
+}
+
+/**
+ * Si el ciclo más reciente no guardó fecha de aprobación, usa el vencimiento
+ * oficial del control de resolutivos (solo ese ciclo, no los anteriores).
+ */
+async function completarVencimientoReciente(poolPC, empresaId, ciclos) {
+    const reciente = (ciclos || []).find((c) => !c.es_legacy);
+    if (!reciente) return;
+    try {
+        const [rows] = await poolPC.query(
+            `SELECT nombre_asignacion, tipo_tramite, fecha_vencimiento
+             FROM pc_control_resolutivos
+             WHERE empresa_id_biznaga = ? AND activo = 1 AND fecha_vencimiento IS NOT NULL`,
+            [empresaId]
+        );
+        const pipc = (rows || []).filter((row) => {
+            const tipo = String(row.tipo_tramite || '').toLowerCase();
+            return !tipo || tipo === 'pipc';
+        });
+        const titulos = new Set(
+            (reciente.pipc_titulos || []).map((t) => normalizarNombrePipc(t)).filter(Boolean)
+        );
+        let elegidos = pipc;
+        if (titulos.size) {
+            const porNombre = pipc.filter((row) => titulos.has(normalizarNombrePipc(row.nombre_asignacion)));
+            if (porNombre.length) elegidos = porNombre;
+        }
+        const fechas = elegidos
+            .map((row) => isoDesdeFecha(parseFechaCalendario(row.fecha_vencimiento)))
+            .filter(Boolean)
+            .sort();
+        if (fechas.length) reciente.fecha_vencimiento = fechas[0];
+    } catch {
+        // Sin tabla de control el ciclo queda sin fecha y la UI lo indica.
+    }
+}
+
 function mapCicloRow(row) {
     const resumen = parseJsonSafe(row.historial_resumen, resumenVacio());
     const pipcTitulos = parseJsonSafe(row.pipc_titulos, []);
@@ -424,6 +510,7 @@ function mapCicloRow(row) {
         fecha_inicio: row.fecha_creacion,
         fecha_cierre: row.ciclo_cerrado_at,
         fecha_ingreso_tramite: row.fecha_ingreso_tramite,
+        fecha_vencimiento: vencimientoDesdeFilaCiclo(row),
         pasos_completados: parseJsonSafe(row.pasos_completados, []),
         pipc_titulos: Array.isArray(pipcTitulos) ? pipcTitulos : [],
         resumen,
@@ -444,6 +531,8 @@ async function listarCiclosEmpresa(poolPC, empresaId) {
     if (!ciclos.length) {
         const legacy = await cargarFallbackLegacy(poolPC, empresaId);
         if (legacy) ciclos.push(legacy);
+    } else {
+        await completarVencimientoReciente(poolPC, empresaId, ciclos);
     }
     return ciclos;
 }
@@ -493,6 +582,7 @@ async function cargarFallbackLegacy(poolPC, empresaId) {
         pasos_completados: ['finalizar'],
         pipc_titulos: [...new Set(docs.map((d) => d.nombre_documento).filter(Boolean))],
         resumen,
+        fecha_vencimiento: null,
         es_legacy: true
     };
 }

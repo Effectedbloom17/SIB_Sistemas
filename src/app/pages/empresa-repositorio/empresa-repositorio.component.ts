@@ -7,6 +7,7 @@ import Swal from 'sweetalert2';
 import { AuthService } from 'src/app/services/auth.service';
 import { BackendServices } from 'src/app/services/backend.services';
 import { PdfThumbnailService } from 'src/app/services/pdf-thumbnail.service';
+import { UploadSourceChooserService } from 'src/app/services/upload-source-chooser.service';
 import { lanzarImpresionEnSistema } from 'src/app/utils/in-app-print.util';
 
 export interface EmpresaRepoItem {
@@ -54,6 +55,8 @@ export class EmpresaRepositorioComponent implements OnInit, OnDestroy {
   empresaId = 0;
   empresa: any = null;
   puedeAdministrar = false;
+  /** Solo Superadministrador o Calidad pueden eliminar documentos. */
+  puedeEliminar = false;
   /** Solo administrador o root pueden abrir el editor integrado de Office. */
   puedeEditorIntegrado = false;
   etiquetaRolUsuario = '';
@@ -68,6 +71,14 @@ export class EmpresaRepositorioComponent implements OnInit, OnDestroy {
   /** Criterio de orden de documentos (y carpetas cuando aplica). */
   ordenCampo: OrdenCampoRepo = 'nombre';
   ordenDir: OrdenDirRepo = 'asc';
+  /** Menú personalizado de «Ordenar por». */
+  ordenMenuAbierto = false;
+  readonly opcionesOrden: { valor: OrdenCampoRepo; etiqueta: string; icono: string }[] = [
+    { valor: 'nombre', etiqueta: 'Nombre', icono: 'fa-font' },
+    { valor: 'fecha', etiqueta: 'Fecha', icono: 'fa-calendar-alt' },
+    { valor: 'tamano', etiqueta: 'Tamaño', icono: 'fa-hdd' },
+    { valor: 'tipo', etiqueta: 'Tipo', icono: 'fa-file' }
+  ];
   cargandoLista = false;
   errorLista: string | null = null;
 
@@ -89,6 +100,8 @@ export class EmpresaRepositorioComponent implements OnInit, OnDestroy {
   miniaturas: Record<number, MiniaturaEstado> = {};
 
   mostrarSubida = false;
+  /** Paso del panel: elegir archivos o esperar pegado. */
+  modoSubida: 'galeria' | 'pegar' = 'galeria';
   subiendo = false;
   errorSubida: string | null = null;
   archivosSeleccionados: File[] = [];
@@ -127,7 +140,8 @@ export class EmpresaRepositorioComponent implements OnInit, OnDestroy {
     private route: ActivatedRoute,
     private sanitizer: DomSanitizer,
     private pdfThumbnail: PdfThumbnailService,
-    private ngZone: NgZone
+    private ngZone: NgZone,
+    private uploadSourceChooser: UploadSourceChooserService
   ) {}
 
   @HostListener('document:keydown.escape', ['$event'])
@@ -149,6 +163,7 @@ export class EmpresaRepositorioComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.puedeAdministrar = this.authService.puedeEscribirRepositorioEmpresa();
+    this.puedeEliminar = this.authService.esRootOCalidad();
     this.puedeEditorIntegrado = this.authService.esAdministradorOSuperior();
     this.miniaturaQueue$
       .pipe(
@@ -336,6 +351,26 @@ export class EmpresaRepositorioComponent implements OnInit, OnDestroy {
       });
   }
 
+  /** True si hay filtro lateral por tipo (PDF / documentos / imágenes). */
+  get hayFiltroTipoActivo(): boolean {
+    return this.filtroTipo !== 'todos';
+  }
+
+  /** True si la lista es una vista filtrada global (búsqueda o tipo), no la carpeta actual. */
+  get esVistaFiltradaGlobal(): boolean {
+    return !!this.busqueda.trim() || this.hayFiltroTipoActivo;
+  }
+
+  get etiquetaFiltroTipo(): string {
+    const map: Record<FiltroTipoRepo, string> = {
+      todos: 'Todo',
+      pdf: 'PDF',
+      documentos: 'Documentos',
+      imagenes: 'Imágenes'
+    };
+    return map[this.filtroTipo] || 'Todo';
+  }
+
   aplicarFiltro(): void {
     const q = this.busqueda.trim().toLowerCase();
     const actual = this.normalizarRuta(this.carpetaActual);
@@ -356,20 +391,34 @@ export class EmpresaRepositorioComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // Con filtro por tipo solo listamos archivos; las carpetas se ocultan.
-    this.carpetasVista = this.filtroTipo === 'todos'
-      ? this.ordenarCarpetas(this.obtenerCarpetasHijas(actual))
-      : [];
+    // Filtro por tipo: lista global de ese tipo en todo el repositorio.
+    // (Los conteos del lateral son globales; filtrar solo la carpeta actual dejaba
+    // la sensación de que "no hay filtros" cuando los archivos están en subcarpetas.)
+    if (this.hayFiltroTipoActivo) {
+      this.carpetasVista = [];
+      this.documentosVista = this.ordenarDocumentos(
+        this.documentos.filter(d => this.coincideFiltroTipo(d))
+      );
+      this.precargarMiniaturas(this.documentosVista);
+      return;
+    }
+
+    this.carpetasVista = this.ordenarCarpetas(this.obtenerCarpetasHijas(actual));
     this.documentosVista = this.ordenarDocumentos(
-      this.documentos.filter(
-        d => this.normalizarRuta(d.carpetaRelativa) === actual && this.coincideFiltroTipo(d)
-      )
+      this.documentos.filter(d => this.normalizarRuta(d.carpetaRelativa) === actual)
     );
     this.precargarMiniaturas(this.documentosVista);
   }
 
-  setFiltroTipo(tipo: FiltroTipoRepo): void {
+  setFiltroTipo(tipo: FiltroTipoRepo, event?: Event): void {
+    event?.stopPropagation();
     this.filtroTipo = tipo;
+    this.aplicarFiltro();
+  }
+
+  limpiarFiltros(): void {
+    this.busqueda = '';
+    this.filtroTipo = 'todos';
     this.aplicarFiltro();
   }
 
@@ -394,7 +443,19 @@ export class EmpresaRepositorioComponent implements OnInit, OnDestroy {
     this.aplicarFiltro();
   }
 
-  toggleOrdenDir(): void {
+  toggleOrdenMenu(event?: Event): void {
+    event?.stopPropagation();
+    this.ordenMenuAbierto = !this.ordenMenuAbierto;
+  }
+
+  seleccionarOrden(campo: OrdenCampoRepo, event?: Event): void {
+    event?.stopPropagation();
+    this.setOrdenDesdeSelect(campo);
+    this.ordenMenuAbierto = false;
+  }
+
+  toggleOrdenDir(event?: Event): void {
+    event?.stopPropagation();
     this.ordenDir = this.ordenDir === 'asc' ? 'desc' : 'asc';
     this.aplicarFiltro();
   }
@@ -407,6 +468,10 @@ export class EmpresaRepositorioComponent implements OnInit, OnDestroy {
       tipo: 'Tipo'
     };
     return map[this.ordenCampo] || 'Nombre';
+  }
+
+  get iconoOrdenActual(): string {
+    return this.opcionesOrden.find(o => o.valor === this.ordenCampo)?.icono || 'fa-font';
   }
 
   private coincideFiltroTipo(doc: EmpresaRepoItem): boolean {
@@ -516,6 +581,7 @@ export class EmpresaRepositorioComponent implements OnInit, OnDestroy {
       return;
     }
     this.accionToolbarMovil = null;
+    this.ordenMenuAbierto = false;
   }
 
   private ejecutarAccionToolbar(accion: 'subir' | 'carpeta' | 'eliminar'): void {
@@ -612,8 +678,18 @@ export class EmpresaRepositorioComponent implements OnInit, OnDestroy {
     if (!files || files.length === 0) {
       return;
     }
-    this.abrirPanelSubida();
-    this.agregarArchivos(files);
+    void this.abrirPanelSubida({ omitirChooser: true, modo: 'galeria' }).then(() => {
+      this.agregarArchivos(files);
+    });
+  }
+
+  onDropzonePaste(files: File[]): void {
+    if (!this.puedeAdministrar || !files?.length) {
+      return;
+    }
+    void this.abrirPanelSubida({ omitirChooser: true, modo: 'galeria', conservarArchivos: true }).then(() => {
+      this.agregarArchivos(files);
+    });
   }
 
   private obtenerCarpetasHijas(rutaPadre: string): EmpresaRepoCarpeta[] {
@@ -683,6 +759,7 @@ export class EmpresaRepositorioComponent implements OnInit, OnDestroy {
   entrarCarpeta(ruta: string): void {
     this.carpetaActual = this.normalizarRuta(ruta);
     this.busqueda = '';
+    this.filtroTipo = 'todos';
     this.aplicarFiltro();
   }
 
@@ -1165,13 +1242,53 @@ export class EmpresaRepositorioComponent implements OnInit, OnDestroy {
     );
   }
 
-  abrirPanelSubida(): void {
+  async abrirPanelSubida(opciones?: {
+    omitirChooser?: boolean;
+    modo?: 'galeria' | 'pegar';
+    conservarArchivos?: boolean;
+  }): Promise<void> {
     if (!this.puedeAdministrar) {
       return;
     }
+
+    let modo: 'galeria' | 'pegar' = opciones?.modo || 'galeria';
+    if (!opciones?.omitirChooser) {
+      const origen = await this.uploadSourceChooser.elegir({
+        titulo: '¿Cómo quieres agregar el documento?',
+        subtitulo: 'Elige si lo tomas de tu galería/archivos o si lo pegas desde el portapapeles.'
+      });
+      if (!origen) {
+        return;
+      }
+      modo = origen;
+    }
+
+    // Si eligió pegar: esperar Ctrl+V y abrir el panel ya con el archivo.
+    if (modo === 'pegar' && !opciones?.omitirChooser) {
+      const pegados = await this.uploadSourceChooser.esperarPegado({
+        titulo: 'Pega el documento',
+        subtitulo: 'Copia la imagen o archivo y pégalo con Ctrl+V.'
+      });
+      if (!pegados?.length) {
+        return;
+      }
+      this.modoSubida = 'galeria';
+      this.mostrarSubida = true;
+      this.errorSubida = null;
+      this.archivosSeleccionados = [];
+      this.progresoActual = 0;
+      this.progresoTotal = 0;
+      this.progresoNombre = '';
+      this.agregarArchivos(pegados);
+      return;
+    }
+
+    this.modoSubida = modo;
     this.mostrarSubida = true;
     this.errorSubida = null;
-    this.archivosSeleccionados = [];
+    if (!opciones?.conservarArchivos) {
+      this.archivosSeleccionados = [];
+    }
     this.progresoActual = 0;
     this.progresoTotal = 0;
     this.progresoNombre = '';
@@ -1182,6 +1299,19 @@ export class EmpresaRepositorioComponent implements OnInit, OnDestroy {
       return;
     }
     this.mostrarSubida = false;
+    this.modoSubida = 'galeria';
+  }
+
+  onPasteEnPanelSubida(files: File[]): void {
+    if (!files?.length) {
+      return;
+    }
+    this.agregarArchivos(files);
+    this.modoSubida = 'galeria';
+  }
+
+  volverAGaleriaSubida(): void {
+    this.modoSubida = 'galeria';
   }
 
   onArchivoElegido(event: Event): void {
@@ -1197,12 +1327,12 @@ export class EmpresaRepositorioComponent implements OnInit, OnDestroy {
     input.value = '';
   }
 
-  private agregarArchivos(lista: FileList | null): void {
+  private agregarArchivos(lista: FileList | File[] | null): void {
     if (!lista || lista.length === 0) {
       return;
     }
     this.errorSubida = null;
-    const nuevos = Array.from(lista).filter(f => f.size > 0 || f.name);
+    const nuevos = Array.from(lista as ArrayLike<File>).filter(f => f.size > 0 || f.name);
     for (const file of nuevos) {
       const clave = this.claveArchivo(file);
       const yaExiste = this.archivosSeleccionados.some(f => this.claveArchivo(f) === clave);
@@ -1974,7 +2104,7 @@ export class EmpresaRepositorioComponent implements OnInit, OnDestroy {
 
   eliminarDocumento(doc: EmpresaRepoItem, event?: Event): void {
     event?.stopPropagation();
-    if (!this.puedeAdministrar) {
+    if (!this.puedeEliminar) {
       return;
     }
 

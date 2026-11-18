@@ -7,8 +7,8 @@
           <div class="asig-pipc-header__icon icon icon-shape text-white rounded-circle shadow mb-2">
             <i class="fas fa-tasks"></i>
           </div>
-          <h1 class="asig-pipc-header__title text-white mb-0">Asignación de PIPC</h1>
-          <p class="asig-pipc-header__sub text-white mt-1 mb-0">Despliega plantillas y administra formatos</p>
+          <h1 class="asig-pipc-header__title text-white mb-0">{{ tituloPagina }}</h1>
+          <p class="asig-pipc-header__sub text-white mt-1 mb-0">{{ subtituloPagina }}</p>
         </div>
       </div>
     </div>
@@ -24,16 +24,16 @@
             <span class="asig-pipc-eyebrow">Protección Civil</span>
             <h2 class="asig-pipc-card__title">
               <ng-container [ngSwitch]="pestanaActiva">
-                <ng-container *ngSwitchCase="'gestion'">Gestión de PIPC</ng-container>
+                <ng-container *ngSwitchCase="'gestion'">{{ tituloCardGestion }}</ng-container>
                 <ng-container *ngSwitchCase="'directorios'">Gestión de Directorios</ng-container>
-                <ng-container *ngSwitchDefault>Desplegar PIPC por empresa</ng-container>
+                <ng-container *ngSwitchDefault>{{ tituloPestanaDesplegar }}</ng-container>
               </ng-container>
             </h2>
             <p class="asig-pipc-help">
               <i class="fas fa-info-circle"></i>
               <ng-container [ngSwitch]="pestanaActiva">
                 <ng-container *ngSwitchCase="'desplegar'">
-                  Selecciona la empresa, el responsable y las plantillas PIPC a desplegar. La gestión del trámite se hace en PIPC Activos.
+                  {{ ayudaPestanaDesplegar }}
                 </ng-container>
                 <ng-container *ngSwitchCase="'gestion'">
                   Administra categorías, plantillas y formatos del programa. Los cambios quedan disponibles al desplegar por empresa.
@@ -53,8 +53,8 @@
                     [attr.aria-selected]="pestanaActiva === 'desplegar'"
                     (click)="setPestana('desplegar')">
               <i class="fas fa-building" aria-hidden="true"></i>
-              <span class="asig-pipc-tabs__text asig-pipc-tabs__text--long">Desplegar por empresa</span>
-              <span class="asig-pipc-tabs__text asig-pipc-tabs__text--short">Desplegar</span>
+              <span class="asig-pipc-tabs__text asig-pipc-tabs__text--long">{{ etiquetaTabDesplegarLarga }}</span>
+              <span class="asig-pipc-tabs__text asig-pipc-tabs__text--short">{{ etiquetaTabDesplegarCorta }}</span>
             </button>
             <button type="button"
                     class="asig-pipc-tabs__btn"
@@ -63,8 +63,8 @@
                     [attr.aria-selected]="pestanaActiva === 'gestion'"
                     (click)="setPestana('gestion')">
               <i class="fas fa-folder-open" aria-hidden="true"></i>
-              <span class="asig-pipc-tabs__text asig-pipc-tabs__text--long">Gestión de PIPC</span>
-              <span class="asig-pipc-tabs__text asig-pipc-tabs__text--short">PIPC</span>
+              <span class="asig-pipc-tabs__text asig-pipc-tabs__text--long">{{ etiquetaTabCatalogoLarga }}</span>
+              <span class="asig-pipc-tabs__text asig-pipc-tabs__text--short">{{ etiquetaTabCatalogoCorta }}</span>
             </button>
             <button type="button"
                     class="asig-pipc-tabs__btn"
@@ -135,7 +135,9 @@
                 </div>
                 <small class="asig-pipc-field-hint asig-pipc-field-hint--tip">
                   <i class="fas fa-lightbulb"></i>
-                  Selecciona primero la empresa para habilitar la asignación.
+                  {{ puedeAsignarNuevosPipc
+                    ? 'Selecciona primero la empresa para habilitar la asignación.'
+                    : 'Selecciona primero la empresa para gestionar sus PIPC ya asignados.' }}
                 </small>
               </div>
 
@@ -190,9 +192,9 @@
               <div class="asig-pipc-placeholder__icon">
                 <i class="fas fa-folder-open"></i>
               </div>
-              <h3 class="asig-pipc-placeholder__title">¿Listo para desplegar?</h3>
+              <h3 class="asig-pipc-placeholder__title">{{ placeholderDesplegarTitulo }}</h3>
               <p class="asig-pipc-placeholder__desc">
-                Elige una empresa arriba para comenzar. Podrás asignar plantillas PIPC nuevas aunque la empresa ya tenga otras en gestión.
+                {{ placeholderDesplegarDesc }}
               </p>
             </div>
 
@@ -234,7 +236,8 @@
                 [refreshToken]="refreshAsignacion"
                 [ocultarToolbarResponsable]="true"
                 [ocultarBotonGuardar]="true"
-                [modoNuevaAsignacion]="true"
+                [modoNuevaAsignacion]="puedeAsignarNuevosPipc"
+                [puedeAsignarPlantillasNuevas]="puedeAsignarNuevosPipc"
                 (asignacionGuardada)="onAsignacionGuardada()"
                 (estadoAsignacionCambiado)="onEstadoAsignacionCambiado($event)"
                 (responsableActualizado)="onResponsableDesdeHijo($event)">

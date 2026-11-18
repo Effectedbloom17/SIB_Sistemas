@@ -137,28 +137,39 @@
                   <span class="mt-icon-btn__label">Archivero</span>
                 </button>
                 <span class="mt-status" *ngIf="mensajeEstado">{{ mensajeEstado }}</span>
-              </div>
-              <div class="mt-editor__toolbar-actions">
-                <button type="button" class="btn btn-sm mt-btn-save-info"
-                  (click)="guardarInformacionF04()" [disabled]="generandoReporte || editorDriveAbierto">
-                  <i class="fas mr-1" [ngClass]="generandoReporte ? 'fa-spinner fa-spin' : 'fa-save'"></i>
-                  Guardar información
-                </button>
-                <span class="mt-status mt-status--warn" *ngIf="tieneCambiosSinGuardarEnVista">
-                  Cambios sin guardar en Word
+                <span class="mt-status mt-status--warn" *ngIf="tieneCambiosSinGuardarEnVista"
+                  title="Hay cambios locales que aún no se reflejan en el Word de Drive">
+                  Sin guardar
                 </span>
-                <div class="mt-editor__btn-group">
-                  <button type="button" class="btn btn-sm mt-btn-save-info"
-                    (click)="abrirEditorIntegradoF04()" [disabled]="generandoReporte">
-                    <i class="fas mr-1" [ngClass]="generandoReporte ? 'fa-spinner fa-spin' : 'fa-pen'"></i>
-                    Abrir editor integrado
-                  </button>
-                  <button type="button" class="btn btn-sm mt-btn-drive mt-btn-drive--icon"
-                    (click)="descargarPdfF04()" [disabled]="generandoReporte || editorDriveAbierto"
-                    title="Descargar PDF" aria-label="Descargar PDF">
-                    <i class="fas" [ngClass]="generandoReporte ? 'fa-spinner fa-spin' : 'fa-file-pdf'"></i>
-                  </button>
-                </div>
+              </div>
+              <div class="mt-editor__toolbar-actions mt-editor__toolbar-actions--compact">
+                <input #inputWordImport type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden
+                  [disabled]="importandoWord || generandoReporte || editorDriveAbierto"
+                  (change)="onWordSeleccionado($event)" />
+                <button type="button" class="mt-tool-btn" (click)="guardarInformacionF04()"
+                  [disabled]="generandoReporte || editorDriveAbierto || importandoWord"
+                  title="Guardar información en Word/Drive">
+                  <i class="fas" [ngClass]="generandoReporte ? 'fa-spinner fa-spin' : 'fa-save'"></i>
+                  <span>Guardar</span>
+                </button>
+                <button type="button" class="mt-tool-btn mt-tool-btn--word" (click)="abrirSelectorWord()"
+                  [disabled]="importandoWord || generandoReporte || editorDriveAbierto"
+                  title="Importar datos desde un Word EIN-F-04 (.docx)">
+                  <i class="fas" [ngClass]="importandoWord ? 'fa-spinner fa-spin' : 'fa-file-word'"></i>
+                  <span>{{ importandoWord ? 'Importando…' : 'Importar Word' }}</span>
+                </button>
+                <button type="button" class="mt-tool-btn" (click)="abrirEditorIntegradoF04()"
+                  [disabled]="generandoReporte || importandoWord"
+                  title="Abrir editor integrado en Drive">
+                  <i class="fas" [ngClass]="generandoReporte ? 'fa-spinner fa-spin' : 'fa-pen'"></i>
+                  <span>Editor</span>
+                </button>
+                <button type="button" class="mt-tool-btn mt-tool-btn--pdf" (click)="descargarPdfF04()"
+                  [disabled]="generandoReporte || editorDriveAbierto || importandoWord"
+                  title="Descargar PDF" aria-label="Descargar PDF">
+                  <i class="fas" [ngClass]="generandoReporte ? 'fa-spinner fa-spin' : 'fa-file-pdf'"></i>
+                  <span>PDF</span>
+                </button>
               </div>
             </div>
 
@@ -350,6 +361,12 @@
 
                   <div
                     class="drop-zone evidencias-drop-zone"
+                    appPasteFiles
+                    pasteAccept="image/jpeg,image/png,image/webp,image/jpg"
+                    [pasteListenDocument]="true"
+                    tabindex="0"
+                    title="También puedes pegar imágenes con Ctrl+V"
+                    (filesPasted)="onPasteFotos($event)"
                     [class.dragging]="arrastrandoFotos"
                     [class.has-file]="fotosPendientes.length > 0"
                     [class.is-disabled]="subiendoEvidencias"

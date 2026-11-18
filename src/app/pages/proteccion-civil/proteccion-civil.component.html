@@ -794,7 +794,7 @@
                       </div>
                       <div class="pc-avance-hero-kpi">
                         <span class="pc-avance-hero-kpi__val">{{ resolutivosAtencionTotal }}</span>
-                        <span class="pc-avance-hero-kpi__lbl">Requieren atención</span>
+                        <span class="pc-avance-hero-kpi__lbl">En seguimiento</span>
                       </div>
                       <a class="pc-avance-open-link pc-avance-open-link--top"
                          *ngIf="puedeVerControlResolutivosPipc"
@@ -886,6 +886,7 @@
                                    [ngClass]="{
                                      'fa-hourglass-half': ind.modo === 'restante',
                                      'fa-exclamation-circle': ind.modo === 'vencido',
+                                     'fa-check-circle': ind.modo === 'vigente',
                                      'fa-spinner': ind.modo === 'tramite',
                                      'fa-calendar-times': ind.modo === 'sin_fecha'
                                    }"
@@ -945,7 +946,7 @@
                                 class="pc-avance-stat-card"
                                 *ngFor="let item of resumenAtencionCards; trackBy: trackByResumenAtencionCard"
                                 [class.is-active]="filtroAtencionEstatus === item.key"
-                                [class.pc-avance-stat-card--tramite]="item.key === 'En tramite'"
+                                [class.pc-avance-stat-card--vigente]="item.key === 'Vigentes'"
                                 [class.pc-avance-stat-card--proximo]="item.key === 'Próximo a vencer'"
                                 [class.pc-avance-stat-card--vencido]="item.key === 'Vencido'"
                                 (click)="toggleFiltroAtencion(item.key, $event)"
@@ -962,7 +963,7 @@
 
                   <div *ngIf="!cargandoResolutivosEstadisticas && resolutivosAtencionTotal === 0" class="pc-analytics-empty py-5 text-center">
                     <i class="fas fa-check-circle fa-2x mb-2" style="color: #2dce89; opacity: 0.7;"></i>
-                    <p class="mb-0 text-muted">No hay resolutivos en trámite, próximos a vencer ni vencidos.</p>
+                    <p class="mb-0 text-muted">No hay resolutivos vigentes, próximos a vencer ni vencidos.</p>
                   </div>
                 </div>
               </div>
@@ -1420,6 +1421,81 @@
             </div>
           </section>
 
+          <!-- Restablecer PIPC ocultos (solo superadministrador) -->
+          <section class="pc-restablecer-pipc"
+                   *ngIf="esRootUser && !cargandoEmpresas"
+                   aria-label="Restablecer PIPC ocultos">
+            <header class="pc-restablecer-pipc__header">
+              <div class="pc-restablecer-pipc__titles">
+                <span class="pc-restablecer-pipc__eyebrow">
+                  <i class="fas fa-eye"></i> Superadministrador
+                </span>
+                <h3 class="pc-restablecer-pipc__title">Restablecer PIPC</h3>
+                <p class="pc-restablecer-pipc__desc">
+                  PIPC ocultos de Activos. La información se conserva; al restablecer vuelven a mostrarse.
+                </p>
+              </div>
+              <span class="pc-restablecer-pipc__count" *ngIf="pipcOcultos.length">
+                {{ pipcOcultos.length }}
+              </span>
+            </header>
+
+            <div *ngIf="cargandoPipcOcultos" class="pc-terminados-loading">
+              <div class="spinner-border" role="status" style="width: 2rem; height: 2rem; color: #5e72e4;">
+                <span class="sr-only">Cargando...</span>
+              </div>
+            </div>
+
+            <div *ngIf="!cargandoPipcOcultos && pipcOcultos.length === 0"
+                 class="pc-restablecer-pipc__empty">
+              <div class="pc-restablecer-pipc__empty-icon">
+                <i class="fas fa-eye-slash"></i>
+              </div>
+              <p class="mb-0">No hay PIPC ocultos por restablecer.</p>
+            </div>
+
+            <div *ngIf="!cargandoPipcOcultos && pipcOcultos.length > 0"
+                 class="pc-restablecer-pipc__list">
+              <article class="pc-restablecer-pipc__card"
+                       *ngFor="let item of pipcOcultos">
+                <div class="pc-restablecer-pipc__card-main">
+                  <div class="pc-restablecer-pipc__avatar" aria-hidden="true">
+                    <img *ngIf="item.logo_url || item.logo"
+                         [src]="item.logo_url || item.logo"
+                         [alt]="item.nombre_empresa"
+                         class="pc-restablecer-pipc__logo">
+                    <i *ngIf="!(item.logo_url || item.logo)" class="fas fa-building"></i>
+                  </div>
+                  <div class="pc-restablecer-pipc__info">
+                    <h4 class="pc-restablecer-pipc__name">{{ item.nombre_empresa }}</h4>
+                    <p class="pc-restablecer-pipc__meta mb-0">
+                      <span *ngIf="item.ciudad || item.estado">
+                        <i class="fas fa-map-marker-alt"></i>
+                        {{ item.ciudad }}<span *ngIf="item.ciudad && item.estado">, </span>{{ item.estado }}
+                      </span>
+                      <span *ngIf="item.responsable_pipc_nombre">
+                        <i class="fas fa-user"></i> {{ item.responsable_pipc_nombre }}
+                      </span>
+                      <span *ngIf="item.fecha_inicio">
+                        <i class="fas fa-calendar-alt"></i>
+                        Inicio {{ formatearFechaPipcTerminado(item.fecha_inicio) }}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+                <button type="button"
+                        class="btn btn-sm pc-restablecer-pipc__btn"
+                        (click)="restablecerPipcOculto(item, $event)"
+                        [disabled]="restableciendoPipcId === item.operacion_id">
+                  <i class="fas"
+                     [ngClass]="restableciendoPipcId === item.operacion_id ? 'fa-spinner fa-spin' : 'fa-undo'"
+                     aria-hidden="true"></i>
+                  Restablecer
+                </button>
+              </article>
+            </div>
+          </section>
+
         </div>
       </section>
 
@@ -1465,6 +1541,15 @@
                 </span>
                 <span class="pc-ops-timeline-vigencia__dias">{{ textoDiasActivoPipc() }}</span>
               </div>
+              <button type="button"
+                      class="btn btn-sm border-0 pc-ops-timeline-hide-btn"
+                      (click)="ocultarPipcActivoActual()"
+                      [disabled]="ocultandoPipcActivo"
+                      title="Ocultar de PIPC Activos sin borrar datos"
+                      aria-label="Ocultar PIPC de Activos">
+                <i class="fas" [ngClass]="ocultandoPipcActivo ? 'fa-spinner fa-spin' : 'fa-eye-slash'" aria-hidden="true"></i>
+                Ocultar PIPC
+              </button>
               <button type="button"
                       class="btn btn-sm bg-white border-0 pc-ops-timeline-back-btn"
                       (click)="volverAEmpresas()"

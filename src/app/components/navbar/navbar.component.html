@@ -300,7 +300,14 @@
                     : 'Describe la sugerencia u observación'"
                   (click)="cerrarMenusTicket(); $event.stopPropagation()"></textarea>
 
-                <div class="tk-evidencias" (click)="$event.stopPropagation()">
+                <div class="tk-evidencias"
+                  appPasteFiles
+                  pasteAccept="image/jpeg,image/png,image/webp,image/jpg"
+                  [pasteListenDocument]="true"
+                  tabindex="0"
+                  title="También puedes pegar imágenes con Ctrl+V"
+                  (filesPasted)="onEvidenciasPegadas($event)"
+                  (click)="$event.stopPropagation()">
                   <input #evidenciaInput type="file" accept="image/jpeg,image/png,image/webp"
                     multiple hidden (change)="onEvidenciasSeleccionadas($event)">
                   <button type="button" class="tk-evidencias-add"
@@ -310,7 +317,7 @@
                     <span>
                       {{ ticketEvidencias.length >= maxEvidencias
                         ? 'Límite alcanzado'
-                        : 'Evidencias' }}
+                        : 'Evidencias (Ctrl+V)' }}
                     </span>
                     <em>{{ ticketEvidencias.length }}/{{ maxEvidencias }}</em>
                   </button>
@@ -549,7 +556,10 @@
                 <i class="fas" [ngClass]="item.icono"></i>
               </span>
               <span class="global-search-result-body">
-                <span class="global-search-result-title">{{ item.titulo }}</span>
+                <ng-container *ngIf="partesTituloBusqueda(item.titulo) as partes">
+                  <span class="global-search-result-code" *ngIf="partes.codigo">{{ partes.codigo }}</span>
+                  <span class="global-search-result-title">{{ partes.nombre }}</span>
+                </ng-container>
                 <span class="global-search-result-meta">{{ item.descripcion }}</span>
               </span>
               <span class="global-search-result-tipo" [attr.data-badge]="tipoBusquedaLabel(item)">{{ tipoBusquedaLabel(item) }}</span>

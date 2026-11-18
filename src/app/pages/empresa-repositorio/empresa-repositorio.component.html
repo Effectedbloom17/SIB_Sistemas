@@ -145,11 +145,11 @@
                 </div>
 
                 <div class="repo-side-nav" role="group" aria-label="Filtrar por tipo">
-                  <p class="repo-side-nav__title">Repositorio</p>
+                  <p class="repo-side-nav__title">Filtrar por tipo</p>
                   <button type="button"
                           class="repo-side-nav__item"
                           [class.repo-side-nav__item--active]="filtroTipo === 'todos'"
-                          (click)="setFiltroTipo('todos')"
+                          (click)="setFiltroTipo('todos', $event)"
                           [attr.aria-pressed]="filtroTipo === 'todos'">
                     <i class="fas fa-folder-open" aria-hidden="true"></i>
                     <span>Todo</span>
@@ -158,7 +158,7 @@
                   <button type="button"
                           class="repo-side-nav__item"
                           [class.repo-side-nav__item--active]="filtroTipo === 'pdf'"
-                          (click)="setFiltroTipo('pdf')"
+                          (click)="setFiltroTipo('pdf', $event)"
                           [attr.aria-pressed]="filtroTipo === 'pdf'">
                     <i class="fas fa-file-pdf" aria-hidden="true"></i>
                     <span>PDF</span>
@@ -167,7 +167,7 @@
                   <button type="button"
                           class="repo-side-nav__item"
                           [class.repo-side-nav__item--active]="filtroTipo === 'documentos'"
-                          (click)="setFiltroTipo('documentos')"
+                          (click)="setFiltroTipo('documentos', $event)"
                           [attr.aria-pressed]="filtroTipo === 'documentos'">
                     <i class="fas fa-file-alt" aria-hidden="true"></i>
                     <span>Documentos</span>
@@ -176,7 +176,7 @@
                   <button type="button"
                           class="repo-side-nav__item"
                           [class.repo-side-nav__item--active]="filtroTipo === 'imagenes'"
-                          (click)="setFiltroTipo('imagenes')"
+                          (click)="setFiltroTipo('imagenes', $event)"
                           [attr.aria-pressed]="filtroTipo === 'imagenes'">
                     <i class="fas fa-image" aria-hidden="true"></i>
                     <span>Imágenes</span>
@@ -220,49 +220,83 @@
                   <ng-container *ngIf="!migasCarpeta.length">
                     <span class="repo-toolbar__sep" aria-hidden="true">›</span>
                     <span class="repo-toolbar__crumb repo-toolbar__crumb--current">
-                      {{ busqueda.trim() ? 'Búsqueda' : 'Raíz' }}
+                      {{ busqueda.trim() ? 'Búsqueda' : (hayFiltroTipoActivo ? etiquetaFiltroTipo : 'Raíz') }}
+                    </span>
+                  </ng-container>
+                  <ng-container *ngIf="migasCarpeta.length && esVistaFiltradaGlobal">
+                    <span class="repo-toolbar__sep" aria-hidden="true">›</span>
+                    <span class="repo-toolbar__crumb repo-toolbar__crumb--current">
+                      {{ busqueda.trim() ? 'Búsqueda' : etiquetaFiltroTipo }}
                     </span>
                   </ng-container>
                 </nav>
 
                 <div class="repo-toolbar__actions">
                   <div class="repo-toolbar__search-row">
+                    <button *ngIf="puedeAdministrar"
+                            type="button"
+                            class="repo-icon-tip em-repo-accion"
+                            [class.em-repo-accion--abierta]="accionToolbarMovil === 'carpeta'"
+                            (click)="onAccionToolbarMovil('carpeta', $event)"
+                            [disabled]="esVistaFiltradaGlobal"
+                            title="Nueva carpeta"
+                            aria-label="Nueva carpeta">
+                      <i class="fas fa-folder-plus" aria-hidden="true"></i>
+                      <span class="repo-icon-tip__label">Nueva carpeta</span>
+                    </button>
+
                     <div class="repo-search">
                       <i class="fas fa-search" aria-hidden="true"></i>
                       <input type="search"
-                             placeholder="Buscar archivos…"
+                             placeholder="Buscar por nombre…"
                              [(ngModel)]="busqueda"
                              (ngModelChange)="aplicarFiltro()"
-                             aria-label="Buscar documentos">
+                             aria-label="Buscar documentos por nombre">
                     </div>
-                    <button *ngIf="puedeAdministrar" type="button"
-                            class="btn btn-sm sgc-extra-btn-upload em-repo-accion"
-                            [class.em-repo-accion--abierta]="accionToolbarMovil === 'subir'"
-                            (click)="onAccionToolbarMovil('subir', $event)">
-                      <i class="fas fa-arrow-up mr-1" aria-hidden="true"></i>
-                      <span>Subir</span>
-                    </button>
                   </div>
 
                   <div class="repo-toolbar__right">
                     <div class="repo-sort" role="group" aria-label="Ordenar archivos">
-                      <label class="repo-sort__label" for="repo-orden-campo">Ordenar</label>
-                      <select id="repo-orden-campo"
-                              class="repo-sort__select"
-                              [ngModel]="ordenCampo"
-                              (ngModelChange)="setOrdenDesdeSelect($event)"
-                              aria-label="Ordenar por">
-                        <option value="nombre">Nombre</option>
-                        <option value="fecha">Fecha</option>
-                        <option value="tamano">Tamaño</option>
-                        <option value="tipo">Tipo</option>
-                      </select>
+                      <span class="repo-sort__label">Ordenar por</span>
+                      <div class="repo-sort-menu" [class.repo-sort-menu--open]="ordenMenuAbierto">
+                        <button type="button"
+                                class="repo-sort-menu__trigger"
+                                (click)="toggleOrdenMenu($event)"
+                                [attr.aria-expanded]="ordenMenuAbierto"
+                                aria-haspopup="listbox"
+                                aria-controls="repo-orden-lista"
+                                aria-label="Elegir criterio de orden">
+                          <i class="fas" [ngClass]="iconoOrdenActual" aria-hidden="true"></i>
+                          <span>{{ etiquetaOrdenActual }}</span>
+                          <i class="fas fa-chevron-down repo-sort-menu__caret" aria-hidden="true"></i>
+                        </button>
+                        <ul *ngIf="ordenMenuAbierto"
+                            id="repo-orden-lista"
+                            class="repo-sort-menu__list"
+                            role="listbox"
+                            [attr.aria-activedescendant]="'repo-orden-' + ordenCampo"
+                            (click)="$event.stopPropagation()">
+                          <li *ngFor="let op of opcionesOrden"
+                              role="option"
+                              [id]="'repo-orden-' + op.valor"
+                              [attr.aria-selected]="ordenCampo === op.valor">
+                            <button type="button"
+                                    class="repo-sort-menu__option"
+                                    [class.repo-sort-menu__option--active]="ordenCampo === op.valor"
+                                    (click)="seleccionarOrden(op.valor, $event)">
+                              <i class="fas" [ngClass]="op.icono" aria-hidden="true"></i>
+                              <span>{{ op.etiqueta }}</span>
+                              <i class="fas fa-check repo-sort-menu__check" *ngIf="ordenCampo === op.valor" aria-hidden="true"></i>
+                            </button>
+                          </li>
+                        </ul>
+                      </div>
                       <button type="button"
                               class="repo-sort__dir"
-                              (click)="toggleOrdenDir()"
+                              (click)="toggleOrdenDir($event)"
                               [title]="ordenDir === 'asc' ? 'Ascendente' : 'Descendente'"
                               [attr.aria-label]="ordenDir === 'asc' ? 'Orden ascendente' : 'Orden descendente'">
-                        <i class="fas" [ngClass]="ordenDir === 'asc' ? 'fa-sort-amount-up-alt' : 'fa-sort-amount-down-alt'" aria-hidden="true"></i>
+                        <i class="fas" [ngClass]="ordenDir === 'asc' ? 'fa-sort-amount-up' : 'fa-sort-amount-down'" aria-hidden="true"></i>
                       </button>
                     </div>
 
@@ -285,17 +319,7 @@
                       </button>
                     </div>
 
-                    <button *ngIf="puedeAdministrar"
-                            type="button"
-                            class="btn btn-sm sgc-extra-btn-folder em-repo-accion"
-                            [class.em-repo-accion--abierta]="accionToolbarMovil === 'carpeta'"
-                            (click)="onAccionToolbarMovil('carpeta', $event)"
-                            [disabled]="!!busqueda.trim()">
-                      <i class="fas fa-folder-plus mr-1" aria-hidden="true"></i>
-                      <span>Nueva carpeta</span>
-                    </button>
-
-                    <button *ngIf="puedeAdministrar && carpetaActual && !busqueda.trim()"
+                    <button *ngIf="puedeAdministrar && carpetaActual && !esVistaFiltradaGlobal"
                             type="button"
                             class="btn btn-sm sgc-extra-btn-folder"
                             (click)="renombrarCarpetaActual()"
@@ -303,7 +327,7 @@
                       <i class="fas fa-i-cursor" aria-hidden="true"></i>
                     </button>
 
-                    <button *ngIf="puedeAdministrar && carpetaActual && !busqueda.trim()"
+                    <button *ngIf="puedeAdministrar && carpetaActual && !esVistaFiltradaGlobal"
                             type="button"
                             class="btn btn-sm sgc-extra-btn-danger em-repo-accion"
                             [class.em-repo-accion--abierta]="accionToolbarMovil === 'eliminar'"
@@ -311,12 +335,53 @@
                       <i class="fas fa-trash-alt mr-1" aria-hidden="true"></i>
                       <span>Eliminar</span>
                     </button>
+
+                    <button *ngIf="puedeAdministrar" type="button"
+                            class="btn btn-sm sgc-extra-btn-upload em-repo-accion"
+                            [class.em-repo-accion--abierta]="accionToolbarMovil === 'subir'"
+                            (click)="onAccionToolbarMovil('subir', $event)">
+                      <i class="fas fa-arrow-up mr-1" aria-hidden="true"></i>
+                      <span>Subir</span>
+                    </button>
                   </div>
                 </div>
               </div>
 
+              <div *ngIf="esVistaFiltradaGlobal"
+                   class="repo-filter-bar"
+                   role="status"
+                   aria-live="polite">
+                <div class="repo-filter-bar__chips">
+                  <span *ngIf="hayFiltroTipoActivo" class="repo-filter-chip">
+                    <i class="fas" [ngClass]="{
+                      'fa-file-pdf': filtroTipo === 'pdf',
+                      'fa-file-alt': filtroTipo === 'documentos',
+                      'fa-image': filtroTipo === 'imagenes'
+                    }" aria-hidden="true"></i>
+                    Tipo: {{ etiquetaFiltroTipo }}
+                  </span>
+                  <span *ngIf="busqueda.trim()" class="repo-filter-chip">
+                    <i class="fas fa-search" aria-hidden="true"></i>
+                    Nombre: «{{ busqueda.trim() }}»
+                  </span>
+                  <span class="repo-filter-chip repo-filter-chip--muted">
+                    <i class="fas" [ngClass]="ordenDir === 'asc' ? 'fa-sort-amount-up' : 'fa-sort-amount-down'" aria-hidden="true"></i>
+                    {{ etiquetaOrdenActual }}
+                  </span>
+                </div>
+                <button type="button" class="repo-filter-bar__clear" (click)="limpiarFiltros()">
+                  <i class="fas fa-times mr-1" aria-hidden="true"></i>
+                  Quitar filtros
+                </button>
+              </div>
+
               <div *ngIf="puedeAdministrar"
                    class="repo-dropzone"
+                   appPasteFiles
+                   [pasteListenDocument]="true"
+                   tabindex="0"
+                   title="También puedes pegar archivos o imágenes con Ctrl+V"
+                   (filesPasted)="onDropzonePaste($event)"
                    [class.repo-dropzone--active]="dropzoneActiva"
                    (dragover)="onDropzoneDragOver($event)"
                    (dragleave)="onDropzoneDragLeave($event)"
@@ -325,14 +390,14 @@
                   <i class="fas fa-cloud-upload-alt" aria-hidden="true"></i>
                 </div>
                 <p class="repo-dropzone__text mb-0">
-                  Arrastra y suelta los archivos aquí, o haz clic en
+                  Arrastra, pega (Ctrl+V) o haz clic en
                   <button type="button" class="repo-dropzone__link" (click)="abrirPanelSubida()">Subir</button>
                   arriba.
                 </p>
                 <p class="repo-dropzone__hint mb-0">PDF, CSV, Excel, Word, PowerPoint e imágenes · sin límite de tamaño</p>
               </div>
 
-              <div *ngIf="carpetaActual && !busqueda.trim()"
+              <div *ngIf="carpetaActual && !esVistaFiltradaGlobal"
                    class="sgc-extra-nav-bar"
                    [class.sgc-extra-nav-bar--drop]="dropTargetRuta === rutaPadreActual"
                    (dragover)="onDragOverRaiz($event)"
@@ -378,18 +443,21 @@
                   <i class="fas" [ngClass]="carpetaActual ? 'fa-folder-open' : 'fa-inbox'" aria-hidden="true"></i>
                 </div>
                 <h3 class="sgc-extra-state__title">
-                  {{ busqueda.trim() || filtroTipo !== 'todos'
+                  {{ esVistaFiltradaGlobal
                     ? 'Sin resultados'
                     : (carpetaActual ? 'Carpeta vacía' : 'Sin documentos aún') }}
                 </h3>
                 <p class="sgc-extra-state__text mb-3">
                   <ng-container *ngIf="busqueda.trim(); else emptySinBusqueda">
-                    Prueba con otro término o limpia la búsqueda.
+                    Prueba con otro nombre o
+                    <button type="button" class="btn btn-link btn-sm p-0 align-baseline" (click)="limpiarFiltros()">
+                      quita los filtros
+                    </button>.
                   </ng-container>
                   <ng-template #emptySinBusqueda>
-                    <ng-container *ngIf="filtroTipo !== 'todos'; else emptySinFiltroTipo">
-                      No hay archivos de este tipo aquí.
-                      <button type="button" class="btn btn-link btn-sm p-0 align-baseline" (click)="setFiltroTipo('todos')">
+                    <ng-container *ngIf="hayFiltroTipoActivo; else emptySinFiltroTipo">
+                      No hay archivos de tipo {{ etiquetaFiltroTipo }} en este repositorio.
+                      <button type="button" class="btn btn-link btn-sm p-0 align-baseline" (click)="setFiltroTipo('todos', $event)">
                         Ver todo
                       </button>
                     </ng-container>
@@ -403,7 +471,7 @@
                     </ng-template>
                   </ng-template>
                 </p>
-                <div class="sgc-extra-state__actions" *ngIf="!busqueda.trim() && puedeAdministrar">
+                <div class="sgc-extra-state__actions" *ngIf="!esVistaFiltradaGlobal && puedeAdministrar">
                   <button type="button" class="btn btn-sm sgc-extra-btn-folder mr-2" (click)="crearCarpeta()">
                     <i class="fas fa-folder-plus mr-1" aria-hidden="true"></i> Nueva carpeta
                   </button>
@@ -414,7 +482,7 @@
               </div>
 
               <!-- Carpetas -->
-              <div *ngIf="!cargandoLista && !errorLista && carpetasVista.length > 0 && !busqueda.trim() && filtroTipo === 'todos'"
+              <div *ngIf="!cargandoLista && !errorLista && carpetasVista.length > 0 && !esVistaFiltradaGlobal"
                    class="repo-section">
                 <h3 class="repo-section__title">Carpetas</h3>
                 <div class="repo-folders" role="list" aria-label="Carpetas">
@@ -457,7 +525,7 @@
                    class="repo-section">
                 <div class="repo-section__head">
                   <h3 class="repo-section__title mb-0">
-                    {{ busqueda.trim() ? 'Resultados' : 'Archivos' }}
+                    {{ esVistaFiltradaGlobal ? 'Resultados' : 'Archivos' }}
                   </h3>
                   <span class="repo-section__count">
                     {{ documentosVista.length }} archivo{{ documentosVista.length !== 1 ? 's' : '' }}
@@ -494,17 +562,17 @@
                         <span>{{ etiquetaTipo(doc.mimeType, doc.nombreArchivo) }}</span>
                       </div>
                       <span class="sgc-extra-tile__badge">{{ etiquetaTipo(doc.mimeType, doc.nombreArchivo) }}</span>
-                      <div class="sgc-extra-tile__hover">
-                        <button type="button" class="sgc-extra-tile__btn" title="Imprimir" (click)="imprimirDocumento(doc, $event)">
-                          <i class="fas fa-print" aria-hidden="true"></i>
+                      <div class="sgc-extra-tile__toolbar" (click)="$event.stopPropagation()">
+                        <button *ngIf="puedeAdministrar" type="button" class="sgc-extra-tile__tool" title="Cambiar nombre" (click)="renombrarDocumento(doc, $event)">
+                          <i class="fas fa-pen" aria-hidden="true"></i>
                         </button>
-                        <button type="button" class="sgc-extra-tile__btn" title="Descargar" (click)="descargarDocumento(doc, $event)">
+                        <button type="button" class="sgc-extra-tile__tool" title="Descargar" (click)="descargarDocumento(doc, $event)">
                           <i class="fas fa-download" aria-hidden="true"></i>
                         </button>
-                        <button *ngIf="puedeAdministrar" type="button" class="sgc-extra-tile__btn" title="Renombrar" (click)="renombrarDocumento(doc, $event)">
-                          <i class="fas fa-i-cursor" aria-hidden="true"></i>
+                        <button type="button" class="sgc-extra-tile__tool" title="Imprimir" (click)="imprimirDocumento(doc, $event)">
+                          <i class="fas fa-print" aria-hidden="true"></i>
                         </button>
-                        <button *ngIf="puedeAdministrar" type="button" class="sgc-extra-tile__btn sgc-extra-tile__btn--danger" title="Eliminar" (click)="eliminarDocumento(doc, $event)">
+                        <button *ngIf="puedeEliminar" type="button" class="sgc-extra-tile__tool sgc-extra-tile__tool--danger" title="Eliminar" (click)="eliminarDocumento(doc, $event)">
                           <i class="fas fa-trash-alt" aria-hidden="true"></i>
                         </button>
                       </div>
@@ -512,10 +580,10 @@
                     <div class="sgc-extra-tile__info">
                       <h4 class="sgc-extra-tile__name" [title]="doc.nombreArchivo">{{ doc.nombreArchivo }}</h4>
                       <p class="sgc-extra-tile__meta mb-0">
-                        <span *ngIf="busqueda.trim() && doc.carpetaRelativa" class="sgc-extra-tile__path">
+                        <span *ngIf="esVistaFiltradaGlobal && doc.carpetaRelativa" class="sgc-extra-tile__path">
                           {{ doc.carpetaRelativa }}
                         </span>
-                        <span *ngIf="busqueda.trim() && doc.carpetaRelativa" class="sgc-extra-tile__dot" aria-hidden="true">·</span>
+                        <span *ngIf="esVistaFiltradaGlobal && doc.carpetaRelativa" class="sgc-extra-tile__dot" aria-hidden="true">·</span>
                         <span>{{ formatearFecha(doc.fechaSubida) }}</span>
                         <span class="sgc-extra-tile__dot" aria-hidden="true">·</span>
                         <span>{{ formatearTamano(doc.tamanoBytes) }}</span>
@@ -530,7 +598,7 @@
                    class="repo-section">
                 <div class="repo-section__head">
                   <h3 class="repo-section__title mb-0">
-                    {{ busqueda.trim() ? 'Resultados' : 'Archivos' }}
+                    {{ esVistaFiltradaGlobal ? 'Resultados' : 'Archivos' }}
                   </h3>
                   <span class="repo-section__count">
                     {{ documentosVista.length }} archivo{{ documentosVista.length !== 1 ? 's' : '' }}
@@ -567,6 +635,17 @@
                         <th scope="col">
                           <button type="button"
                                   class="repo-table__sort-btn"
+                                  [class.repo-table__sort-btn--active]="ordenCampo === 'tipo'"
+                                  (click)="setOrdenCampo('tipo')">
+                            Tipo
+                            <i class="fas" *ngIf="ordenCampo === 'tipo'"
+                               [ngClass]="ordenDir === 'asc' ? 'fa-sort-up' : 'fa-sort-down'"
+                               aria-hidden="true"></i>
+                          </button>
+                        </th>
+                        <th scope="col">
+                          <button type="button"
+                                  class="repo-table__sort-btn"
                                   [class.repo-table__sort-btn--active]="ordenCampo === 'fecha'"
                                   (click)="setOrdenCampo('fecha')">
                             Modificado
@@ -593,23 +672,24 @@
                             </span>
                             <span class="repo-table__name-text">
                               <strong [title]="doc.nombreArchivo">{{ doc.nombreArchivo }}</strong>
-                              <small *ngIf="busqueda.trim() && doc.carpetaRelativa">{{ doc.carpetaRelativa }}</small>
+                              <small *ngIf="esVistaFiltradaGlobal && doc.carpetaRelativa">{{ doc.carpetaRelativa }}</small>
                             </span>
                           </div>
                         </td>
                         <td>{{ formatearTamano(doc.tamanoBytes) }}</td>
+                        <td>{{ etiquetaTipo(doc.mimeType, doc.nombreArchivo) }}</td>
                         <td>{{ formatearFecha(doc.fechaSubida) }}</td>
                         <td class="repo-table__actions" (click)="$event.stopPropagation()">
-                          <button type="button" class="repo-table__btn" title="Imprimir" (click)="imprimirDocumento(doc, $event)">
-                            <i class="fas fa-print" aria-hidden="true"></i>
+                          <button *ngIf="puedeAdministrar" type="button" class="repo-table__btn" title="Cambiar nombre" (click)="renombrarDocumento(doc, $event)">
+                            <i class="fas fa-pen" aria-hidden="true"></i>
                           </button>
                           <button type="button" class="repo-table__btn" title="Descargar" (click)="descargarDocumento(doc, $event)">
                             <i class="fas fa-download" aria-hidden="true"></i>
                           </button>
-                          <button *ngIf="puedeAdministrar" type="button" class="repo-table__btn" title="Renombrar" (click)="renombrarDocumento(doc, $event)">
-                            <i class="fas fa-i-cursor" aria-hidden="true"></i>
+                          <button type="button" class="repo-table__btn" title="Imprimir" (click)="imprimirDocumento(doc, $event)">
+                            <i class="fas fa-print" aria-hidden="true"></i>
                           </button>
-                          <button *ngIf="puedeAdministrar" type="button" class="repo-table__btn repo-table__btn--danger" title="Eliminar" (click)="eliminarDocumento(doc, $event)">
+                          <button *ngIf="puedeEliminar" type="button" class="repo-table__btn repo-table__btn--danger" title="Eliminar" (click)="eliminarDocumento(doc, $event)">
                             <i class="fas fa-trash-alt" aria-hidden="true"></i>
                           </button>
                         </td>
@@ -640,9 +720,12 @@
       </button>
     </header>
     <div class="sgc-extra-modal__body">
-      <p class="text-muted small mb-2">
+      <p class="text-muted small mb-2" *ngIf="modoSubida === 'galeria'">
         Se guardará con el mismo nombre del archivo. Puedes subir archivos sueltos o una carpeta completa;
         si eliges una carpeta, se creará con ese nombre y se cargará todo su contenido. Sin límite de tamaño.
+      </p>
+      <p class="text-muted small mb-2" *ngIf="modoSubida === 'pegar'">
+        Copia una imagen o archivo y pégalo aquí con <strong>Ctrl+V</strong>. También puedes volver a elegir desde tu galería.
       </p>
       <p class="sgc-extra-upload-destino small mb-3" *ngIf="carpetaActual; else destinoRaiz">
         <i class="fas fa-folder mr-1" aria-hidden="true"></i>
@@ -655,7 +738,7 @@
         </p>
       </ng-template>
 
-      <div class="sgc-extra-upload-actions">
+      <div class="sgc-extra-upload-actions" *ngIf="modoSubida === 'galeria'">
         <label class="sgc-extra-upload-zone">
           <input type="file"
                  class="sgc-extra-upload-zone__input"
@@ -683,6 +766,22 @@
           <span class="sgc-extra-upload-zone__label">Seleccionar carpeta</span>
           <span class="sgc-extra-upload-zone__hint">Crea la carpeta y sube su contenido</span>
         </label>
+      </div>
+
+      <div class="sgc-extra-paste-zone"
+           *ngIf="modoSubida === 'pegar'"
+           appPasteFiles
+           [pasteListenDocument]="true"
+           tabindex="0"
+           (filesPasted)="onPasteEnPanelSubida($event)">
+        <span class="sgc-extra-paste-zone__icon" aria-hidden="true">
+          <i class="fas fa-paste"></i>
+        </span>
+        <strong>Pega aquí con Ctrl+V</strong>
+        <span>Imagen o archivo copiado desde web, captura o explorador</span>
+        <button type="button" class="btn btn-link btn-sm p-0 mt-2" (click)="volverAGaleriaSubida()">
+          Preferir galería / archivos
+        </button>
       </div>
 
       <div *ngIf="archivosSeleccionados.length" class="sgc-extra-upload-list">

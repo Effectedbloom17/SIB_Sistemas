@@ -23,6 +23,7 @@ export class DocumentPreviewComponent implements OnInit, OnDestroy {
     tema: 'default',
     etiqueta: '',
     rrhhColaboradorFileId: '',
+    rrhhRegistrosFileId: '',
     sgcF29EvidenciaId: 0,
     sgcF14EvidenciaId: 0,
     sgcF11EvidenciaId: 0,

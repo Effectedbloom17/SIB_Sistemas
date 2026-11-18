@@ -55,6 +55,7 @@ export interface MtKpiCard {
 })
 export class EinF01ProgramaComponent implements OnInit, AfterViewInit, AfterViewChecked, OnDestroy {
   @ViewChildren('respTextarea') respTextareas?: QueryList<ElementRef<HTMLTextAreaElement>>;
+  @ViewChildren('infraTextarea') infraTextareas?: QueryList<ElementRef<HTMLTextAreaElement>>;
 
   readonly meses = MESES_EIN_F01;
   readonly semanas = SEMANAS_POR_MES;
@@ -118,17 +119,23 @@ export class EinF01ProgramaComponent implements OnInit, AfterViewInit, AfterView
     if (!this.pendingTextareaResize) {
       return;
     }
-    if (!this.respTextareas?.length) {
+    if (!this.respTextareas?.length && !this.infraTextareas?.length) {
       return;
     }
     this.pendingTextareaResize = false;
-    this.ajustarTodosTextareasResponsable();
+    this.ajustarTodosTextareasCelda();
   }
 
   ngAfterViewInit(): void {
-    this.textareasSub = this.respTextareas?.changes.subscribe(() => {
-      this.programarAjusteTextareas();
-    }) || null;
+    const onTextareasChange = () => this.programarAjusteTextareas();
+    const subResp = this.respTextareas?.changes.subscribe(onTextareasChange);
+    const subInfra = this.infraTextareas?.changes.subscribe(onTextareasChange);
+    this.textareasSub = {
+      unsubscribe(): void {
+        subResp?.unsubscribe();
+        subInfra?.unsubscribe();
+      }
+    };
     this.programarAjusteTextareas();
   }
 
@@ -452,7 +459,7 @@ export class EinF01ProgramaComponent implements OnInit, AfterViewInit, AfterView
     this.persistir();
   }
 
-  ajustarTextareaResponsable(el: HTMLTextAreaElement | null | undefined): void {
+  ajustarTextareaCelda(el: HTMLTextAreaElement | null | undefined): void {
     if (!el) {
       return;
     }
@@ -468,24 +475,32 @@ export class EinF01ProgramaComponent implements OnInit, AfterViewInit, AfterView
     }
     this.resizeTimer = setTimeout(() => {
       this.resizeTimer = null;
-      this.ajustarTodosTextareasResponsable();
+      this.ajustarTodosTextareasCelda();
       this.pendingTextareaResize = false;
     }, 0);
   }
 
-  private ajustarTodosTextareasResponsable(): void {
-    const refs = this.respTextareas?.toArray() || [];
-    if (refs.length) {
-      refs.forEach(ref => {
-        const el = (ref as ElementRef<HTMLTextAreaElement>).nativeElement
-          || (ref as unknown as HTMLTextAreaElement);
-        this.ajustarTextareaResponsable(el);
-      });
+  private ajustarTextareasDeLista(
+    lista: QueryList<ElementRef<HTMLTextAreaElement>> | undefined
+  ): void {
+    const refs = lista?.toArray() || [];
+    refs.forEach(ref => {
+      const el = (ref as ElementRef<HTMLTextAreaElement>).nativeElement
+        || (ref as unknown as HTMLTextAreaElement);
+      this.ajustarTextareaCelda(el);
+    });
+  }
+
+  private ajustarTodosTextareasCelda(): void {
+    const tieneRefs = !!(this.respTextareas?.length || this.infraTextareas?.length);
+    if (tieneRefs) {
+      this.ajustarTextareasDeLista(this.infraTextareas);
+      this.ajustarTextareasDeLista(this.respTextareas);
       return;
     }
     document
       .querySelectorAll<HTMLTextAreaElement>('#mt-sec-f01 textarea.mt-cell-textarea--auto')
-      .forEach(el => this.ajustarTextareaResponsable(el));
+      .forEach(el => this.ajustarTextareaCelda(el));
   }
 
   @HostListener('window:resize')

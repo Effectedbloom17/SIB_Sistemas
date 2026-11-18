@@ -501,6 +501,24 @@ async function ensureResponsablePipcColumn(poolProteccionCivil, addColumnIfNotEx
     );
 }
 
+/** Soft-hide en PIPC Activos; no borra datos ni afecta asignación de nuevos PIPC. */
+async function ensureMostrarEnActivosColumn(poolProteccionCivil, addColumnIfNotExists) {
+    if (!addColumnIfNotExists) return;
+    await addColumnIfNotExists(
+        poolProteccionCivil,
+        'pc_centro_operaciones',
+        'mostrar_en_activos',
+        'TINYINT(1) NOT NULL DEFAULT 1 AFTER activo'
+    );
+}
+
+function cicloVisibleEnActivos(ciclo) {
+    if (!ciclo) return true;
+    // Sin columna / NULL → visible (compatibilidad)
+    if (ciclo.mostrar_en_activos == null) return true;
+    return Number(ciclo.mostrar_en_activos) !== 0;
+}
+
 function nombreCompletoUsuarioRow(row = {}) {
     const partes = [row.nombre, row.apellido]
         .map((p) => String(p || '').trim())
@@ -848,7 +866,8 @@ function buildCicloResponse(ciclo, reglas, extras = {}) {
         fecha_aprobacion_otms: ciclo.fecha_aprobacion_otms || null,
         fechas_workflow: fechasWf,
         notas_workflow: notasWf,
-        ciclo_cerrado: !!ciclo.ciclo_cerrado_at
+        ciclo_cerrado: !!ciclo.ciclo_cerrado_at,
+        mostrar_en_activos: cicloVisibleEnActivos(ciclo)
     };
 }
 
@@ -942,9 +961,14 @@ function registerPcCentroOperacionesRoutes(app, deps) {
         handleError,
         poolBiznagaSgcReady,
         getPoolBiznagaSgc,
-        poolBiznaga,
+        getPoolBiznaga,
+        poolBiznaga: poolBiznagaDep,
         pcResolutivosService
     } = deps;
+    // Preferir getter (pool listo en runtime); fallback a pool inyectado.
+    const resolvePoolBiznaga = () =>
+        (typeof getPoolBiznaga === 'function' ? getPoolBiznaga() : null) || poolBiznagaDep || null;
+    const poolBiznaga = resolvePoolBiznaga();
 
     app.get('/api/proteccion-civil/empresas/:empresaId/centro-operaciones', requireAdminOrPC, verificarServicioProteccionCivilEmpresa, async (req, res) => {
         try {
@@ -1294,6 +1318,254 @@ function registerPcCentroOperacionesRoutes(app, deps) {
         }
     });
 
+    /** Ocultar ciclo activo de PIPC Activos (soft-hide; no borra ni cierra el ciclo). */
+    app.post('/api/proteccion-civil/empresas/:empresaId/centro-operaciones/ocultar', requireAdminOrPC, verificarServicioProteccionCivilEmpresa, async (req, res) => {
+        try {
+            const pool = await resolvePool(deps);
+            const empresaId = Number(req.params.empresaId);
+            if (!Number.isInteger(empresaId) || empresaId <= 0) {
+                return res.status(400).json({ success: false, message: 'empresaId inválido' });
+            }
+
+            let ciclo = await obtenerCicloActivo(pool, empresaId);
+            if (!ciclo) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'No hay un PIPC activo para ocultar'
+                });
+            }
+
+            await pool.query(
+                `UPDATE pc_centro_operaciones
+                 SET mostrar_en_activos = 0, fecha_actualizacion = NOW()
+                 WHERE operacion_id = ? AND empresa_id = ?`,
+                [ciclo.operacion_id, empresaId]
+            );
+
+            res.json({
+                success: true,
+                message: 'PIPC ocultado de Activos. Los datos se conservan; el superadministrador puede restablecerlo.',
+                operacion_id: Number(ciclo.operacion_id),
+                mostrar_en_activos: false
+            });
+        } catch (error) {
+            handleError(res, error, 'Error al ocultar PIPC de Activos');
+        }
+    });
+
+    /** Restablecer visibilidad en PIPC Activos (solo root). */
+    app.post('/api/proteccion-civil/empresas/:empresaId/centro-operaciones/restablecer', requireAdminOrPC, verificarServicioProteccionCivilEmpresa, async (req, res) => {
+        try {
+            const userRoles = Array.isArray(req.user?.roles)
+                ? req.user.roles.map((r) => String(r).toLowerCase())
+                : (req.user?.rol ? [String(req.user.rol).toLowerCase()] : []);
+            if (!userRoles.includes('root')) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Solo el superadministrador puede restablecer un PIPC oculto'
+                });
+            }
+
+            const pool = await resolvePool(deps);
+            const empresaId = Number(req.params.empresaId);
+            const operacionId = Number(req.body?.operacion_id || req.body?.operacionId || 0);
+
+            if (!Number.isInteger(empresaId) || empresaId <= 0) {
+                return res.status(400).json({ success: false, message: 'empresaId inválido' });
+            }
+
+            let ciclo = null;
+            if (Number.isInteger(operacionId) && operacionId > 0) {
+                const [rows] = await pool.query(
+                    `SELECT * FROM pc_centro_operaciones
+                     WHERE operacion_id = ? AND empresa_id = ?
+                     LIMIT 1`,
+                    [operacionId, empresaId]
+                );
+                ciclo = rows?.[0] || null;
+            } else {
+                // Preferir el ciclo activo oculto; si no, el activo actual
+                const [ocultos] = await pool.query(
+                    `SELECT * FROM pc_centro_operaciones
+                     WHERE empresa_id = ?
+                       AND activo = 1
+                       AND ciclo_cerrado_at IS NULL
+                       AND COALESCE(mostrar_en_activos, 1) = 0
+                     ORDER BY operacion_id DESC
+                     LIMIT 1`,
+                    [empresaId]
+                );
+                ciclo = ocultos?.[0] || (await obtenerCicloActivo(pool, empresaId));
+            }
+
+            if (!ciclo) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'No se encontró el PIPC a restablecer'
+                });
+            }
+
+            await pool.query(
+                `UPDATE pc_centro_operaciones
+                 SET mostrar_en_activos = 1, fecha_actualizacion = NOW()
+                 WHERE operacion_id = ? AND empresa_id = ?`,
+                [ciclo.operacion_id, empresaId]
+            );
+
+            res.json({
+                success: true,
+                message: 'PIPC restablecido en Activos.',
+                operacion_id: Number(ciclo.operacion_id),
+                mostrar_en_activos: true
+            });
+        } catch (error) {
+            handleError(res, error, 'Error al restablecer PIPC en Activos');
+        }
+    });
+
+    /** Listado de PIPC ocultos (ciclo abierto) para restablecer — solo root. */
+    app.get('/api/proteccion-civil/pipc-ocultos', requireAdminOrPC, async (req, res) => {
+        try {
+            const userRoles = Array.isArray(req.user?.roles)
+                ? req.user.roles.map((r) => String(r).toLowerCase())
+                : (req.user?.rol ? [String(req.user.rol).toLowerCase()] : []);
+            if (!userRoles.includes('root')) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Solo el superadministrador puede ver PIPC ocultos'
+                });
+            }
+
+            const pool = await resolvePool(deps);
+            const poolBiz = resolvePoolBiznaga();
+            const [ciclos] = await pool.query(`
+                SELECT operacion_id, empresa_id, fecha_creacion, fecha_actualizacion,
+                       responsable_pipc_usuario_id, pasos_completados
+                FROM pc_centro_operaciones
+                WHERE activo = 1
+                  AND ciclo_cerrado_at IS NULL
+                  AND COALESCE(mostrar_en_activos, 1) = 0
+                ORDER BY fecha_actualizacion DESC, operacion_id DESC
+            `);
+
+            if (!ciclos?.length) {
+                return res.json({ success: true, ocultos: [] });
+            }
+
+            const empresaIds = [...new Set(ciclos.map((c) => Number(c.empresa_id)).filter((id) => id > 0))];
+            const responsableIds = [...new Set(
+                ciclos.map((c) => Number(c.responsable_pipc_usuario_id || 0)).filter((id) => id > 0)
+            )];
+
+            let empresasMap = new Map();
+            if (poolBiz?.query && empresaIds.length) {
+                const [empresasRows] = await poolBiz.query(
+                    `SELECT empresa_id, nombre_empresa, rfc, ciudad, estado, logo
+                     FROM empresa
+                     WHERE empresa_id IN (?)`,
+                    [empresaIds]
+                );
+                empresasMap = new Map((empresasRows || []).map((e) => [Number(e.empresa_id), e]));
+            }
+            const nombresResponsables = await obtenerNombresUsuariosPorIds(poolBiz, responsableIds);
+
+            const ocultos = ciclos.map((ciclo) => {
+                const emp = empresasMap.get(Number(ciclo.empresa_id)) || {};
+                const responsableId = Number(ciclo.responsable_pipc_usuario_id || 0) || null;
+                return {
+                    operacion_id: Number(ciclo.operacion_id),
+                    empresa_id: Number(ciclo.empresa_id),
+                    nombre_empresa: emp.nombre_empresa || `Empresa ${ciclo.empresa_id}`,
+                    rfc: emp.rfc || '',
+                    ciudad: emp.ciudad || '',
+                    estado: emp.estado || '',
+                    logo: emp.logo || null,
+                    logo_url: emp.logo || null,
+                    fecha_inicio: ciclo.fecha_creacion || null,
+                    ocultado_at: ciclo.fecha_actualizacion || null,
+                    responsable_pipc_usuario_id: responsableId,
+                    responsable_pipc_nombre: responsableId
+                        ? (nombresResponsables.get(responsableId) || null)
+                        : null,
+                    pasos_completados: parsePasosCompletados(ciclo.pasos_completados),
+                    mostrar_en_activos: false
+                };
+            });
+
+            res.json({ success: true, ocultos });
+        } catch (error) {
+            handleError(res, error, 'Error al listar PIPC ocultos');
+        }
+    });
+
+    app.post('/api/proteccion-civil/empresas/:empresaId/centro-operaciones/reabrir-ciclo', requireAdminOrPC, verificarServicioProteccionCivilEmpresa, async (req, res) => {
+        try {
+            const pool = await resolvePool(deps);
+            const empresaId = Number(req.params.empresaId);
+            const operacionId = Number(req.body?.operacion_id || req.body?.operacionId || 0);
+
+            if (!Number.isInteger(empresaId) || empresaId <= 0 || !Number.isInteger(operacionId) || operacionId <= 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'empresaId y operacion_id son requeridos'
+                });
+            }
+
+            const activo = await obtenerCicloActivo(pool, empresaId);
+            if (activo && Number(activo.operacion_id) !== operacionId) {
+                return res.status(409).json({
+                    success: false,
+                    message: 'Esta empresa ya tiene un PIPC activo. Ciérralo antes de reabrir otro ciclo.'
+                });
+            }
+
+            const [rows] = await pool.query(
+                `SELECT operacion_id, empresa_id, activo, ciclo_cerrado_at, pasos_completados
+                 FROM pc_centro_operaciones
+                 WHERE operacion_id = ? AND empresa_id = ?
+                 LIMIT 1`,
+                [operacionId, empresaId]
+            );
+            const ciclo = rows?.[0];
+            if (!ciclo) {
+                return res.status(404).json({ success: false, message: 'Ciclo no encontrado' });
+            }
+
+            if (!ciclo.ciclo_cerrado_at && Number(ciclo.activo) === 1) {
+                return res.json({
+                    success: true,
+                    ya_activo: true,
+                    message: 'El ciclo ya está abierto para seguimiento.',
+                    operacion_id: operacionId
+                });
+            }
+
+            const pasos = parsePasosCompletados(ciclo.pasos_completados)
+                .filter((paso) => paso !== 'finalizar');
+
+            await pool.query(
+                `UPDATE pc_centro_operaciones
+                 SET activo = 1,
+                     ciclo_cerrado_at = NULL,
+                     mostrar_en_activos = 1,
+                     pasos_completados = ?,
+                     fecha_actualizacion = NOW()
+                 WHERE operacion_id = ? AND empresa_id = ?`,
+                [JSON.stringify(pasos), operacionId, empresaId]
+            );
+
+            res.json({
+                success: true,
+                ya_activo: false,
+                message: 'PIPC reabierto. Puedes darle seguimiento y volver a cerrarlo cuando termine.',
+                operacion_id: operacionId,
+                pasos_completados: pasos
+            });
+        } catch (error) {
+            handleError(res, error, 'Error al reabrir ciclo de operaciones');
+        }
+    });
+
     app.post('/api/proteccion-civil/empresas/:empresaId/centro-operaciones/cerrar-ciclo', requireAdminOrPC, verificarServicioProteccionCivilEmpresa, async (req, res) => {
         try {
             const pool = await resolvePool(deps);
@@ -1577,7 +1849,9 @@ module.exports = {
     ensureCentroOperacionesTable,
     ensureCentroOperacionesFechasColumns,
     ensureResponsablePipcColumn,
+    ensureMostrarEnActivosColumn,
     ensureClaveWorkflowColumn,
+    cicloVisibleEnActivos,
     obtenerNombresUsuariosPorIds,
     registerPcCentroOperacionesRoutes,
     finalizarRevisionEmpresaPC,

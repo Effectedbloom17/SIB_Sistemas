@@ -205,7 +205,7 @@
                 <div class="sgc-preview-toolbar__actions">
                   <span class="sgc-preview-sync sgc-preview-sync--offline" *ngIf="sinConexion">
                     <i class="fas fa-wifi mr-1" aria-hidden="true"></i>
-                    Sin conexión · borrador local
+                    Sin conexión · guardado aquí
                   </span>
                   <span class="sgc-preview-sync sgc-preview-sync--hint" *ngIf="(dgF04CambiosPendientes || borradorLocalPendiente) && !dgF04Guardando">
                     <i class="fas fa-exclamation-circle mr-1" aria-hidden="true"></i>
@@ -322,7 +322,7 @@
                   </button>
                   <span class="sgc-preview-sync sgc-preview-sync--offline" *ngIf="sinConexion">
                     <i class="fas fa-wifi mr-1" aria-hidden="true"></i>
-                    Sin conexión · borrador local
+                    Sin conexión · guardado aquí
                   </span>
                   <span class="sgc-preview-sync sgc-preview-sync--hint" *ngIf="(driveSyncCambiosPendientes || borradorLocalPendiente) && !driveSyncGuardando && plantillaSlug !== 'sgc-f-05'">
                     <i class="fas fa-exclamation-circle mr-1" aria-hidden="true"></i>
@@ -1486,7 +1486,7 @@
                           <p class="dg-f02-attach__desc mb-0">Sube el PDF firmado de este perfil para el expediente del SGC.</p>
                         </div>
                       </div>
-                      <label class="dg-f02-attach__dropzone" *ngIf="!perf.pdfFirmado?.driveFileId"
+                      <label class="dg-f02-attach__dropzone" appPasteFiles [pasteDispatchInput]="true" tabindex="0" title="También puedes pegar un PDF con Ctrl+V" *ngIf="!perf.pdfFirmado?.driveFileId"
                         [class.dg-f02-attach__dropzone--busy]="athF02SubiendoPdf">
                         <input type="file" class="dg-f02-attach__input" accept="application/pdf"
                           (change)="onSeleccionarPdfAthF02($event)" [disabled]="athF02SubiendoPdf">
@@ -1648,7 +1648,7 @@
                             </span>
                           </div>
                         </div>
-                        <label class="dg-f02-attach__dropzone" *ngIf="!prog.pdfFirmado?.driveFileId"
+                        <label class="dg-f02-attach__dropzone" appPasteFiles [pasteDispatchInput]="true" tabindex="0" title="También puedes pegar un PDF con Ctrl+V" *ngIf="!prog.pdfFirmado?.driveFileId"
                           [class.dg-f02-attach__dropzone--busy]="athF07SubiendoPdf">
                           <input type="file" class="dg-f02-attach__input" accept="application/pdf"
                             (change)="onSeleccionarPdfAthF07($event)" [disabled]="athF07SubiendoPdf">
@@ -2137,7 +2137,7 @@
                           </p>
                         </div>
                       </div>
-                      <label class="dg-f02-attach__dropzone" *ngIf="!cot.pdfFirmado?.driveFileId"
+                      <label class="dg-f02-attach__dropzone" appPasteFiles [pasteDispatchInput]="true" tabindex="0" title="También puedes pegar un PDF con Ctrl+V" *ngIf="!cot.pdfFirmado?.driveFileId"
                         [class.dg-f02-attach__dropzone--busy]="athF09SubiendoPdf">
                         <input type="file" class="dg-f02-attach__input" accept="application/pdf"
                           (change)="onSeleccionarPdfAthF09($event)" [disabled]="athF09SubiendoPdf">
@@ -2688,7 +2688,7 @@
                           </p>
                         </div>
                       </div>
-                      <label class="dg-f02-attach__dropzone" *ngIf="!ev.pdfFirmado?.driveFileId"
+                      <label class="dg-f02-attach__dropzone" appPasteFiles [pasteDispatchInput]="true" tabindex="0" title="También puedes pegar un PDF con Ctrl+V" *ngIf="!ev.pdfFirmado?.driveFileId"
                         [class.dg-f02-attach__dropzone--busy]="athF11SubiendoPdf">
                         <input type="file" class="dg-f02-attach__input" accept="application/pdf"
                           (change)="onSeleccionarPdfAthF11($event)" [disabled]="athF11SubiendoPdf">
@@ -3181,7 +3181,7 @@
                         </p>
                       </div>
                     </div>
-                    <label class="dg-f02-attach__dropzone" *ngIf="!dgF01Form.pdfFirmado?.driveFileId"
+                    <label class="dg-f02-attach__dropzone" appPasteFiles [pasteDispatchInput]="true" tabindex="0" title="También puedes pegar un PDF con Ctrl+V" *ngIf="!dgF01Form.pdfFirmado?.driveFileId"
                       [class.dg-f02-attach__dropzone--busy]="dgF01SubiendoPdf">
                       <input type="file" class="dg-f02-attach__input" accept="application/pdf"
                         (change)="onSeleccionarPdfDgF01($event)" [disabled]="dgF01SubiendoPdf">
@@ -3360,7 +3360,7 @@
                         </p>
                       </div>
                     </div>
-                    <label class="dg-f02-attach__dropzone" *ngIf="!dgF02Form.pdfFirmado?.driveFileId"
+                    <label class="dg-f02-attach__dropzone" appPasteFiles [pasteDispatchInput]="true" tabindex="0" title="También puedes pegar un PDF con Ctrl+V" *ngIf="!dgF02Form.pdfFirmado?.driveFileId"
                       [class.dg-f02-attach__dropzone--busy]="dgF02SubiendoPdf">
                       <input type="file" class="dg-f02-attach__input" accept="application/pdf"
                         (change)="onSeleccionarPdfDgF02($event)" [disabled]="dgF02SubiendoPdf">
@@ -3524,7 +3524,7 @@
                         </p>
                       </div>
                     </div>
-                    <label class="dg-f02-attach__dropzone" *ngIf="!sgcPo01Form.pdfFirmado?.driveFileId"
+                    <label class="dg-f02-attach__dropzone" appPasteFiles [pasteDispatchInput]="true" tabindex="0" title="También puedes pegar un PDF con Ctrl+V" *ngIf="!sgcPo01Form.pdfFirmado?.driveFileId"
                       [class.dg-f02-attach__dropzone--busy]="sgcPo01SubiendoPdf">
                       <input type="file" class="dg-f02-attach__input" accept="application/pdf"
                         (change)="onSeleccionarPdfSgcPo01($event)" [disabled]="sgcPo01SubiendoPdf">
@@ -3693,7 +3693,7 @@
                         </p>
                       </div>
                     </div>
-                    <label class="dg-f02-attach__dropzone" *ngIf="!dgF08Form.pdfFirmado?.driveFileId"
+                    <label class="dg-f02-attach__dropzone" appPasteFiles [pasteDispatchInput]="true" tabindex="0" title="También puedes pegar un PDF con Ctrl+V" *ngIf="!dgF08Form.pdfFirmado?.driveFileId"
                       [class.dg-f02-attach__dropzone--busy]="dgF08SubiendoPdf">
                       <input type="file" class="dg-f02-attach__input" accept="application/pdf"
                         (change)="onSeleccionarPdfDgF08($event)" [disabled]="dgF08SubiendoPdf">
@@ -4123,7 +4123,7 @@
                         </p>
                       </div>
                     </div>
-                    <label class="dg-f02-attach__dropzone" *ngIf="!afF02Form.pdfFirmado?.driveFileId"
+                    <label class="dg-f02-attach__dropzone" appPasteFiles [pasteDispatchInput]="true" tabindex="0" title="También puedes pegar un PDF con Ctrl+V" *ngIf="!afF02Form.pdfFirmado?.driveFileId"
                       [class.dg-f02-attach__dropzone--busy]="afF02SubiendoPdf">
                       <input type="file" class="dg-f02-attach__input" accept="application/pdf"
                         (change)="onSeleccionarPdfAfF02($event)" [disabled]="afF02SubiendoPdf">
@@ -5667,7 +5667,7 @@
                         </p>
                       </div>
                     </div>
-                    <label class="dg-f02-attach__dropzone" *ngIf="!sgcF07Form.pdfFirmado?.driveFileId"
+                    <label class="dg-f02-attach__dropzone" appPasteFiles [pasteDispatchInput]="true" tabindex="0" title="También puedes pegar un PDF con Ctrl+V" *ngIf="!sgcF07Form.pdfFirmado?.driveFileId"
                       [class.dg-f02-attach__dropzone--busy]="sgcF07SubiendoPdf">
                       <input type="file" class="dg-f02-attach__input" accept="application/pdf"
                         (change)="onSeleccionarPdfSgcF07($event)" [disabled]="sgcF07SubiendoPdf">
@@ -5960,7 +5960,7 @@
                         </p>
                       </div>
                     </div>
-                    <label class="dg-f02-attach__dropzone" *ngIf="!sgcF08Form.pdfFirmado?.driveFileId"
+                    <label class="dg-f02-attach__dropzone" appPasteFiles [pasteDispatchInput]="true" tabindex="0" title="También puedes pegar un PDF con Ctrl+V" *ngIf="!sgcF08Form.pdfFirmado?.driveFileId"
                       [class.dg-f02-attach__dropzone--busy]="sgcF08SubiendoPdf">
                       <input type="file" class="dg-f02-attach__input" accept="application/pdf"
                         (change)="onSeleccionarPdfSgcF08($event)" [disabled]="sgcF08SubiendoPdf">
@@ -6319,6 +6319,11 @@
                       </div>
 
                       <div class="sgc-f29-evid-drop"
+                        appPasteFiles
+                        [pasteListenDocument]="true"
+                        tabindex="0"
+                        title="También puedes pegar archivos o imágenes con Ctrl+V"
+                        (filesPasted)="onEvidenciasPasteSgcF14($event)"
                         [class.is-drag]="sgcF14EvidenciasDragDepth > 0"
                         (dragenter)="onEvidenciasDragEnterSgcF14($event)"
                         (dragleave)="onEvidenciasDragLeaveSgcF14($event)"
@@ -6344,7 +6349,7 @@
                         <ng-container *ngIf="!sgcF14EvidenciasCargando">
                           <div class="sgc-f29-evid-empty" *ngIf="!sgcF14EvidenciasDocsFiltrados.length && !sgcF14EvidenciasSubiendo">
                             <i class="fas fa-cloud-upload-alt" aria-hidden="true"></i>
-                            <p>Arrastra archivos aquí o usa «Subir».</p>
+                            <p>Arrastra archivos aquí, pégalos (Ctrl+V) o usa «Subir».</p>
                             <span>PDF, CSV, Excel, Word, PowerPoint e imágenes</span>
                           </div>
                           <div class="sgc-f29-evid-files"
@@ -6609,7 +6614,7 @@
                           </p>
                         </div>
                       </div>
-                      <label class="dg-f02-attach__dropzone" *ngIf="!sgcF19Form.pdfFirmado?.driveFileId"
+                      <label class="dg-f02-attach__dropzone" appPasteFiles [pasteDispatchInput]="true" tabindex="0" title="También puedes pegar un PDF con Ctrl+V" *ngIf="!sgcF19Form.pdfFirmado?.driveFileId"
                         [class.dg-f02-attach__dropzone--busy]="sgcF19SubiendoPdf">
                         <input type="file" class="dg-f02-attach__input" accept="application/pdf"
                           (change)="onSeleccionarPdfSgcF19($event)" [disabled]="sgcF19SubiendoPdf">
@@ -7674,20 +7679,26 @@
                         </div>
                       </div>
 
-                      <div class="sgc-f-28-archivero__stats" *ngIf="sgcF28Form.comparativas.length">
+                      <div class="sgc-f-28-archivero__stats" *ngIf="sgcF28ComparativasActivas.length || (esSuperAdminSgcF28 && sgcF28ComparativasDesactivadas.length)">
                         <span class="sgc-f-28-stat">
-                          <strong>{{ sgcF28Form.comparativas.length }}</strong>
-                          {{ sgcF28Form.comparativas.length === 1 ? 'cotización' : 'cotizaciones' }}
+                          <strong>{{ sgcF28ComparativasActivas.length }}</strong>
+                          {{ sgcF28ComparativasActivas.length === 1 ? 'cotización' : 'cotizaciones' }}
                         </span>
                         <span class="sgc-f-28-stat sgc-f-28-stat--muted"
-                          *ngIf="sgcF28Busqueda.trim() && sgcF28ComparativasVista.length !== sgcF28Form.comparativas.length">
+                          *ngIf="esSuperAdminSgcF28 && sgcF28ComparativasDesactivadas.length">
+                          {{ sgcF28ComparativasDesactivadas.length }}
+                          {{ sgcF28ComparativasDesactivadas.length === 1 ? 'oculta' : 'ocultas' }}
+                        </span>
+                        <span class="sgc-f-28-stat sgc-f-28-stat--muted"
+                          *ngIf="sgcF28Busqueda.trim() && sgcF28ComparativasVista.length !== (esSuperAdminSgcF28 ? sgcF28Form.comparativas.length : sgcF28ComparativasActivas.length)">
                           {{ sgcF28ComparativasVista.length }} en vista
                         </span>
                       </div>
 
                       <ul class="sgc-f-28-grid" *ngIf="sgcF28ComparativasVista.length; else sgcF28Vacio">
                         <li class="sgc-f-28-tile" *ngFor="let c of sgcF28ComparativasVista; let ti = index; trackBy: trackByCriterioIdSgcF28"
-                          [attr.data-tone]="tonoTarjetaSgcF28(c, ti)">
+                          [attr.data-tone]="tonoTarjetaSgcF28(c, ti)"
+                          [class.sgc-f-28-tile--inactiva]="c.activo === false">
                           <button type="button" class="sgc-f-28-tile__body" (click)="abrirComparativaSgcF28(c)">
                             <span class="sgc-f-28-tile__accent" aria-hidden="true"></span>
                             <span class="sgc-f-28-tile__meta">
@@ -7696,6 +7707,7 @@
                                   <i class="fas fa-file-invoice-dollar" aria-hidden="true"></i>
                                 </span>
                                 <span class="sgc-f-28-tile__pills">
+                                  <span class="sgc-f-28-tile__badge-off" *ngIf="c.activo === false">Oculta</span>
                                   <span class="sgc-f-28-tile__count">{{ c.criterios.length }} crit.</span>
                                   <span class="sgc-f-28-tile__provpill">
                                     {{ conteoProveedoresSgcF28(c) || 0 }} prov.
@@ -7721,10 +7733,25 @@
                               </span>
                             </span>
                           </button>
-                          <button type="button" class="sgc-f-28-tile__del" (click)="eliminarComparativaSgcF28(c, $event)"
-                            title="Eliminar" aria-label="Eliminar comparativa">
-                            <i class="fas fa-trash-alt" aria-hidden="true"></i>
-                          </button>
+                          <div class="sgc-f-28-tile__actions">
+                            <button type="button" class="sgc-f-28-tile__del" *ngIf="c.activo !== false"
+                              (click)="eliminarComparativaSgcF28(c, $event)"
+                              title="Ocultar del archivero" aria-label="Ocultar comparativa">
+                              <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                            </button>
+                            <button type="button" class="sgc-f-28-tile__reactivar"
+                              *ngIf="esSuperAdminSgcF28 && c.activo === false"
+                              (click)="reactivarComparativaSgcF28(c, $event)"
+                              title="Reactivar" aria-label="Reactivar comparativa">
+                              <i class="fas fa-undo" aria-hidden="true"></i>
+                            </button>
+                            <button type="button" class="sgc-f-28-tile__del sgc-f-28-tile__del--hard"
+                              *ngIf="esSuperAdminSgcF28 && c.activo === false"
+                              (click)="borrarDefinitivoComparativaSgcF28(c, $event)"
+                              title="Borrar definitivamente" aria-label="Borrar comparativa definitivamente">
+                              <i class="fas fa-times" aria-hidden="true"></i>
+                            </button>
+                          </div>
                         </li>
                       </ul>
                       <ng-template #sgcF28Vacio>
@@ -7752,6 +7779,13 @@
                         Archivero
                       </button>
                       <span class="sgc-f-28-nav__crumb" *ngIf="comp.nombreCotizacion">{{ comp.nombreCotizacion }}</span>
+                      <span class="sgc-f-28-nav__badge-off" *ngIf="comp.activo === false">Oculta</span>
+                      <button type="button" class="sgc-f-28-nav__reactivar"
+                        *ngIf="esSuperAdminSgcF28 && comp.activo === false"
+                        (click)="reactivarComparativaSgcF28(comp, $event)">
+                        <i class="fas fa-undo" aria-hidden="true"></i>
+                        Reactivar
+                      </button>
                     </div>
 
                     <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'SGC-F-28', titulo: 'Comparativa de proveedores', icono: 'fa-balance-scale', extraClass: 'sgc-f-28-doc__header' }"></ng-container>
@@ -7935,7 +7969,7 @@
                                     placeholder="Monto" (ngModelChange)="onSgcF28Editado()">
                                   <span *ngIf="crit.valores[i].moneda === '-'" class="sgc-f-28-price__nulo">—</span>
                                 </div>
-                                <div *ngSwitchCase="'imagen'" class="sgc-f-28-photo"
+                                <div *ngSwitchCase="'imagen'" class="sgc-f-28-photo" appPasteFiles [pasteDispatchInput]="true" pasteAccept="image/*" tabindex="0" title="Pega una imagen con Ctrl+V"
                                   [class.sgc-f-28-photo--filled]="!!previewImagenSgcF28(crit.valores[i].imagen)">
                                   <div class="sgc-f-28-photo__frame" *ngIf="previewImagenSgcF28(crit.valores[i].imagen) as src">
                                     <img [src]="src" alt="Vista previa del producto" loading="lazy"
@@ -8276,7 +8310,7 @@
                                           <i class="fas fa-times" aria-hidden="true"></i>
                                         </button>
                                       </div>
-                                      <label class="sp-f-02-imagen-add" *ngIf="puedeAgregarImagenSpF02(item, 'problema')"
+                                      <label class="sp-f-02-imagen-add" appPasteFiles [pasteDispatchInput]="true" pasteAccept="image/*" tabindex="0" title="Pega una imagen con Ctrl+V" *ngIf="puedeAgregarImagenSpF02(item, 'problema')"
                                         [class.sp-f-02-imagen-add--loading]="subiendoImagenSpF02(i, 'problema')">
                                         <i class="fas" [ngClass]="subiendoImagenSpF02(i, 'problema') ? 'fa-spinner fa-spin' : 'fa-camera'" aria-hidden="true"></i>
                                         <span>{{ imagenesCampoSpF02(item, 'problema').length ? 'Agregar' : 'Subir' }}</span>
@@ -8324,7 +8358,7 @@
                                           <i class="fas fa-times" aria-hidden="true"></i>
                                         </button>
                                       </div>
-                                      <label class="sp-f-02-imagen-add" *ngIf="puedeAgregarImagenSpF02(item, 'observaciones')"
+                                      <label class="sp-f-02-imagen-add" appPasteFiles [pasteDispatchInput]="true" pasteAccept="image/*" tabindex="0" title="Pega una imagen con Ctrl+V" *ngIf="puedeAgregarImagenSpF02(item, 'observaciones')"
                                         [class.sp-f-02-imagen-add--loading]="subiendoImagenSpF02(i, 'observaciones')">
                                         <i class="fas" [ngClass]="subiendoImagenSpF02(i, 'observaciones') ? 'fa-spinner fa-spin' : 'fa-camera'" aria-hidden="true"></i>
                                         <span>{{ imagenesCampoSpF02(item, 'observaciones').length ? 'Agregar' : 'Subir' }}</span>
@@ -9146,6 +9180,7 @@
                         <section class="sgc-f-29-libreta__detalle" *ngIf="sgcF29ProveedorActivo as activo; else sgcF29SinSeleccion"
                           [class.has-area-color]="!!areaGrupoSgcF29(activo)"
                           [class.has-area-picker-open]="sgcF29AreaPickerOpen"
+                          [class.has-info-criterios-open]="sgcF29InfoCriteriosAbierto"
                           [class.has-crit-form-open]="sgcF29NuevoCriterioAbierto || sgcF29NuevaAreaAbierta"
                           [class.has-crit-menu-open]="sgcF29MenuAddCritIdx != null"
                           [style.--prov-area-color]="colorAreaSgcF29(areaGrupoSgcF29(activo))">
@@ -9167,73 +9202,185 @@
                                   *ngIf="puedeOcultarProveedorSgcF29"
                                   (click)="ocultarGrupoSgcF29(activo, $event)"
                                   [disabled]="!activo.proveedor?.trim() || sgcF29VisibilidadEnCurso === activo.clave"
+                                  title="Ocultar proveedor"
                                   aria-label="Ocultar proveedor">
                                   <i class="fas fa-eye-slash" aria-hidden="true"></i>
                                   <span class="sgc-f-29-tool-btn__label">Ocultar</span>
                                 </button>
 
-                                <div class="sgc-f-29-area-picker"
-                                  [class.is-open]="sgcF29AreaPickerOpen"
-                                  [class.is-empty]="!areaGrupoSgcF29(activo)"
-                                  [style.--area-color]="colorAreaSgcF29(areaGrupoSgcF29(activo))">
-                                  <button type="button"
-                                    class="sgc-f-29-tool-btn sgc-f-29-tool-btn--area"
-                                    (click)="toggleAreaPickerSgcF29($event)"
-                                    [attr.aria-expanded]="sgcF29AreaPickerOpen"
-                                    aria-haspopup="listbox"
-                                    [attr.aria-label]="(areaPorClaveSgcF29(areaGrupoSgcF29(activo))?.nombre || 'Seleccionar área')">
-                                    <span class="sgc-f-29-area-picker__swatch" aria-hidden="true"></span>
-                                    <span class="sgc-f-29-tool-btn__label">
-                                      {{ areaPorClaveSgcF29(areaGrupoSgcF29(activo))?.nombre || 'Área' }}
-                                    </span>
+                                <div class="sgc-f-29-tool-cluster" role="group" aria-label="Gestión de área y criterios">
+                                  <div class="sgc-f-29-area-picker"
+                                    [class.is-open]="sgcF29AreaPickerOpen"
+                                    [class.is-empty]="!areaGrupoSgcF29(activo)"
+                                    [style.--area-color]="colorAreaSgcF29(areaGrupoSgcF29(activo))">
+                                    <button type="button"
+                                      class="sgc-f-29-tool-btn sgc-f-29-tool-btn--area"
+                                      (click)="toggleAreaPickerSgcF29($event)"
+                                      [attr.aria-expanded]="sgcF29AreaPickerOpen"
+                                      aria-haspopup="listbox"
+                                      [attr.title]="areaPorClaveSgcF29(areaGrupoSgcF29(activo))?.nombre || 'Seleccionar área'"
+                                      [attr.aria-label]="(areaPorClaveSgcF29(areaGrupoSgcF29(activo))?.nombre || 'Seleccionar área')">
+                                      <span class="sgc-f-29-area-picker__swatch" aria-hidden="true"></span>
+                                      <span class="sgc-f-29-tool-btn__label">Área</span>
+                                    </button>
+
+                                    <div class="sgc-f-29-area-picker__menu" *ngIf="sgcF29AreaPickerOpen"
+                                      role="listbox" aria-label="Áreas disponibles"
+                                      (click)="$event.stopPropagation()">
+                                      <p class="sgc-f-29-area-picker__menu-title">
+                                        <i class="fas fa-layer-group" aria-hidden="true"></i>
+                                        Área del proveedor
+                                      </p>
+                                      <button type="button" class="sgc-f-29-area-picker__opt"
+                                        *ngFor="let a of sgcF29AreasActivas"
+                                        role="option"
+                                        [attr.aria-selected]="areaGrupoSgcF29(activo) === a.clave"
+                                        [class.is-active]="areaGrupoSgcF29(activo) === a.clave"
+                                        [style.--opt-color]="a.color"
+                                        (click)="seleccionarAreaPickerSgcF29(activo, a.clave, $event)">
+                                        <span class="sgc-f-29-area-picker__opt-dot"
+                                          [style.background]="a.color" aria-hidden="true"></span>
+                                        <span class="sgc-f-29-area-picker__opt-name">{{ a.nombre }}</span>
+                                        <i class="fas fa-check" *ngIf="areaGrupoSgcF29(activo) === a.clave" aria-hidden="true"></i>
+                                      </button>
+                                      <button type="button" class="sgc-f-29-area-picker__opt sgc-f-29-area-picker__opt--add"
+                                        *ngIf="puedeAgregarAreaSgcF29"
+                                        (click)="abrirNuevaAreaDesdePickerSgcF29($event)">
+                                        <span class="sgc-f-29-area-picker__opt-dot sgc-f-29-area-picker__opt-dot--add" aria-hidden="true">
+                                          <i class="fas fa-plus"></i>
+                                        </span>
+                                        <span class="sgc-f-29-area-picker__opt-name">Nueva área</span>
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  <button type="button" class="sgc-f-29-tool-btn sgc-f-29-tool-btn--crit"
+                                    *ngIf="puedeAgregarCriterioSgcF29"
+                                    (click)="abrirNuevoCriterioDesdePickerSgcF29($event)"
+                                    [disabled]="!areaGrupoSgcF29(activo)"
+                                    [class.is-open]="sgcF29NuevoCriterioAbierto"
+                                    title="Agregar nuevo criterio"
+                                    aria-label="Nuevo criterio">
+                                    <i class="fas fa-plus" aria-hidden="true"></i>
+                                    <span class="sgc-f-29-tool-btn__label">Criterio</span>
                                   </button>
 
-                                  <div class="sgc-f-29-area-picker__menu" *ngIf="sgcF29AreaPickerOpen"
-                                    role="listbox" aria-label="Áreas disponibles"
-                                    (click)="$event.stopPropagation()">
-                                    <p class="sgc-f-29-area-picker__menu-title">
-                                      <i class="fas fa-layer-group" aria-hidden="true"></i>
-                                      Área del proveedor
-                                    </p>
-                                    <button type="button" class="sgc-f-29-area-picker__opt"
-                                      *ngFor="let a of sgcF29AreasActivas"
-                                      role="option"
-                                      [attr.aria-selected]="areaGrupoSgcF29(activo) === a.clave"
-                                      [class.is-active]="areaGrupoSgcF29(activo) === a.clave"
-                                      [style.--opt-color]="a.color"
-                                      (click)="seleccionarAreaPickerSgcF29(activo, a.clave, $event)">
-                                      <span class="sgc-f-29-area-picker__opt-dot"
-                                        [style.background]="a.color" aria-hidden="true"></span>
-                                      <span class="sgc-f-29-area-picker__opt-name">{{ a.nombre }}</span>
-                                      <i class="fas fa-check" *ngIf="areaGrupoSgcF29(activo) === a.clave" aria-hidden="true"></i>
+                                  <div class="sgc-f-29-info-criterios"
+                                    [class.is-open]="sgcF29InfoCriteriosAbierto">
+                                    <button type="button" class="sgc-f-29-tool-btn sgc-f-29-tool-btn--info"
+                                      (click)="toggleInfoCriteriosSgcF29($event)"
+                                      [class.is-open]="sgcF29InfoCriteriosAbierto"
+                                      [attr.aria-expanded]="sgcF29InfoCriteriosAbierto"
+                                      aria-haspopup="dialog"
+                                      title="Ver descripción de criterios"
+                                      aria-label="Descripción de criterios">
+                                      <i class="fas fa-book-open" aria-hidden="true"></i>
+                                      <span class="sgc-f-29-tool-btn__label">Desc.</span>
                                     </button>
-                                    <button type="button" class="sgc-f-29-area-picker__opt sgc-f-29-area-picker__opt--add"
-                                      *ngIf="puedeAgregarAreaSgcF29"
-                                      (click)="abrirNuevaAreaDesdePickerSgcF29($event)">
-                                      <span class="sgc-f-29-area-picker__opt-dot sgc-f-29-area-picker__opt-dot--add" aria-hidden="true">
-                                        <i class="fas fa-plus"></i>
-                                      </span>
-                                      <span class="sgc-f-29-area-picker__opt-name">Nueva área</span>
-                                    </button>
+
+                                    <div class="sgc-f-29-info-criterios__panel" *ngIf="sgcF29InfoCriteriosAbierto"
+                                      role="dialog" aria-label="Descripción de criterios"
+                                      (click)="$event.stopPropagation()">
+                                      <header class="sgc-f-29-info-criterios__head">
+                                        <div class="sgc-f-29-info-criterios__head-main">
+                                          <span class="sgc-f-29-info-criterios__eyebrow">
+                                            <i class="fas fa-book-open" aria-hidden="true"></i>
+                                            Catálogo del área
+                                          </span>
+                                          <h4>Descripción de Criterios</h4>
+                                          <div class="sgc-f-29-info-criterios__meta"
+                                            *ngIf="areaPorClaveSgcF29(areaGrupoSgcF29(activo)) as areaInfo">
+                                            <span class="sgc-f-29-info-criterios__area-chip"
+                                              [style.--area-color]="areaInfo.color">
+                                              <i aria-hidden="true"></i>
+                                              {{ areaInfo.nombre }}
+                                            </span>
+                                            <span class="sgc-f-29-info-criterios__count">
+                                              {{ criteriosDeAreaSgcF29(areaGrupoSgcF29(activo)).length }}
+                                              {{ criteriosDeAreaSgcF29(areaGrupoSgcF29(activo)).length === 1 ? 'criterio' : 'criterios' }}
+                                            </span>
+                                          </div>
+                                          <p *ngIf="!areaGrupoSgcF29(activo)">Selecciona un área para consultar su catálogo</p>
+                                        </div>
+                                        <button type="button" class="sgc-f-29-info-criterios__close"
+                                          (click)="cerrarInfoCriteriosSgcF29($event)"
+                                          aria-label="Cerrar">
+                                          <i class="fas fa-times" aria-hidden="true"></i>
+                                        </button>
+                                      </header>
+
+                                      <p class="sgc-f-29-info-criterios__hint"
+                                        *ngIf="areaGrupoSgcF29(activo) && criteriosDeAreaSgcF29(areaGrupoSgcF29(activo)).length">
+                                        Toca un criterio para ver el texto de cada porcentaje.
+                                      </p>
+
+                                      <div class="sgc-f-29-info-criterios__list"
+                                        *ngIf="areaGrupoSgcF29(activo); else sgcF29InfoSinArea">
+                                        <article class="sgc-f-29-info-criterios__item"
+                                          *ngFor="let c of criteriosDeAreaSgcF29(areaGrupoSgcF29(activo)); let ci = index"
+                                          [class.is-open]="sgcF29InfoCriterioExpandido === c.clave">
+                                          <button type="button"
+                                            class="sgc-f-29-info-criterios__item-toggle"
+                                            (click)="toggleInfoCriterioExpandidoSgcF29(c.clave, $event)"
+                                            [attr.aria-expanded]="sgcF29InfoCriterioExpandido === c.clave">
+                                            <span class="sgc-f-29-info-criterios__item-idx" aria-hidden="true">{{ ci + 1 }}</span>
+                                            <span class="sgc-f-29-info-criterios__item-main">
+                                              <strong class="sgc-f-29-info-criterios__item-name">{{ c.nombre }}</strong>
+                                              <em class="sgc-f-29-info-criterios__item-badge"
+                                                [class.is-free]="esCriterioPersonalizadoSgcF29(c.clave)">
+                                                {{ etiquetaEscalaCriterioInfoSgcF29(c.clave) }}
+                                              </em>
+                                            </span>
+                                            <i class="fas fa-chevron-down sgc-f-29-info-criterios__chev" aria-hidden="true"></i>
+                                          </button>
+
+                                          <div class="sgc-f-29-info-criterios__item-body"
+                                            *ngIf="sgcF29InfoCriterioExpandido === c.clave">
+                                            <p class="sgc-f-29-info-criterios__item-note"
+                                              *ngIf="esCriterioPersonalizadoSgcF29(c.clave)">
+                                              El porcentaje se captura al evaluar (0–100).
+                                            </p>
+
+                                            <ul class="sgc-f-29-info-criterios__item-vals"
+                                              *ngIf="!esCriterioPersonalizadoSgcF29(c.clave)">
+                                              <li class="sgc-f-29-info-criterios__item-val"
+                                                *ngFor="let v of valoresEscalaCriterioSgcF29(c.clave)"
+                                                [class.is-empty]="!descripcionCriterioSgcF29(c.clave, v)"
+                                                [style.--pct]="v">
+                                                <span class="sgc-f-29-info-criterios__rail" aria-hidden="true"></span>
+                                                <span class="sgc-f-29-info-criterios__pct">{{ v }}%</span>
+                                                <span class="sgc-f-29-info-criterios__txt">
+                                                  {{ descripcionCriterioSgcF29(c.clave, v) || 'Sin descripción' }}
+                                                </span>
+                                              </li>
+                                            </ul>
+                                          </div>
+                                        </article>
+
+                                        <p class="sgc-f-29-info-criterios__empty"
+                                          *ngIf="!criteriosDeAreaSgcF29(areaGrupoSgcF29(activo)).length">
+                                          Este área aún no tiene criterios. Usa «Criterio» para agregarlos.
+                                        </p>
+                                      </div>
+
+                                      <ng-template #sgcF29InfoSinArea>
+                                        <div class="sgc-f-29-info-criterios__list">
+                                          <p class="sgc-f-29-info-criterios__empty">
+                                            Primero selecciona el área del proveedor para ver la descripción de sus criterios.
+                                          </p>
+                                        </div>
+                                      </ng-template>
+                                    </div>
                                   </div>
                                 </div>
-
-                                <button type="button" class="sgc-f-29-tool-btn sgc-f-29-tool-btn--crit"
-                                  *ngIf="puedeAgregarCriterioSgcF29"
-                                  (click)="abrirNuevoCriterioDesdePickerSgcF29($event)"
-                                  [disabled]="!areaGrupoSgcF29(activo)"
-                                  [class.is-open]="sgcF29NuevoCriterioAbierto"
-                                  aria-label="Nuevo criterio">
-                                  <i class="fas fa-sliders-h" aria-hidden="true"></i>
-                                  <span class="sgc-f-29-tool-btn__label">Nuevo criterio</span>
-                                </button>
 
                                 <button type="button" class="sgc-f-29-tool-btn sgc-f-29-tool-btn--primary"
                                   (click)="reevaluarGrupoSgcF29(activo, $event)"
                                   [disabled]="!activo.proveedor?.trim() || !puedeAgregarEvaluacionSgcF29"
+                                  title="Agregar nueva evaluación"
                                   aria-label="Nueva evaluación">
                                   <i class="fas fa-plus" aria-hidden="true"></i>
-                                  <span class="sgc-f-29-tool-btn__label">Nueva evaluación</span>
+                                  <span class="sgc-f-29-tool-btn__label">Evaluación</span>
                                 </button>
                               </div>
                             </div>
@@ -9873,6 +10020,11 @@
                       </div>
 
                       <div class="sgc-f29-evid-drop"
+                        appPasteFiles
+                        [pasteListenDocument]="true"
+                        tabindex="0"
+                        title="También puedes pegar archivos o imágenes con Ctrl+V"
+                        (filesPasted)="onEvidenciasPasteSgcF29($event)"
                         [class.is-drag]="sgcF29EvidenciasDragDepth > 0"
                         (dragenter)="onEvidenciasDragEnterSgcF29($event)"
                         (dragleave)="onEvidenciasDragLeaveSgcF29($event)"
@@ -9898,7 +10050,7 @@
                         <ng-container *ngIf="!sgcF29EvidenciasCargando">
                           <div class="sgc-f29-evid-empty" *ngIf="!sgcF29EvidenciasDocsFiltrados.length && !sgcF29EvidenciasSubiendo">
                             <i class="fas fa-cloud-upload-alt" aria-hidden="true"></i>
-                            <p>Arrastra archivos aquí o usa «Subir».</p>
+                            <p>Arrastra archivos aquí, pégalos (Ctrl+V) o usa «Subir».</p>
                             <span>PDF, CSV, Excel, Word, PowerPoint e imágenes</span>
                           </div>
                           <div class="sgc-f29-evid-files"
@@ -10358,7 +10510,7 @@
                         </button>
                       </header>
 
-                      <label class="sgc-f-02-fisicos__drop"
+                      <label class="sgc-f-02-fisicos__drop" appPasteFiles [pasteDispatchInput]="true" tabindex="0" title="También puedes pegar archivos con Ctrl+V"
                         [class.sgc-f-02-fisicos__drop--active]="sgcF10DocsFisicosArrastrando"
                         [class.sgc-f-02-fisicos__drop--busy]="sgcF10DocsFisicosSubiendo"
                         (dragover)="onSgcF10DocsDragOver($event)"
@@ -11290,7 +11442,7 @@
                         </p>
                       </div>
                     </div>
-                    <label class="dg-f02-attach__dropzone" *ngIf="!sgcF10PdfFirmado?.driveFileId"
+                    <label class="dg-f02-attach__dropzone" appPasteFiles [pasteDispatchInput]="true" tabindex="0" title="También puedes pegar un PDF con Ctrl+V" *ngIf="!sgcF10PdfFirmado?.driveFileId"
                       [class.dg-f02-attach__dropzone--busy]="sgcF10SubiendoPdf">
                       <input type="file" class="dg-f02-attach__input" accept="application/pdf"
                         (change)="onSeleccionarPdfSgcF10($event)" [disabled]="sgcF10SubiendoPdf || !puedeGestionarPlantillasSgc">
@@ -11569,7 +11721,7 @@
                         </a>
                       </div>
 
-                      <label class="ath-f03-archivos__drop"
+                      <label class="ath-f03-archivos__drop" appPasteFiles [pasteDispatchInput]="true" tabindex="0" title="También puedes pegar archivos con Ctrl+V"
                         [class.is-drag]="athF03ArchivosDrag"
                         [class.is-busy]="athF03SubiendoArchivos"
                         (dragenter)="onArchivosDragEnterAthF03($event)"
@@ -11893,7 +12045,7 @@
                           </span>
                         </div>
                       </div>
-                      <label class="dg-f02-attach__dropzone" *ngIf="!ent.pdfFirmado?.driveFileId"
+                      <label class="dg-f02-attach__dropzone" appPasteFiles [pasteDispatchInput]="true" tabindex="0" title="También puedes pegar un PDF con Ctrl+V" *ngIf="!ent.pdfFirmado?.driveFileId"
                         [class.dg-f02-attach__dropzone--busy]="athF03SubiendoPdf">
                         <input type="file" class="dg-f02-attach__input" accept="application/pdf"
                           (change)="onSeleccionarPdfAthF03($event)" [disabled]="athF03SubiendoPdf">
@@ -12364,7 +12516,7 @@
                           </span>
                         </div>
                       </div>
-                      <label class="dg-f02-attach__dropzone" *ngIf="!sol.pdfFirmado?.driveFileId"
+                      <label class="dg-f02-attach__dropzone" appPasteFiles [pasteDispatchInput]="true" tabindex="0" title="También puedes pegar un PDF con Ctrl+V" *ngIf="!sol.pdfFirmado?.driveFileId"
                         [class.dg-f02-attach__dropzone--busy]="athF13SubiendoPdf">
                         <input type="file" class="dg-f02-attach__input" accept="application/pdf"
                           (change)="onSeleccionarPdfAthF13($event)" [disabled]="athF13SubiendoPdf">
@@ -13510,7 +13662,7 @@
                           </span>
                         </div>
                       </div>
-                      <label class="dg-f02-attach__dropzone" *ngIf="!cam.pdfFirmado?.driveFileId"
+                      <label class="dg-f02-attach__dropzone" appPasteFiles [pasteDispatchInput]="true" tabindex="0" title="También puedes pegar un PDF con Ctrl+V" *ngIf="!cam.pdfFirmado?.driveFileId"
                         [class.dg-f02-attach__dropzone--busy]="sgcF24SubiendoPdf">
                         <input type="file" class="dg-f02-attach__input" accept="application/pdf"
                           (change)="onSeleccionarPdfSgcF24($event)" [disabled]="sgcF24SubiendoPdf">
@@ -13885,7 +14037,7 @@
                           </span>
                         </div>
                       </div>
-                      <label class="dg-f02-attach__dropzone" *ngIf="!reg.pdfFirmado?.driveFileId"
+                      <label class="dg-f02-attach__dropzone" appPasteFiles [pasteDispatchInput]="true" tabindex="0" title="También puedes pegar un PDF con Ctrl+V" *ngIf="!reg.pdfFirmado?.driveFileId"
                         [class.dg-f02-attach__dropzone--busy]="athF06SubiendoPdf">
                         <input type="file" class="dg-f02-attach__input" accept="application/pdf"
                           (change)="onSeleccionarPdfAthF06($event)" [disabled]="athF06SubiendoPdf">
@@ -14328,7 +14480,7 @@
                           </p>
                         </div>
                       </div>
-                      <label class="dg-f02-attach__dropzone" *ngIf="!oc.pdfFirmado?.driveFileId"
+                      <label class="dg-f02-attach__dropzone" appPasteFiles [pasteDispatchInput]="true" tabindex="0" title="También puedes pegar un PDF con Ctrl+V" *ngIf="!oc.pdfFirmado?.driveFileId"
                         [class.dg-f02-attach__dropzone--busy]="sgcF27SubiendoPdf">
                         <input type="file" class="dg-f02-attach__input" accept="application/pdf"
                           (change)="onSeleccionarPdfSgcF27($event)" [disabled]="sgcF27SubiendoPdf">
@@ -14882,7 +15034,7 @@
                           <p class="dg-f02-attach__desc mb-0">Sube el PDF firmado de esta minuta para el expediente del SGC.</p>
                         </div>
                       </div>
-                      <label class="dg-f02-attach__dropzone" *ngIf="!min.pdfFirmado?.driveFileId"
+                      <label class="dg-f02-attach__dropzone" appPasteFiles [pasteDispatchInput]="true" tabindex="0" title="También puedes pegar un PDF con Ctrl+V" *ngIf="!min.pdfFirmado?.driveFileId"
                         [class.dg-f02-attach__dropzone--busy]="sgcF16SubiendoPdf">
                         <input type="file" class="dg-f02-attach__input" accept="application/pdf"
                           (change)="onSeleccionarPdfSgcF16($event)" [disabled]="sgcF16SubiendoPdf">
@@ -15978,6 +16130,11 @@
                         </div>
 
                         <div class="sgc-f29-evid-drop"
+                          appPasteFiles
+                          [pasteListenDocument]="true"
+                          tabindex="0"
+                          title="También puedes pegar archivos o imágenes con Ctrl+V"
+                          (filesPasted)="onEvidenciasPasteSgcF11($event)"
                           [class.is-drag]="sgcF11EvidenciasDragDepth > 0"
                           (dragenter)="onEvidenciasDragEnterSgcF11($event)"
                           (dragleave)="onEvidenciasDragLeaveSgcF11($event)"
@@ -16003,7 +16160,7 @@
                           <ng-container *ngIf="!sgcF11EvidenciasCargando">
                             <div class="sgc-f29-evid-empty" *ngIf="!sgcF11EvidenciasDocsFiltrados.length && !sgcF11EvidenciasSubiendo">
                               <i class="fas fa-cloud-upload-alt" aria-hidden="true"></i>
-                              <p>Arrastra archivos aquí o usa «Subir».</p>
+                              <p>Arrastra archivos aquí, pégalos (Ctrl+V) o usa «Subir».</p>
                               <span>PDF, CSV, Excel, Word, PowerPoint e imágenes. Se guardan en «{{ carpetaVisibleEvidenciasSgcF11 }}».</span>
                             </div>
                             <div class="sgc-f29-evid-files"
@@ -16318,7 +16475,7 @@
                           </p>
                         </div>
                       </div>
-                      <label class="dg-f02-attach__dropzone" *ngIf="!rep.pdfFirmado?.driveFileId"
+                      <label class="dg-f02-attach__dropzone" appPasteFiles [pasteDispatchInput]="true" tabindex="0" title="También puedes pegar un PDF con Ctrl+V" *ngIf="!rep.pdfFirmado?.driveFileId"
                         [class.dg-f02-attach__dropzone--busy]="sgcF22SubiendoPdf">
                         <input type="file" class="dg-f02-attach__input" accept="application/pdf"
                           (change)="onSeleccionarPdfSgcF22($event)" [disabled]="sgcF22SubiendoPdf">
@@ -16932,7 +17089,7 @@
                           <p class="dg-f02-attach__desc mb-0">Sube el PDF firmado de este reporte para el expediente del SGC.</p>
                         </div>
                       </div>
-                      <label class="dg-f02-attach__dropzone" *ngIf="!rep.pdfFirmado?.driveFileId"
+                      <label class="dg-f02-attach__dropzone" appPasteFiles [pasteDispatchInput]="true" tabindex="0" title="También puedes pegar un PDF con Ctrl+V" *ngIf="!rep.pdfFirmado?.driveFileId"
                         [class.dg-f02-attach__dropzone--busy]="sgcF04SubiendoPdf">
                         <input type="file" class="dg-f02-attach__input" accept="application/pdf"
                           (change)="onSeleccionarPdfSgcF04($event)" [disabled]="sgcF04SubiendoPdf">
@@ -17466,7 +17623,7 @@
                         </button>
                       </header>
 
-                      <label class="sgc-f-02-fisicos__drop"
+                      <label class="sgc-f-02-fisicos__drop" appPasteFiles [pasteDispatchInput]="true" tabindex="0" title="También puedes pegar archivos con Ctrl+V"
                         [class.sgc-f-02-fisicos__drop--active]="sgcF02DocsFisicosArrastrando"
                         [class.sgc-f-02-fisicos__drop--busy]="sgcF02DocsFisicosSubiendo"
                         (dragover)="onSgcF02DocsDragOver($event)"
@@ -18088,7 +18245,7 @@
                           </p>
                         </div>
                       </div>
-                      <label class="dg-f02-attach__dropzone" *ngIf="!not.pdfFirmado?.driveFileId"
+                      <label class="dg-f02-attach__dropzone" appPasteFiles [pasteDispatchInput]="true" tabindex="0" title="También puedes pegar un PDF con Ctrl+V" *ngIf="!not.pdfFirmado?.driveFileId"
                         [class.dg-f02-attach__dropzone--busy]="sgcF12SubiendoPdf">
                         <input type="file" class="dg-f02-attach__input" accept="application/pdf"
                           (change)="onSeleccionarPdfSgcF12($event)" [disabled]="sgcF12SubiendoPdf">
@@ -18260,7 +18417,7 @@
                         </p>
                       </div>
                     </div>
-                    <label class="dg-f02-attach__dropzone" *ngIf="!dgF03Form.pdfFirmado?.driveFileId"
+                    <label class="dg-f02-attach__dropzone" appPasteFiles [pasteDispatchInput]="true" tabindex="0" title="También puedes pegar un PDF con Ctrl+V" *ngIf="!dgF03Form.pdfFirmado?.driveFileId"
                       [class.dg-f02-attach__dropzone--busy]="dgF03SubiendoPdf">
                       <input type="file" class="dg-f02-attach__input" accept="application/pdf"
                         (change)="onSeleccionarPdfDgF03($event)" [disabled]="dgF03SubiendoPdf">

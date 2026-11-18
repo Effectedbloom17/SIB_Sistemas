@@ -1349,6 +1349,50 @@ $di-btn-gradient: linear-gradient(135deg, #27272a 0%, #3f3f46 55%, #52525b 100%)
   }
 }
 
+.sgc-extra-paste-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 10rem;
+  padding: 1.5rem 1.25rem;
+  border: 2px dashed rgba(14, 116, 144, 0.45);
+  border-radius: 12px;
+  background: rgba(14, 116, 144, 0.06);
+  text-align: center;
+  outline: none;
+
+  &:focus,
+  &:focus-visible {
+    border-color: #0e7490;
+    box-shadow: 0 0 0 3px rgba(14, 116, 144, 0.18);
+  }
+
+  &__icon {
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: rgba(14, 116, 144, 0.14);
+    color: #0e7490;
+    font-size: 1.15rem;
+    margin-bottom: 0.25rem;
+  }
+
+  strong {
+    font-size: 0.95rem;
+    color: $di-text;
+  }
+
+  > span {
+    font-size: 0.78rem;
+    color: $di-muted;
+    max-width: 18rem;
+  }
+}
+
 .sgc-extra-upload-list {
   margin-top: 1rem;
   border: 1px solid rgba(39, 39, 42, 0.12);

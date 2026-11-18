@@ -5,6 +5,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import Swal from 'sweetalert2';
 import { AuthService } from 'src/app/services/auth.service';
 import { BackendServices } from 'src/app/services/backend.services';
+import { UploadSourceChooserService } from 'src/app/services/upload-source-chooser.service';
 import {
   EIN_F04_META,
   EinF02Evidencia,
@@ -23,6 +24,7 @@ import {
   sincronizarCasosDesdeForms,
   soloActivos
 } from './ein-f02-solicitud.catalog';
+import { importarEinF04DesdeDocx } from './ein-f04-word-import';
 
 /** Alineado con el límite de multer en backend (`evidencias`, 12). */
 const MAX_EVIDENCIAS = 12;
@@ -37,6 +39,7 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
   @Output() cerrar = new EventEmitter<void>();
   @ViewChild('inputEvidencias') inputEvidencias?: ElementRef<HTMLInputElement>;
   @ViewChild('inputPdfFirmado') inputPdfFirmado?: ElementRef<HTMLInputElement>;
+  @ViewChild('inputWordImport') inputWordImport?: ElementRef<HTMLInputElement>;
 
   solicitudes: EinF02Solicitud[] = [];
   seleccionada: EinF02Solicitud | null = null;
@@ -45,6 +48,7 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
   mensajeEstado = '';
   guardadoLocal = false;
   generandoReporte = false;
+  importandoWord = false;
   subiendoEvidencias = false;
   progresoSubida = 0;
   arrastrandoFotos = false;
@@ -75,7 +79,8 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
     private backend: BackendServices,
     private route: ActivatedRoute,
     private router: Router,
-    private sanitizer: DomSanitizer
+    private sanitizer: DomSanitizer,
+    private uploadSourceChooser: UploadSourceChooserService
   ) {}
 
   ngOnInit(): void {
@@ -416,6 +421,105 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
     this.persistir();
   }
 
+  abrirSelectorWord(): void {
+    if (this.importandoWord || this.generandoReporte || this.editorDriveAbierto) {
+      return;
+    }
+    this.inputWordImport?.nativeElement?.click();
+  }
+
+  async onWordSeleccionado(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const archivo = input.files?.[0] || null;
+    input.value = '';
+    if (!archivo || !this.seleccionada) {
+      return;
+    }
+    await this.importarWordAlReporte(archivo);
+  }
+
+  private async importarWordAlReporte(archivo: File): Promise<void> {
+    if (!this.seleccionada) {
+      return;
+    }
+    const sol = this.seleccionada;
+    const tieneDatos = !!(
+      sol.descripcionMantenimientoRealizado?.trim()
+      || sol.responsableMantenimiento?.trim()
+      || sol.fechaRealizado?.trim()
+      || sol.tipoMantenimiento
+    );
+
+    if (tieneDatos) {
+      const conf = await Swal.fire({
+        icon: 'question',
+        title: '¿Importar Word?',
+        html: 'Se reemplazarán los campos del reporte con lo leído del Word '
+          + '(tipo, fechas, responsable y descripción). '
+          + 'Las fotos del documento se agregarán como evidencias pendientes.',
+        showCancelButton: true,
+        confirmButtonText: 'Importar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#1e293b'
+      });
+      if (!conf.isConfirmed) {
+        return;
+      }
+    }
+
+    this.importandoWord = true;
+    try {
+      const parsed = await importarEinF04DesdeDocx(archivo);
+      if (parsed.tipoMantenimiento) {
+        sol.tipoMantenimiento = parsed.tipoMantenimiento;
+      }
+      if (parsed.fechaSolicitud && !esRegistroForms(sol)) {
+        sol.fechaSolicitud = parsed.fechaSolicitud;
+      }
+      if (parsed.fechaRealizado) {
+        sol.fechaRealizado = parsed.fechaRealizado;
+      }
+      if (parsed.responsableMantenimiento) {
+        sol.responsableMantenimiento = parsed.responsableMantenimiento;
+      }
+      if (parsed.descripcionMantenimientoRealizado) {
+        sol.descripcionMantenimientoRealizado = parsed.descripcionMantenimientoRealizado;
+      }
+
+      if (parsed.imagenes.length) {
+        this.agregarFotosPendientes(parsed.imagenes);
+      }
+
+      this.descripcionAutosizeTick += 1;
+      this.onCampoChange();
+
+      const resumen = parsed.camposAplicados.join(', ');
+      const avisoExtra = parsed.avisos.length
+        ? `<br><small class="text-muted">${parsed.avisos.slice(0, 3).join(' · ')}</small>`
+        : '';
+      await Swal.fire({
+        icon: parsed.avisos.length ? 'info' : 'success',
+        title: 'Word importado',
+        html: `Se aplicó: <strong>${resumen}</strong>.${avisoExtra}`
+          + (parsed.imagenes.length
+            ? `<br><br>${parsed.imagenes.length} imagen(es) listas como evidencia. Pulsa «Subir a Drive» si quieres guardarlas.`
+            : ''),
+        confirmButtonText: 'Entendido',
+        confirmButtonColor: '#1e293b'
+      });
+      this.flash('Información importada desde Word.');
+    } catch (err: any) {
+      await Swal.fire({
+        icon: 'error',
+        title: 'No se pudo importar',
+        text: err?.message || 'Revisa que el archivo sea un .docx EIN-F-04 válido.',
+        confirmButtonColor: '#1e293b'
+      });
+    } finally {
+      this.importandoWord = false;
+    }
+  }
+
   guardarInformacionF04(): void {
     if (this.editorDriveAbierto) {
       this.flash('Cierra el editor integrado antes de guardar en Drive.');
@@ -471,11 +575,31 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
     };
   }
 
-  abrirSelectorEvidencias(): void {
+  async abrirSelectorEvidencias(): Promise<void> {
     if (this.subiendoEvidencias) {
       return;
     }
-    this.inputEvidencias?.nativeElement?.click();
+    const origen = await this.uploadSourceChooser.elegir({
+      titulo: '¿Cómo quieres agregar la evidencia?',
+      subtitulo: 'Puedes elegir fotos de tu galería o pegar una imagen copiada.',
+      etiquetaGaleria: 'Desde mi galería',
+      etiquetaPegar: 'Pegar imagen'
+    });
+    if (!origen) {
+      return;
+    }
+    if (origen === 'galeria') {
+      this.inputEvidencias?.nativeElement?.click();
+      return;
+    }
+    const files = await this.uploadSourceChooser.esperarPegado({
+      titulo: 'Pega la evidencia',
+      subtitulo: 'Copia una imagen y pégala con Ctrl+V.'
+    });
+    if (!files?.length) {
+      return;
+    }
+    this.agregarFotosPendientes(files);
   }
 
   onDragOverFotos(event: DragEvent): void {
@@ -498,6 +622,13 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
       return;
     }
     this.agregarFotosPendientes(Array.from(event.dataTransfer?.files || []));
+  }
+
+  onPasteFotos(files: File[]): void {
+    if (this.subiendoEvidencias || !files?.length) {
+      return;
+    }
+    this.agregarFotosPendientes(files);
   }
 
   onEvidenciasSeleccionadas(event: Event): void {

@@ -131,6 +131,8 @@ interface EmpresaPC {
   documentos_totales: number;
   pasos_completados?: string[];
   ciclo_cerrado?: boolean;
+  /** Soft-hide en PIPC Activos (no afecta asignación). */
+  mostrar_en_activos?: boolean;
   responsable_pipc_usuario_id?: number | null;
   responsable_pipc_nombre?: string | null;
   /** Ficha independiente: un PIPC asignado (empresa puede repetirse). */
@@ -166,6 +168,22 @@ interface PipcTerminadoReciente {
   paso_actual?: string | null;
   paso_actual_id?: string | null;
   pasos_detalle?: PasoPipcDetalle[];
+}
+
+/** Ciclo activo oculto de PIPC Activos (restablecer solo root). */
+interface PipcOcultoActivo {
+  operacion_id: number;
+  empresa_id: number;
+  nombre_empresa: string;
+  rfc?: string;
+  ciudad?: string;
+  estado?: string;
+  logo?: string | null;
+  logo_url?: string | null;
+  fecha_inicio?: string | null;
+  ocultado_at?: string | null;
+  responsable_pipc_usuario_id?: number | null;
+  responsable_pipc_nombre?: string | null;
 }
 
 interface DocumentoCatalogo {
@@ -349,6 +367,11 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
   /** Últimos PIPC finalizados (rendimiento gestores). */
   pipcTerminadosRecientes: PipcTerminadoReciente[] = [];
   cargandoPipcTerminados = false;
+  /** PIPC ocultos de Activos (solo superadmin). */
+  pipcOcultos: PipcOcultoActivo[] = [];
+  cargandoPipcOcultos = false;
+  restableciendoPipcId: number | null = null;
+  ocultandoPipcActivo = false;
   opsCicloCerrado = false;
   opsArchivosWorkflow: Partial<Record<PcWorkflowClave, PcWorkflowArchivo>> = {};
   opsFechaIngresoTramite = '';
@@ -531,7 +554,9 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
     };
     return cortas[label] || label;
   }
-  private readonly resolutivosAtencionOrder = ['En tramite', 'Próximo a vencer', 'Vencido'];
+  private readonly resolutivosAtencionOrder = ['Vigentes', 'Próximo a vencer', 'Vencido'];
+  /** Solo críticos para el KPI de seguimiento en la gráfica de actividad. */
+  private readonly resolutivosAtencionCriticosOrder = ['Próximo a vencer', 'Vencido'];
 
   // Carrusel de gráficos resolutivos
   readonly carruselResolutivosSlides: { id: string; titulo: string }[] = [
@@ -663,6 +688,7 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
       this.cargarEmpresasRecientesDesdeStorage();
       this.cargarEmpresas();
       this.cargarPipcTerminadosRecientes();
+      this.cargarPipcOcultos();
       if (this.puedeVerGraficaActividadResolutivosPipc) {
         this.cargarEstadisticasResolutivos();
       }
@@ -2031,6 +2057,9 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
       documentos_totales: Number(empresa?.documentos_totales) || 0,
       pasos_completados: this.parsePasosCompletadosEmpresa(empresa?.pasos_completados),
       ciclo_cerrado: cicloCerrado,
+      mostrar_en_activos: empresa?.mostrar_en_activos === false || Number(empresa?.mostrar_en_activos) === 0
+        ? false
+        : true,
       responsable_pipc_usuario_id: Number(empresa?.responsable_pipc_usuario_id || 0) || null,
       responsable_pipc_nombre: empresa?.responsable_pipc_nombre
         ? String(empresa.responsable_pipc_nombre).trim()
@@ -2075,6 +2104,8 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
   /** Empresa/ficha con PIPC desplegado o en trámite (no solo catálogo vacío). */
   empresaTieneGestionPipc(empresa: EmpresaPC): boolean {
     if (empresa?.ciclo_cerrado) return false;
+    // Soft-hide: no listar en Activos; Asignación de PIPC no usa este filtro.
+    if (empresa?.mostrar_en_activos === false) return false;
     if (Number(empresa?.pipc_documento_id) > 0) return true;
     if ((Number(empresa?.documentos_totales) || 0) > 0) return true;
     const pasos = this.parsePasosCompletadosEmpresa(empresa?.pasos_completados);
@@ -2123,6 +2154,131 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
       error: () => {
         this.pipcTerminadosRecientes = [];
         this.cargandoPipcTerminados = false;
+      }
+    });
+  }
+
+  /** Solo superadmin: ciclos activos ocultos de PIPC Activos. */
+  cargarPipcOcultos(): void {
+    if (!this.esRootUser) {
+      this.pipcOcultos = [];
+      this.cargandoPipcOcultos = false;
+      return;
+    }
+    this.cargandoPipcOcultos = true;
+    this.backendService.obtenerPipcOcultos().subscribe({
+      next: (res: any) => {
+        const raw = Array.isArray(res?.ocultos) ? res.ocultos : [];
+        this.pipcOcultos = raw.map((item: any) => {
+          const empresaId = Number(item?.empresa_id) || 0;
+          const operacionId = Number(item?.operacion_id) || 0;
+          return {
+            operacion_id: operacionId,
+            empresa_id: empresaId,
+            nombre_empresa: String(item?.nombre_empresa || '').trim(),
+            rfc: String(item?.rfc || '').trim(),
+            ciudad: String(item?.ciudad || '').trim(),
+            estado: String(item?.estado || '').trim(),
+            logo: item?.logo || null,
+            logo_url: item?.logo_url || item?.logo || null,
+            fecha_inicio: item?.fecha_inicio || null,
+            ocultado_at: item?.ocultado_at || null,
+            responsable_pipc_usuario_id: Number(item?.responsable_pipc_usuario_id || 0) || null,
+            responsable_pipc_nombre: item?.responsable_pipc_nombre
+              ? String(item.responsable_pipc_nombre).trim()
+              : null
+          } as PipcOcultoActivo;
+        });
+        this.cargandoPipcOcultos = false;
+      },
+      error: () => {
+        this.pipcOcultos = [];
+        this.cargandoPipcOcultos = false;
+      }
+    });
+  }
+
+  async ocultarPipcActivoActual(): Promise<void> {
+    const empresa = this.empresaSeleccionada;
+    if (!empresa?.empresa_id || this.ocultandoPipcActivo) return;
+
+    const nombre = String(empresa.nombre_empresa || 'esta empresa').trim();
+    const confirmacion = await Swal.fire({
+      icon: 'warning',
+      title: '¿Ocultar PIPC?',
+      html: `<p>Se ocultará el PIPC de <strong>${nombre}</strong> en <strong>PIPC Activos</strong>.</p>
+             <p class="text-muted small mb-0">No se borra información. Podrás asignar otro PIPC a la empresa y el superadministrador puede restablecerlo.</p>`,
+      showCancelButton: true,
+      confirmButtonText: 'Ocultar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#a14a21',
+      cancelButtonColor: '#8898aa'
+    });
+    if (!confirmacion.isConfirmed) return;
+
+    this.ocultandoPipcActivo = true;
+    this.backendService.ocultarPipcActivo(Number(empresa.empresa_id)).subscribe({
+      next: () => {
+        this.ocultandoPipcActivo = false;
+        Swal.fire({
+          icon: 'success',
+          title: 'PIPC ocultado',
+          text: 'Ya no aparece en PIPC Activos. Los datos se conservan.',
+          timer: 1800,
+          showConfirmButton: false
+        });
+        this.volverAEmpresas();
+        this.cargarPipcOcultos();
+      },
+      error: (err) => {
+        this.ocultandoPipcActivo = false;
+        Swal.fire({
+          icon: 'error',
+          title: 'No se pudo ocultar',
+          text: err?.error?.message || 'Intenta de nuevo.'
+        });
+      }
+    });
+  }
+
+  async restablecerPipcOculto(item: PipcOcultoActivo, event?: Event): Promise<void> {
+    event?.stopPropagation?.();
+    if (!this.esRootUser || !item?.empresa_id || this.restableciendoPipcId) return;
+
+    const nombre = String(item.nombre_empresa || 'esta empresa').trim();
+    const confirmacion = await Swal.fire({
+      icon: 'question',
+      title: '¿Restablecer PIPC?',
+      html: `<p>El PIPC de <strong>${nombre}</strong> volverá a mostrarse en <strong>PIPC Activos</strong>.</p>`,
+      showCancelButton: true,
+      confirmButtonText: 'Restablecer',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#2dce89',
+      cancelButtonColor: '#8898aa'
+    });
+    if (!confirmacion.isConfirmed) return;
+
+    this.restableciendoPipcId = Number(item.operacion_id) || Number(item.empresa_id);
+    this.backendService.restablecerPipcActivo(Number(item.empresa_id), Number(item.operacion_id) || undefined).subscribe({
+      next: () => {
+        this.restableciendoPipcId = null;
+        Swal.fire({
+          icon: 'success',
+          title: 'PIPC restablecido',
+          text: 'Ya aparece de nuevo en PIPC Activos.',
+          timer: 1600,
+          showConfirmButton: false
+        });
+        this.cargarEmpresas();
+        this.cargarPipcOcultos();
+      },
+      error: (err) => {
+        this.restableciendoPipcId = null;
+        Swal.fire({
+          icon: 'error',
+          title: 'No se pudo restablecer',
+          text: err?.error?.message || 'Intenta de nuevo.'
+        });
       }
     });
   }
@@ -3436,6 +3592,7 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
     });
     this.cargarEmpresas(); // Recargar para actualizar conteos
     this.cargarPipcTerminadosRecientes();
+    this.cargarPipcOcultos();
     if (this.puedeVerGraficaActividadResolutivosPipc) {
       this.cargarEstadisticasResolutivos();
     }
@@ -6952,13 +7109,14 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
   claseBadgeAtencion(estatus: string): string {
     if (estatus === 'Vencido') return 'pc-resolutivo-row__badge--vencido';
     if (estatus === 'Próximo a vencer') return 'pc-resolutivo-row__badge--proximo';
+    if (estatus === 'Vigentes') return 'pc-resolutivo-row__badge--vigente';
     return 'pc-resolutivo-row__badge--tramite';
   }
 
   urgenciaAtencion(r: ResolutivoAtencionItem): number {
     const ind = this.indicadorTiempoAtencion(r);
     if (ind.modo === 'vencido') return 100;
-    if (ind.modo === 'tramite' || ind.modo === 'sin_fecha') return 35;
+    if (ind.modo === 'vigente' || ind.modo === 'tramite' || ind.modo === 'sin_fecha') return 35;
     if (ind.dias <= 0) return 92;
     // Ventana crítica = 80 días (40 antes + 40 después del contacto)
     return Math.max(18, Math.min(95, Math.round(100 - (ind.dias / 80) * 82)));
@@ -6975,7 +7133,7 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
    * - vencido: días que ya lleva vencido
    */
   indicadorTiempoAtencion(r: ResolutivoAtencionItem): {
-    modo: 'restante' | 'vencido' | 'tramite' | 'sin_fecha';
+    modo: 'restante' | 'vencido' | 'vigente' | 'tramite' | 'sin_fecha';
     dias: number;
     valor: string;
     unidad: string;
@@ -7010,6 +7168,17 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
     }
 
     if (d == null) {
+      if (r.estatus === 'Vigentes') {
+        return {
+          modo: 'vigente',
+          dias: 0,
+          valor: 'OK',
+          unidad: '',
+          titulo: 'Vigente',
+          subtitulo: 'Sin fecha de contacto',
+          clase: 'is-vigente'
+        };
+      }
       if (r.estatus === 'En tramite') {
         return {
           modo: 'tramite',
@@ -7048,6 +7217,7 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
     }
 
     const urgenciaCercana = diasParaVencer <= 15;
+    const esVigente = r.estatus === 'Vigentes';
     return {
       modo: 'restante',
       dias: diasParaVencer,
@@ -7057,7 +7227,7 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
       subtitulo: diasParaVencer === 1
         ? 'Para vencer'
         : `Para vencer${d <= 0 ? ' · contacto vencido' : ''}`,
-      clase: urgenciaCercana ? 'is-critico' : 'is-restante'
+      clase: urgenciaCercana ? 'is-critico' : (esVigente ? 'is-vigente' : 'is-restante')
     };
   }
 
@@ -7066,6 +7236,7 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
     if (ind.modo === 'vencido') {
       return ind.dias > 0 ? `+${ind.dias}d` : 'Vencido';
     }
+    if (ind.modo === 'vigente') return 'Vigente';
     if (ind.modo === 'tramite') return 'Trámite';
     if (ind.modo === 'sin_fecha') return '—';
     if (ind.dias === 1) return '1d';
@@ -7347,7 +7518,7 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
       }
     });
 
-    const requierenAtencion = this.resolutivosAtencionOrder.reduce((acc, estatus) => {
+    const requierenAtencion = this.resolutivosAtencionCriticosOrder.reduce((acc, estatus) => {
       const idx = this.resolutivosEstatusOrder.indexOf(estatus);
       return acc + (idx >= 0 ? counts[idx] : 0);
     }, 0);
@@ -7383,7 +7554,7 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
       const count = Number(item?.total ?? this.resolutivosAtencion.filter((r) => r.estatus === estatus).length) || 0;
       const cfg = this.resolutivosEstatusConfig[estatus];
       let subtitulo = `${count} resolutivo${count !== 1 ? 's' : ''}`;
-      if (estatus === 'En tramite') subtitulo = `${count} en proceso`;
+      if (estatus === 'Vigentes') subtitulo = `${count} vigente${count !== 1 ? 's' : ''}`;
       if (estatus === 'Próximo a vencer') subtitulo = `${count} por vencer`;
       if (estatus === 'Vencido') subtitulo = `${count} vencido${count !== 1 ? 's' : ''}`;
       return {

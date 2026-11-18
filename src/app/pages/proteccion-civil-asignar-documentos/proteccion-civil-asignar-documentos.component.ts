@@ -76,6 +76,11 @@ export class ProteccionCivilAsignarDocumentosComponent implements OnInit, OnChan
    * Modo despliegue nuevo: selección en blanco; plantillas ya asignadas siguen visibles pero bloqueadas.
    */
   @Input() modoNuevaAsignacion = false;
+  /**
+   * Si es false (perfil PC sin admin), solo se pueden reabrir PIPC ya asignados
+   * para volver a agregar requisitos; no se permiten plantillas nuevas.
+   */
+  @Input() puedeAsignarPlantillasNuevas = true;
   /** Oculta el botón grande de guardar (se usa el icono externo en Asignación de PIPC). */
   @Input() ocultarBotonGuardar = false;
   @Output() asignacionGuardada = new EventEmitter<void>();
@@ -220,7 +225,7 @@ export class ProteccionCivilAsignarDocumentosComponent implements OnInit, OnChan
     return this.totalPlantillasCatalogo > 0 && this.totalPlantillasDisponibles === 0;
   }
 
-  get documentosPipcVisibles(): DocumentoNode[] {
+  get documentosPipcCatalogo(): DocumentoNode[] {
     const categoria = this.categoriaPipc;
     if (!categoria) {
       return [];
@@ -228,9 +233,24 @@ export class ProteccionCivilAsignarDocumentosComponent implements OnInit, OnChan
 
     const visibles = categoria.documentos.filter((doc) => this.esDocumentoVisible(doc));
     const hojas = visibles.filter((doc) => doc.es_hoja_workbook || doc.hoja_nombre);
-    const base = hojas.length ? hojas : visibles;
+    return hojas.length ? hojas : visibles;
+  }
+
+  get documentosPipcVisibles(): DocumentoNode[] {
+    const base = this.documentosPipcCatalogo;
+    // Perfil sin permiso de asignación nueva: solo plantillas ya desplegadas (gestión / reasignación).
+    if (!this.puedeAsignarPlantillasNuevas) {
+      return base.filter((doc) => this.esRamaYaAsignada(doc));
+    }
     // Catálogo completo: las ya desplegadas se muestran bloqueadas como «Ya asignada».
     return base;
+  }
+
+  get empresaSinPipcAsignado(): boolean {
+    return !this.puedeAsignarPlantillasNuevas
+      && !this.cargandoAsignacionesActivas
+      && this.documentosPipcCatalogo.length > 0
+      && this.documentosPipcVisibles.length === 0;
   }
 
   get totalPlantillasCatalogo(): number {
@@ -251,7 +271,9 @@ export class ProteccionCivilAsignarDocumentosComponent implements OnInit, OnChan
   }
 
   get totalSeleccionados(): number {
-    const nuevas = this.obtenerHojasSeleccionadas().filter((doc) => !this.esRamaYaAsignada(doc)).length;
+    const nuevas = this.puedeAsignarPlantillasNuevas
+      ? this.obtenerHojasSeleccionadas().filter((doc) => !this.esRamaYaAsignada(doc)).length
+      : 0;
     const pendientesRequisitos = this.contarRequisitosPendientesEnPlantillasAsignadas();
     return nuevas + pendientesRequisitos;
   }
@@ -280,7 +302,9 @@ export class ProteccionCivilAsignarDocumentosComponent implements OnInit, OnChan
   }
 
   private obtenerPlantillasParaProcesar(): DocumentoNode[] {
-    const nuevas = this.obtenerHojasSeleccionadas().filter((doc) => !this.esRamaYaAsignada(doc));
+    const nuevas = this.puedeAsignarPlantillasNuevas
+      ? this.obtenerHojasSeleccionadas().filter((doc) => !this.esRamaYaAsignada(doc))
+      : [];
     const asignadasConPendientes = this.documentosPipcVisibles.filter((doc) => this.tieneRequisitosPendientesParaAgregar(doc));
     const ids = new Set<string>();
     const resultado: DocumentoNode[] = [];
@@ -330,6 +354,10 @@ export class ProteccionCivilAsignarDocumentosComponent implements OnInit, OnChan
     if (seleccionado && this.esRamaYaAsignada(documento)) {
       return;
     }
+    if (seleccionado && !this.puedeAsignarPlantillasNuevas && !this.esRamaYaAsignada(documento)) {
+      this.avisarAsignacionNuevaRestringida();
+      return;
+    }
 
     this.toggleDocumento(documento, seleccionado);
 
@@ -349,6 +377,11 @@ export class ProteccionCivilAsignarDocumentosComponent implements OnInit, OnChan
     if (this.esRamaYaAsignada(documento)) {
       this.plantillaActivaId = documento.id;
       this.cargarChecklistPlantilla(documento);
+      return;
+    }
+
+    if (!this.puedeAsignarPlantillasNuevas) {
+      this.avisarAsignacionNuevaRestringida();
       return;
     }
 
@@ -376,6 +409,11 @@ export class ProteccionCivilAsignarDocumentosComponent implements OnInit, OnChan
       return;
     }
 
+    if (!this.puedeAsignarPlantillasNuevas) {
+      this.avisarAsignacionNuevaRestringida();
+      return;
+    }
+
     if (!documento.seleccionado) {
       this.togglePlantilla(documento, true);
       return;
@@ -383,6 +421,15 @@ export class ProteccionCivilAsignarDocumentosComponent implements OnInit, OnChan
 
     this.plantillaActivaId = documento.id;
     this.cargarChecklistPlantilla(documento);
+  }
+
+  private avisarAsignacionNuevaRestringida(): void {
+    Swal.fire({
+      icon: 'info',
+      title: 'Solo gestión de asignaciones',
+      html: 'Solo un <strong>administrador</strong> puede asignar PIPC nuevos a una empresa.<br>Puedes abrir un PIPC ya asignado y volver a agregar requisitos eliminados.',
+      confirmButtonColor: '#d97248'
+    });
   }
 
   get plantillasSeleccionadas(): DocumentoNode[] {
@@ -690,9 +737,16 @@ export class ProteccionCivilAsignarDocumentosComponent implements OnInit, OnChan
     if (plantillasAProcesar.length === 0) {
       Swal.fire(
         'Sin selección',
-        'Selecciona una plantilla nueva o abre una ya asignada y marca los requisitos que quieras agregar.',
+        this.puedeAsignarPlantillasNuevas
+          ? 'Selecciona una plantilla nueva o abre una ya asignada y marca los requisitos que quieras agregar.'
+          : 'Abre un PIPC ya asignado y marca los requisitos que quieras volver a agregar.',
         'warning'
       );
+      return;
+    }
+
+    if (!this.puedeAsignarPlantillasNuevas && plantillasNuevas.length > 0) {
+      this.avisarAsignacionNuevaRestringida();
       return;
     }
 
@@ -1227,10 +1281,6 @@ export class ProteccionCivilAsignarDocumentosComponent implements OnInit, OnChan
     return n === 'fisico' || n === 'usb' || n === 'presentar';
   }
 
-  private contarRequisitosReales(subdocumentos: any[] = []): number {
-    return subdocumentos.filter((subdoc) => !this.esSubtituloOperativoNombre(String(subdoc?.nombre_documento || ''))).length;
-  }
-
   private cargarAsignacionesActivasEmpresa(): void {
     if (!this.empresaId) {
       this.asignacionesActivasNombres.clear();
@@ -1249,23 +1299,20 @@ export class ProteccionCivilAsignarDocumentosComponent implements OnInit, OnChan
         if (response?.success && Array.isArray(response.documentos)) {
           for (const doc of response.documentos) {
             const catalogoId = Number(doc.catalogo_documento_id || 0);
-            if (!catalogoId) {
-              continue;
-            }
-
-            const totalRequisitos = this.contarRequisitosReales(doc.subdocumentos || []);
-            if (totalRequisitos === 0) {
-              continue;
-            }
-
             const nombre = String(doc.nombre_documento || '').replace(/\.xlsx?$/i, '').trim();
             const clavePlantilla = this.clavePlantillaDesdeNombre(nombre);
-            if (!clavePlantilla) {
+            if (!clavePlantilla && catalogoId <= 0) {
               continue;
             }
 
-            this.asignacionesActivasNombres.add(clavePlantilla);
-            this.asignacionesActivasCatalogoIds.add(catalogoId);
+            // El padre cuenta como asignado aunque se hayan borrado todos los requisitos:
+            // así se puede gestionar de nuevo el despliegue sin crear otra rama.
+            if (clavePlantilla) {
+              this.asignacionesActivasNombres.add(clavePlantilla);
+            }
+            if (catalogoId > 0) {
+              this.asignacionesActivasCatalogoIds.add(catalogoId);
+            }
 
             const requisitosAsignados = new Set<string>();
             for (const subdoc of doc.subdocumentos || []) {
@@ -1277,7 +1324,9 @@ export class ProteccionCivilAsignarDocumentosComponent implements OnInit, OnChan
                 requisitosAsignados.add(nombreRequisito);
               }
             }
-            this.requisitosAsignadosPorPlantilla.set(clavePlantilla, requisitosAsignados);
+            if (clavePlantilla) {
+              this.requisitosAsignadosPorPlantilla.set(clavePlantilla, requisitosAsignados);
+            }
           }
         }
         this.aplicarBloqueoPlantillasAsignadas();

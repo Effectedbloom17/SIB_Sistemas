@@ -423,3 +423,62 @@
     }
   }
 }
+
+/* Toolbar compacta del editor F-04 (Guardar / Importar Word / Editor / PDF) */
+.mt-editor__toolbar-actions--compact {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.mt-tool-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid rgba(30, 41, 59, 0.28);
+  background: #fff;
+  color: #1e293b;
+  border-radius: 999px;
+  padding: 0.38rem 0.78rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.1;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+
+  i {
+    font-size: 0.82rem;
+  }
+
+  &:hover:not(:disabled) {
+    background: rgba(30, 41, 59, 0.06);
+    border-color: rgba(30, 41, 59, 0.45);
+  }
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  &--word i {
+    color: #2b579a;
+  }
+
+  &--pdf i {
+    color: #b91c1c;
+  }
+}
+
+@media (max-width: 640px) {
+  .mt-tool-btn span {
+    display: none;
+  }
+
+  .mt-tool-btn {
+    padding: 0.42rem 0.62rem;
+    min-width: 2.2rem;
+    justify-content: center;
+  }
+}

@@ -1021,6 +1021,15 @@ export class CorreoComponent implements OnInit, OnDestroy {
     this.agregarArchivosCompose(borrador, archivos);
   }
 
+  onComposePaste(files: File[], borrador: ComposeBorrador): void {
+    if (!files?.length || borrador.minimizado || borrador.enviando) {
+      return;
+    }
+    borrador.error = '';
+    const soloImagenes = files.every((f) => String(f.type || '').startsWith('image/'));
+    this.agregarArchivosCompose(borrador, files, soloImagenes);
+  }
+
   private puedeSoltarAdjuntosCompose(event: DragEvent, borrador: ComposeBorrador): boolean {
     if (borrador.minimizado || borrador.enviando) {
       return false;

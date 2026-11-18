@@ -605,6 +605,69 @@ function esPreguntaComentarioCap(pregunta) {
     return t.includes('comentario') || t.includes('mejorar');
 }
 
+const CUATRIMESTRES_SAT_CAP = [
+    { id: 'c1', clave: 'C1', etiqueta: '1er cuatrimestre', rango: 'Ene–Abr', mesInicio: 0, mesFin: 3 },
+    { id: 'c2', clave: 'C2', etiqueta: '2do cuatrimestre', rango: 'May–Ago', mesInicio: 4, mesFin: 7 },
+    { id: 'c3', clave: 'C3', etiqueta: '3er cuatrimestre', rango: 'Sep–Dic', mesInicio: 8, mesFin: 11 }
+];
+
+function nuevaCeldaCuatrimestreSatCap(def) {
+    return {
+        id: def.id,
+        clave: def.clave,
+        etiqueta: def.etiqueta,
+        rango: def.rango,
+        evaluacion: nuevaCeldaEscala(),
+        respuestas: 0,
+        cursosConEncuesta: 0,
+        proveedoresMap: new Map()
+    };
+}
+
+function acumularProveedorSatCap(mapa, key, nombre, respuestas, evaluacionParcial) {
+    const prev = mapa.get(key) || {
+        id: key,
+        proveedor: nombre,
+        evaluacion: nuevaCeldaEscala(),
+        respuestas: 0,
+        cursosConEncuesta: 0
+    };
+    prev.respuestas += respuestas;
+    prev.cursosConEncuesta += 1;
+    prev.evaluacion.excelente += evaluacionParcial.excelente;
+    prev.evaluacion.bueno += evaluacionParcial.bueno;
+    prev.evaluacion.regular += evaluacionParcial.regular;
+    prev.evaluacion.malo += evaluacionParcial.malo;
+    prev.evaluacion.total += evaluacionParcial.total;
+    mapa.set(key, prev);
+}
+
+function serializarCuatrimestresSatCap(celdas) {
+    return celdas.map((c) => {
+        const proveedores = Array.from(c.proveedoresMap.values())
+            .map((p) => ({
+                id: p.id,
+                proveedor: p.proveedor,
+                indice: indiceEscalaCuatro(p.evaluacion),
+                respuestas: p.respuestas,
+                cursosConEncuesta: p.cursosConEncuesta
+            }))
+            .sort((a, b) => b.indice - a.indice || b.respuestas - a.respuestas
+                || String(a.proveedor).localeCompare(String(b.proveedor), 'es'));
+        return {
+            id: c.id,
+            clave: c.clave,
+            etiqueta: c.etiqueta,
+            rango: c.rango,
+            indice: indiceEscalaCuatro(c.evaluacion),
+            respuestas: c.respuestas,
+            cursosConEncuesta: c.cursosConEncuesta,
+            tieneDatos: c.respuestas > 0,
+            proveedores
+        };
+    });
+}
+
 function payloadSatisfaccionCapVacio(anioNum, extra = {}) {
     return {
         anio: anioNum,
@@ -632,6 +695,11 @@ function payloadSatisfaccionCapVacio(anioNum, extra = {}) {
             respuestas: 0,
             recomienda_pct: 0
         })),
+        comparativaCuatrimestral: {
+            cuatrimestres: serializarCuatrimestresSatCap(
+                CUATRIMESTRES_SAT_CAP.map((def) => nuevaCeldaCuatrimestreSatCap(def))
+            )
+        },
         ...extra
     };
 }
@@ -687,19 +755,22 @@ async function obtenerSatisfaccionCapacitacion(pool, anio, opciones = {}) {
     const anioNum = Number(anio) || new Date().getFullYear();
 
     const [cursos] = await pool.query(
-        `SELECT cp.programado_id, cp.google_form_id, cp.fecha_inicio,
+        `SELECT cp.programado_id, cp.google_form_id, cp.fecha_inicio, cp.instructor_id,
                 c.nombre_curso, e.nombre_empresa,
+                NULLIF(TRIM(CONCAT_WS(' ', i.nombre, i.apellido_paterno, i.apellido_materno)), '') AS instructor_nombre,
                 MAX(CASE WHEN dcp.descripcion = 'encuesta_resultados_cierre' THEN dcp.drive_file_id END) AS encuesta_archivo_id
          FROM curso_programado cp
          INNER JOIN curso c ON c.curso_id = cp.curso_id
          INNER JOIN empresa e ON e.empresa_id = cp.empresa_id
+         LEFT JOIN instructor i ON i.instructor_id = cp.instructor_id
          LEFT JOIN documento_curso_programado dcp
            ON dcp.programado_id = cp.programado_id
           AND dcp.descripcion = 'encuesta_resultados_cierre'
           AND dcp.drive_file_id IS NOT NULL
          WHERE YEAR(cp.fecha_inicio) = ?
            AND (cp.google_form_id IS NOT NULL OR dcp.drive_file_id IS NOT NULL)
-         GROUP BY cp.programado_id, cp.google_form_id, cp.fecha_inicio, c.nombre_curso, e.nombre_empresa
+         GROUP BY cp.programado_id, cp.google_form_id, cp.fecha_inicio, cp.instructor_id,
+                  c.nombre_curso, e.nombre_empresa, i.nombre, i.apellido_paterno, i.apellido_materno
          ORDER BY cp.fecha_inicio DESC`,
         [anioNum]
     );
@@ -726,6 +797,7 @@ async function obtenerSatisfaccionCapacitacion(pool, anio, opciones = {}) {
         recomendacion: { si: 0, no: 0, total: 0 },
         respuestas: 0
     }));
+    const cuatrimestres = CUATRIMESTRES_SAT_CAP.map((def) => nuevaCeldaCuatrimestreSatCap(def));
 
     let totalRespuestas = 0;
     let cursosConDatos = 0;
@@ -774,6 +846,30 @@ async function obtenerSatisfaccionCapacitacion(pool, anio, opciones = {}) {
         acumularEscalaCuatroCap(p4, dominioAnual);
         acumularSiNoCap(p5, recomendacionAnual);
         acumularSiNoCap(p5, meses[mesIdx].recomendacion);
+
+        const cuatriIdx = Math.min(2, Math.floor(mesIdx / 4));
+        const celdaCuatri = cuatrimestres[cuatriIdx];
+        const evalCurso = nuevaCeldaEscala();
+        acumularEscalaCuatroCap(p1, evalCurso);
+        acumularEscalaCuatroCap(p1, celdaCuatri.evaluacion);
+        celdaCuatri.respuestas += respuestasCurso;
+        celdaCuatri.cursosConEncuesta += 1;
+
+        const instructorId = Number(curso.instructor_id) || 0;
+        const instructorNombre = String(curso.instructor_nombre || '').trim();
+        const empresaNombre = String(curso.nombre_empresa || '').trim();
+        const proveedorNombre = instructorNombre
+            || (empresaNombre ? `Empresa · ${empresaNombre}` : 'Sin proveedor');
+        const proveedorKey = instructorId
+            ? `inst-${instructorId}`
+            : `emp-${String(empresaNombre || 'sin').toLowerCase()}`;
+        acumularProveedorSatCap(
+            celdaCuatri.proveedoresMap,
+            proveedorKey,
+            proveedorNombre,
+            respuestasCurso,
+            evalCurso
+        );
 
         for (let i = 0; i < stats.preguntas.length; i += 1) {
             fusionarPreguntaCap(preguntasAcum, stats.preguntas[i], i);
@@ -882,7 +978,10 @@ async function obtenerSatisfaccionCapacitacion(pool, anio, opciones = {}) {
         preguntasPorMes,
         comentarios,
         enfoques,
-        serieMensual
+        serieMensual,
+        comparativaCuatrimestral: {
+            cuatrimestres: serializarCuatrimestresSatCap(cuatrimestres)
+        }
     };
 }
 
@@ -2008,9 +2107,11 @@ async function obtenerAvanceProyectos(poolSgc) {
 // 5b. Evaluación de proveedores (SGC-F-29)
 // ---------------------------------------------------------------------------
 
-async function obtenerProveedoresF29(poolSgc) {
+async function obtenerProveedoresF29(poolSgc, anio) {
     try {
-        return await sgcF29Service.obtenerResumenProveedores(poolSgc);
+        return await sgcF29Service.obtenerResumenProveedores(poolSgc, {
+            anio: Number(anio) || new Date().getFullYear()
+        });
     } catch (e) {
         return {
             total: 0,
@@ -2020,7 +2121,8 @@ async function obtenerProveedoresF29(poolSgc) {
             periodoEvaluacion: '',
             fechaEvaluacion: '',
             criterios: { entregaTiempo: 0, precio: 0, servicio: 0, calidad: 0 },
-            proveedores: []
+            proveedores: [],
+            comparativaMensual: { anio: Number(anio) || null, totalMeses: 0, meses: [] }
         };
     }
 }
@@ -2062,7 +2164,7 @@ async function obtenerDashboardCore(pool, poolSgc, anio) {
         obtenerQuejasCliente(poolSgc, anioNum),
         obtenerEvaluacionProveedores(poolSgc, anioNum),
         obtenerAvanceProyectos(poolSgc),
-        obtenerProveedoresF29(poolSgc),
+        obtenerProveedoresF29(poolSgc, anioNum),
         obtenerEficacia(poolSgc, anioNum),
         obtenerQuejasSugerencias(pool, anioNum)
     ]);

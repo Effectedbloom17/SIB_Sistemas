@@ -120,10 +120,16 @@
               </ng-template>
 
               <div class="directorio-contactos">
-                <a *ngIf="usuario.email; else sinEmailCard" class="directorio-chip directorio-chip--email" [href]="'mailto:' + usuario.email" [title]="usuario.email">
+                <button
+                  *ngIf="usuario.email; else sinEmailCard"
+                  type="button"
+                  class="directorio-chip directorio-chip--email directorio-chip--copy"
+                  [title]="'Clic para copiar: ' + usuario.email"
+                  (click)="copiarContactoDirectorio(usuario, 'correo')">
                   <span class="directorio-chip-icon"><i class="fas fa-envelope"></i></span>
                   <span class="directorio-chip-text">{{ usuario.email }}</span>
-                </a>
+                  <span class="directorio-chip-copy" aria-hidden="true"><i class="fas fa-copy"></i></span>
+                </button>
                 <ng-template #sinEmailCard>
                   <div class="directorio-chip directorio-chip--email directorio-chip--muted">
                     <span class="directorio-chip-icon"><i class="fas fa-envelope"></i></span>
@@ -131,10 +137,16 @@
                   </div>
                 </ng-template>
 
-                <a *ngIf="usuario.telefono; else sinTelefonoCard" class="directorio-chip directorio-chip--tel" [href]="'tel:' + usuario.telefono" [title]="usuario.telefono">
+                <button
+                  *ngIf="usuario.telefono; else sinTelefonoCard"
+                  type="button"
+                  class="directorio-chip directorio-chip--tel directorio-chip--copy"
+                  [title]="'Clic para copiar: ' + usuario.telefono"
+                  (click)="copiarContactoDirectorio(usuario, 'teléfono')">
                   <span class="directorio-chip-icon"><i class="fas fa-phone"></i></span>
                   <span class="directorio-chip-text">{{ usuario.telefono }}</span>
-                </a>
+                  <span class="directorio-chip-copy" aria-hidden="true"><i class="fas fa-copy"></i></span>
+                </button>
                 <ng-template #sinTelefonoCard>
                   <div class="directorio-chip directorio-chip--tel directorio-chip--muted">
                     <span class="directorio-chip-icon"><i class="fas fa-phone"></i></span>

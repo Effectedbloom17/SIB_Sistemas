@@ -868,11 +868,17 @@
                   </label>
                 </div>
               </div>
-              <label class="ges-dropzone" [class.is-busy]="subiendo" [class.has-files]="punto.documentos.length">
+              <label class="ges-dropzone"
+                     appPasteFiles
+                     [pasteDispatchInput]="true"
+                     tabindex="0"
+                     title="También puedes pegar archivos o imágenes con Ctrl+V"
+                     [class.is-busy]="subiendo"
+                     [class.has-files]="punto.documentos.length">
                 <input type="file" multiple (change)="subir(punto.id, $event)"
                        accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp,.zip" [disabled]="subiendo">
                 <i class="fas" [class.fa-cloud-upload-alt]="!subiendo" [class.fa-spinner]="subiendo" [class.fa-spin]="subiendo"></i>
-                <strong>{{ subiendo ? 'Subiendo a Google Drive…' : 'Arrastra archivos o haz clic para subir' }}</strong>
+                <strong>{{ subiendo ? 'Subiendo a Google Drive…' : 'Arrastra, pega (Ctrl+V) o haz clic' }}</strong>
                 <span>PDF, Office, imágenes o ZIP (máx. 25 MB)</span>
               </label>
               <p class="ges-drive-hint">

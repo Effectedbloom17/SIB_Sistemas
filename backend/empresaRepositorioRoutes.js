@@ -29,10 +29,13 @@ function createEmpresaRepositorioRouter({
     getPool,
     denyEmpresa,
     requireAdmin,
+    requireEliminar,
     handleError,
     obtenerNombreUsuarioAccion
 }) {
     // requireAdmin aquí incluye root, administrador, PC, SGC, Ambiental y RRHH.
+    // requireEliminar: solo root o Calidad (si no se pasa, se reutiliza requireAdmin).
+    const puedeEliminar = typeof requireEliminar === 'function' ? requireEliminar : requireAdmin;
     const router = express.Router({ mergeParams: true });
 
     function poolOrThrow() {
@@ -287,7 +290,7 @@ function createEmpresaRepositorioRouter({
         }
     });
 
-    router.delete('/:id', requireAdmin, async (req, res) => {
+    router.delete('/:id', puedeEliminar, async (req, res) => {
         try {
             const empresaId = parseEmpresaId(req);
             const id = parseDocId(req);

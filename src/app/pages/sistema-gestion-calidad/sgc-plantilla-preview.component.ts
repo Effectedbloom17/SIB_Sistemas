@@ -1214,6 +1214,8 @@ interface SgcF28Comparativa {
   criterios: SgcF28Criterio[];
   /** Nombre real de la pestaña en el Excel sistema (puede llevar sufijo « 2»). */
   nombreHoja?: string;
+  /** Soft-delete: false = oculto en archivero (superadmin puede reactivar / borrar definitivo). */
+  activo?: boolean;
 }
 
 interface SgcF28FormData {
@@ -3331,6 +3333,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF29AreaGuardando = false;
   /** Menú compacto de área (círculo de color en toolbar). */
   sgcF29AreaPickerOpen = false;
+  /** Panel de consulta de criterios y textos del área. */
+  sgcF29InfoCriteriosAbierto = false;
+  /** Criterio expandido dentro del panel de descripción. */
+  sgcF29InfoCriterioExpandido: string | null = null;
   /** Menú desplegable de escala en «Nuevo criterio». */
   sgcF29EscalaMenuOpen = false;
   sgcF29MenuAddCritIdx: number | null = null;
@@ -4592,11 +4598,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       if (estabaOffline && online && this.borradorLocalPendiente) {
         void Swal.fire({
           icon: 'info',
-          title: 'Conexión restablecida',
-          text: 'Tienes cambios guardados en este dispositivo. Pulsa «Guardar información» para sincronizarlos con el servidor.',
+          title: 'Ya hay conexión',
+          text: 'Tienes cambios guardados en este equipo. Pulsa «Guardar información» para enviarlos.',
           confirmButtonText: 'Entendido',
+          confirmButtonColor: '#0f766e',
           timer: 6000,
-          timerProgressBar: true
+          timerProgressBar: true,
+          customClass: { popup: 'swal2-sgc-draft swal2-sgc-draft--toast' }
         });
       }
     });
@@ -5555,6 +5563,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.cerrarTipSgcF29();
       return;
     }
+    if (this.sgcF29InfoCriteriosAbierto) {
+      event.preventDefault();
+      this.cerrarInfoCriteriosSgcF29();
+      return;
+    }
     if (this.sgcF29AreaPickerOpen) {
       event.preventDefault();
       this.cerrarAreaPickerSgcF29();
@@ -5739,7 +5752,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
 
   /**
    * Guarda al salir/recargar sin cancelar la petición con destroy$.
-   * Borrador local solo si hay cambios pendientes (evita «Borrador local encontrado» tras guardar).
+   * Borrador local solo si hay cambios pendientes (evita el aviso de recuperación tras guardar).
    * Al servidor solo si hay red.
    */
   private guardarAlSalirSgc(): void {
@@ -5747,7 +5760,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       return;
     }
     this.persistirBorradorLocalSgcAhora();
-    if (!this.puedeGestionarPlantillasSgc) {
+    const puedeSalirAthF14 = this.plantillaSlug === 'ath-f-14' && this.puedeEditarAthF14;
+    const puedeSalirAthF13 = this.plantillaSlug === 'ath-f-13' && this.athF13PuedeSolicitar;
+    if (!this.puedeGestionarPlantillasSgc && !puedeSalirAthF14 && !puedeSalirAthF13) {
       return;
     }
     if (this.connectivity.isOffline) {
@@ -5872,15 +5887,45 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       /* comparar falló: ofrecer restauración */
     }
     const cuando = draft.updatedAt
-      ? new Date(draft.updatedAt).toLocaleString('es-MX')
-      : 'reciente';
+      ? new Date(draft.updatedAt).toLocaleString('es-MX', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        })
+      : 'hace poco';
     const result = await Swal.fire({
-      icon: 'question',
-      title: 'Borrador local encontrado',
-      html: `Hay cambios de este formato guardados en el dispositivo (<strong>${cuando}</strong>).<br>¿Deseas restaurarlos?`,
+      title: '',
+      html: `
+        <div class="sgc-draft-modal">
+          <div class="sgc-draft-modal__icon" aria-hidden="true">
+            <i class="fas fa-history"></i>
+          </div>
+          <h3 class="sgc-draft-modal__title">¿Continuar donde lo dejaste?</h3>
+          <p class="sgc-draft-modal__text">
+            Encontramos cambios que no alcanzaste a guardar la última vez que editaste este documento.
+          </p>
+          <div class="sgc-draft-modal__meta">
+            <i class="fas fa-clock" aria-hidden="true"></i>
+            <span>Guardados el <strong>${cuando}</strong></span>
+          </div>
+        </div>
+      `,
       showCancelButton: true,
-      confirmButtonText: 'Restaurar',
-      cancelButtonText: 'Descartar'
+      focusConfirm: true,
+      allowOutsideClick: false,
+      reverseButtons: true,
+      confirmButtonText: 'Sí, recuperarlos',
+      cancelButtonText: 'No, empezar de nuevo',
+      confirmButtonColor: '#0f766e',
+      cancelButtonColor: '#e2e8f0',
+      customClass: {
+        popup: 'swal2-sgc-draft',
+        confirmButton: 'swal2-sgc-draft__confirm',
+        cancelButton: 'swal2-sgc-draft__cancel',
+        actions: 'swal2-sgc-draft__actions'
+      }
     });
     if (result.isConfirmed) {
       this.aplicarPayloadBorradorLocalSgc(draft.datos);
@@ -6030,6 +6075,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         { ...this.athF13Form, solicitudActivaId: this.athF13SolicitudActiva?.id || this.athF13Form.solicitudActivaId || null },
         false
       );
+    }
+    if (slug === 'ath-f-14') {
+      if (!this.athF14Listo || this.athF14Cargando || !this.puedeEditarAthF14) {
+        return null;
+      }
+      return this.backendService.guardarAthF14Formato({ filas: this.athF14Filas });
     }
     if (slug === 'sgc-f-27') {
       this.sincronizarOrdenActivaEnFormSgcF27();
@@ -11236,6 +11287,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     event.stopPropagation();
     this.sgcF14EvidenciasDragDepth = 0;
     const files = event.dataTransfer?.files ? Array.from(event.dataTransfer.files) : [];
+    void this.subirArchivosEvidenciaSgcF14(files);
+  }
+
+  onEvidenciasPasteSgcF14(files: File[]): void {
+    if (!files?.length) {
+      return;
+    }
     void this.subirArchivosEvidenciaSgcF14(files);
   }
 
@@ -20271,6 +20329,15 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return ['100', '75', '50', '25', '0'];
   }
 
+  /** Etiqueta corta de escala para el panel «Descripción de Criterios». */
+  etiquetaEscalaCriterioInfoSgcF29(clave: string): string {
+    if (this.esCriterioPersonalizadoSgcF29(clave)) {
+      return 'Libre 0–100';
+    }
+    const vals = this.valoresEscalaCriterioSgcF29(clave);
+    return vals.length === 1 ? '1 nivel' : `${vals.length} niveles`;
+  }
+
   agregarCriterioAFilaSgcF29(index: number, clave: string, event?: Event): void {
     event?.preventDefault();
     event?.stopPropagation();
@@ -20831,11 +20898,44 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   toggleAreaPickerSgcF29(event?: Event): void {
     event?.preventDefault();
     event?.stopPropagation();
+    this.sgcF29InfoCriteriosAbierto = false;
     this.sgcF29AreaPickerOpen = !this.sgcF29AreaPickerOpen;
   }
 
   cerrarAreaPickerSgcF29(): void {
     this.sgcF29AreaPickerOpen = false;
+  }
+
+  toggleInfoCriteriosSgcF29(event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    this.sgcF29AreaPickerOpen = false;
+    this.sgcF29EscalaMenuOpen = false;
+    this.sgcF29MenuAddCritIdx = null;
+    const abrir = !this.sgcF29InfoCriteriosAbierto;
+    this.sgcF29InfoCriteriosAbierto = abrir;
+    if (abrir) {
+      const area = this.areaGrupoSgcF29(this.sgcF29ProveedorActivo);
+      const primero = area ? this.criteriosDeAreaSgcF29(area)[0]?.clave : null;
+      this.sgcF29InfoCriterioExpandido = primero || null;
+    } else {
+      this.sgcF29InfoCriterioExpandido = null;
+    }
+  }
+
+  cerrarInfoCriteriosSgcF29(event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    this.sgcF29InfoCriteriosAbierto = false;
+    this.sgcF29InfoCriterioExpandido = null;
+  }
+
+  toggleInfoCriterioExpandidoSgcF29(clave: string, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const k = String(clave || '').trim();
+    if (!k) return;
+    this.sgcF29InfoCriterioExpandido = this.sgcF29InfoCriterioExpandido === k ? null : k;
   }
 
   seleccionarAreaPickerSgcF29(
@@ -20862,6 +20962,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     event?.preventDefault();
     event?.stopPropagation();
     this.sgcF29AreaPickerOpen = false;
+    this.sgcF29InfoCriteriosAbierto = false;
     this.sgcF29MenuAddCritIdx = null;
     const areaActiva = this.areaGrupoSgcF29(this.sgcF29ProveedorActivo);
     if (areaActiva) {
@@ -21522,6 +21623,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       return;
     }
     this.sgcF29ProveedorSeleccionadoClave = grupo.clave;
+    this.sgcF29InfoCriteriosAbierto = false;
+    this.sgcF29AreaPickerOpen = false;
     const areaProv = this.areaGrupoSgcF29(grupo);
     if (areaProv) {
       this.sgcF29AreaGestionClave = areaProv;
@@ -22221,6 +22324,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     void this.subirArchivosEvidenciaSgcF29(files);
   }
 
+  onEvidenciasPasteSgcF29(files: File[]): void {
+    if (!files?.length) {
+      return;
+    }
+    void this.subirArchivosEvidenciaSgcF29(files);
+  }
+
   onEvidenciasDragOverSgcF29(event: DragEvent): void {
     event.preventDefault();
     event.stopPropagation();
@@ -22887,7 +22997,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       fechaCreacion: this.fechaHoyIsoLocalSgcF28(),
       proveedores: Array.from({ length: 5 }, () => this.crearProveedorSgcF28Vacio()),
       criterios: [],
-      nombreHoja: ''
+      nombreHoja: '',
+      activo: true
     };
   }
 
@@ -22979,7 +23090,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       fechaCreacion: String(raw.fechaCreacion || this.fechaHoyIsoLocalSgcF28()).trim(),
       proveedores,
       criterios,
-      nombreHoja: String(raw.nombreHoja || raw.nombre_hoja || '').trim()
+      nombreHoja: String(raw.nombreHoja || raw.nombre_hoja || '').trim(),
+      activo: raw.activo !== false
     };
   }
 
@@ -22989,8 +23101,14 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       ? base.comparativas.map((c) => this.normalizarComparativaSgcF28(c))
       : [];
     let activa = String(base.comparativaActivaId || '').trim() || null;
+    const activas = comparativas.filter((c) => c.activo !== false);
     if (activa && !comparativas.some((c) => c.id === activa)) {
-      activa = comparativas[0]?.id || null;
+      activa = activas[0]?.id || comparativas[0]?.id || null;
+    } else if (activa) {
+      const hit = comparativas.find((c) => c.id === activa);
+      if (hit && hit.activo === false && activas.length) {
+        activa = activas[0].id;
+      }
     }
     return {
       revision: String(base.revision || '00').trim() || '00',
@@ -23083,6 +23201,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   private asegurarEstructuraComparativaSgcF28(comp: SgcF28Comparativa | null): void {
     if (!comp) {
       return;
+    }
+    if (comp.activo == null) {
+      comp.activo = true;
     }
     if (!Array.isArray(comp.proveedores)) {
       comp.proveedores = [];
@@ -23197,9 +23318,24 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return 'Compara hasta 5 proveedores por cotización (3 visibles por defecto). Cada «nombre de cotización» genera su propia hoja en Excel. Agrega criterios tipados y reordénalos arrastrando la fila.';
   }
 
+  /** Superadmin (root): ve desactivadas, reactiva o borra definitivo. */
+  get esSuperAdminSgcF28(): boolean {
+    return this.authService.esRoot();
+  }
+
+  get sgcF28ComparativasActivas(): SgcF28Comparativa[] {
+    return (this.sgcF28Form.comparativas || []).filter((c) => c.activo !== false);
+  }
+
+  get sgcF28ComparativasDesactivadas(): SgcF28Comparativa[] {
+    return (this.sgcF28Form.comparativas || []).filter((c) => c.activo === false);
+  }
+
   get sgcF28ComparativasVista(): SgcF28Comparativa[] {
     const q = String(this.sgcF28Busqueda || '').trim().toLowerCase();
-    const lista = this.sgcF28Form.comparativas || [];
+    const lista = this.esSuperAdminSgcF28
+      ? (this.sgcF28Form.comparativas || [])
+      : this.sgcF28ComparativasActivas;
     if (!q) {
       return lista;
     }
@@ -23239,6 +23375,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (!comp) {
       return;
     }
+    if (comp.activo === false && !this.esSuperAdminSgcF28) {
+      return;
+    }
     try {
       this.asegurarEstructuraComparativaSgcF28(comp);
       this.sgcF28Form.comparativaActivaId = comp.id;
@@ -23262,22 +23401,85 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.sgcF28DragCriterioFrom = null;
   }
 
-  eliminarComparativaSgcF28(comp: SgcF28Comparativa, event?: Event): void {
-    event?.preventDefault();
-    event?.stopPropagation();
-    if (!confirm(`¿Eliminar la comparativa «${comp.nombreCotizacion || 'sin nombre'}»?`)) {
-      return;
-    }
-    this.sgcF28Form.comparativas = (this.sgcF28Form.comparativas || []).filter((c) => c.id !== comp.id);
-    if (this.sgcF28Form.comparativaActivaId === comp.id) {
-      this.sgcF28Form.comparativaActivaId = this.sgcF28Form.comparativas[0]?.id || null;
+  private reasignarActivaTrasCambioSgcF28(idEliminado?: string): void {
+    const activas = this.sgcF28ComparativasActivas;
+    if (idEliminado && this.sgcF28Form.comparativaActivaId === idEliminado) {
+      this.sgcF28Form.comparativaActivaId = activas[0]?.id || null;
       this.sincronizarComparativaActivaSgcF28();
     }
-    if (!this.sgcF28Form.comparativas.length) {
+    if (!activas.length) {
       this.sgcF28Vista = 'archivero';
       this.sgcF28ComparativaActiva = null;
     }
+  }
+
+  /** Soft-delete: marca activo=false; la info permanece y el superadmin puede reactivarla. */
+  eliminarComparativaSgcF28(comp: SgcF28Comparativa, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    if (!comp || comp.activo === false) {
+      return;
+    }
+    const etiqueta = comp.nombreCotizacion || 'sin nombre';
+    void Swal.fire({
+      icon: 'warning',
+      title: '¿Quitar del archivero?',
+      html: `Se ocultará <strong>${etiqueta}</strong>.<br>
+        <small>No se borra la información; el superadministrador puede reactivarla o eliminarla definitivamente.</small>`,
+      showCancelButton: true,
+      confirmButtonText: 'Sí, ocultar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#b45309'
+    }).then((result) => {
+      if (!result.isConfirmed) return;
+      comp.activo = false;
+      this.reasignarActivaTrasCambioSgcF28(comp.id);
+      this.onSgcF28Editado();
+      this.persistirSgcF28();
+    });
+  }
+
+  reactivarComparativaSgcF28(comp: SgcF28Comparativa, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    if (!this.esSuperAdminSgcF28 || !comp || comp.activo !== false) {
+      return;
+    }
+    comp.activo = true;
     this.onSgcF28Editado();
+    this.persistirSgcF28();
+    void Swal.fire({
+      icon: 'success',
+      title: 'Comparativa reactivada',
+      timer: 1600,
+      showConfirmButton: false
+    });
+  }
+
+  /** Hard-delete: solo superadmin; elimina la cotización del JSON de forma permanente. */
+  borrarDefinitivoComparativaSgcF28(comp: SgcF28Comparativa, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    if (!this.esSuperAdminSgcF28 || !comp) {
+      return;
+    }
+    const etiqueta = comp.nombreCotizacion || 'sin nombre';
+    void Swal.fire({
+      icon: 'error',
+      title: '¿Borrar definitivamente?',
+      html: `Se eliminará <strong>${etiqueta}</strong> de forma permanente.<br>
+        <small>Esta acción no se puede deshacer.</small>`,
+      showCancelButton: true,
+      confirmButtonText: 'Sí, borrar definitivo',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#b91c1c'
+    }).then((result) => {
+      if (!result.isConfirmed) return;
+      this.sgcF28Form.comparativas = (this.sgcF28Form.comparativas || []).filter((c) => c.id !== comp.id);
+      this.reasignarActivaTrasCambioSgcF28(comp.id);
+      this.onSgcF28Editado();
+      this.persistirSgcF28();
+    });
   }
 
   onTipoNuevoCriterioSgcF28Change(): void {
@@ -29706,6 +29908,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       && !target?.closest('.sgc-f-29-libreta__crit-tip-float')) {
       this.cerrarTipSgcF29();
     }
+    if (this.sgcF29InfoCriteriosAbierto && target && !target.closest('.sgc-f-29-info-criterios')) {
+      this.cerrarInfoCriteriosSgcF29();
+    }
     if (this.sgcF29AreaPickerOpen && target && !target.closest('.sgc-f-29-area-picker')) {
       this.cerrarAreaPickerSgcF29();
     }
@@ -30647,12 +30852,14 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.dgF04Listo = true;
     }, 100);
     void Swal.fire({
-      icon: 'info',
-      title: 'Borrador local restaurado',
-      text: 'Se recuperó información del FODA guardada en este dispositivo. Pulsa «Guardar información» para sincronizarla.',
+      icon: 'success',
+      title: 'Cambios recuperados',
+      text: 'Se recuperó la información del FODA que tenías en este equipo. Pulsa «Guardar información» para conservarla.',
       confirmButtonText: 'Entendido',
+      confirmButtonColor: '#0f766e',
       timer: 7000,
-      timerProgressBar: true
+      timerProgressBar: true,
+      customClass: { popup: 'swal2-sgc-draft swal2-sgc-draft--toast' }
     });
   }
 
@@ -37027,6 +37234,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     event.stopPropagation();
     this.sgcF11EvidenciasDragDepth = 0;
     const files = event.dataTransfer?.files ? Array.from(event.dataTransfer.files) : [];
+    void this.subirArchivosEvidenciaSgcF11(files);
+  }
+
+  onEvidenciasPasteSgcF11(files: File[]): void {
+    if (!files?.length) {
+      return;
+    }
     void this.subirArchivosEvidenciaSgcF11(files);
   }
 

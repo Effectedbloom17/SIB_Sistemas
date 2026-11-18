@@ -267,6 +267,13 @@ export class AmbientalTramiteArchivosPanelComponent implements OnChanges, OnDest
     void this.desdeDrop(event.dataTransfer, destino);
   }
 
+  onPasteArchivos(files: File[]): void {
+    if (!files?.length || (this.tramiteId && !this.puedeSubir)) {
+      return;
+    }
+    void this.confirmarYSubir(this.construirPendientes(files, false, ''), '');
+  }
+
   etiquetaCarpeta(doc: AmbTramArchivoItem): string {
     const ruta = this.norm(doc.carpetaRelativa);
     return ruta || 'Documentación extra';
@@ -574,11 +581,11 @@ export class AmbientalTramiteArchivosPanelComponent implements OnChanges, OnDest
     });
   }
 
-  private construirPendientes(lista: FileList | null, desdeCarpeta: boolean, destino: string): AmbPendiente[] {
+  private construirPendientes(lista: FileList | File[] | null, desdeCarpeta: boolean, destino: string): AmbPendiente[] {
     if (!lista?.length) return [];
     const base = this.norm(destino);
     const out: AmbPendiente[] = [];
-    for (const file of Array.from(lista)) {
+    for (const file of Array.from(lista as ArrayLike<File>)) {
       if (!file?.size) continue;
       let carpetaRelativa = base;
       let etiqueta = file.name;

@@ -51,6 +51,22 @@ function nombreSeguroArchivo(nombre) {
     return base || 'procedimiento.pdf';
 }
 
+/** Infiere título desde `ATH-P-03 Cotización....pdf` si el cliente no envía titulo. */
+function tituloDesdeNombreArchivo(nombreArchivo, codigo) {
+    const sinExt = String(nombreArchivo || '').replace(/\.pdf$/i, '').trim();
+    if (!sinExt) {
+        return '';
+    }
+    const match = sinExt.match(/^[A-Za-z]{2,4}-P-\d{2}\s*(.*)$/i);
+    if (match) {
+        return sanitizarTexto(match[1], 255);
+    }
+    if (codigo && sinExt.toUpperCase() === String(codigo).toUpperCase()) {
+        return '';
+    }
+    return sanitizarTexto(sinExt, 255);
+}
+
 function bufferDesdeBase64(archivoBase64) {
     const raw = String(archivoBase64 || '').trim();
     if (!raw) {
@@ -297,10 +313,13 @@ async function reemplazarProcedimiento(pool, id, body, usuario) {
 
     const buffer = bufferDesdeBase64(body?.archivo_base64 || body?.archivoBase64);
     const mimeType = 'application/pdf';
-    const tituloNuevo = sanitizarTexto(body?.titulo, 255);
     const nombreArchivo = nombreSeguroArchivo(
         body?.nombre_archivo || body?.nombreArchivo || doc.nombreArchivo || `${doc.codigo}.pdf`
     );
+    let tituloNuevo = sanitizarTexto(body?.titulo, 255);
+    if (!tituloNuevo) {
+        tituloNuevo = tituloDesdeNombreArchivo(nombreArchivo, doc.codigo);
+    }
 
     let driveFileId = doc.driveFileId;
     let webViewLink = doc.webViewLink;
@@ -360,11 +379,75 @@ async function reemplazarProcedimiento(pool, id, body, usuario) {
     return obtenerProcedimiento(pool, id);
 }
 
+/**
+ * Renombra el título (y nombre de archivo mostrado) de un procedimiento.
+ */
+async function renombrarProcedimiento(pool, id, body, usuario) {
+    await asegurarTablaSgcProcedimientos(pool);
+    const doc = await obtenerProcedimiento(pool, id);
+    if (!doc || !doc.activo) {
+        throw new Error('Procedimiento no encontrado.');
+    }
+
+    const titulo = sanitizarTexto(body?.titulo ?? body?.nombre, 255);
+    if (!titulo) {
+        throw new Error('El título no puede estar vacío.');
+    }
+
+    const nombreArchivo = nombreSeguroArchivo(
+        body?.nombre_archivo || body?.nombreArchivo || `${doc.codigo} ${titulo}.pdf`
+    );
+
+    await pool.query(
+        `UPDATE sgc_procedimientos
+         SET titulo = ?,
+             nombre_archivo = ?,
+             actualizado_por = ?,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = ? AND activo = 1`,
+        [titulo, nombreArchivo, sanitizarTexto(usuario, 128) || null, id]
+    );
+
+    return obtenerProcedimiento(pool, id);
+}
+
+/**
+ * Soft-delete del procedimiento (activo = 0). Intenta borrar el PDF en Drive.
+ */
+async function eliminarProcedimiento(pool, id, usuario) {
+    await asegurarTablaSgcProcedimientos(pool);
+    const doc = await obtenerProcedimiento(pool, id);
+    if (!doc || !doc.activo) {
+        throw new Error('Procedimiento no encontrado.');
+    }
+
+    await pool.query(
+        `UPDATE sgc_procedimientos
+         SET activo = 0,
+             actualizado_por = ?,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [sanitizarTexto(usuario, 128) || null, id]
+    );
+
+    if (doc.driveFileId) {
+        try {
+            await driveService.eliminarArchivo(doc.driveFileId);
+        } catch (driveErr) {
+            console.warn('[SGC-PROC] No se pudo eliminar el PDF en Drive:', driveErr.message);
+        }
+    }
+
+    return { id: doc.id, codigo: doc.codigo, eliminado: true };
+}
+
 module.exports = {
     CATALOGO_INICIAL,
     asegurarTablaSgcProcedimientos,
     listarProcedimientos,
     obtenerProcedimiento,
     subirProcedimiento,
-    reemplazarProcedimiento
+    reemplazarProcedimiento,
+    renombrarProcedimiento,
+    eliminarProcedimiento
 };

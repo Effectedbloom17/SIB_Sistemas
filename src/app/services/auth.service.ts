@@ -369,11 +369,33 @@ export class AuthService {
 
   /** Solo root o perfil calidad pueden asignar/quitar editores delegados SGC. */
   public puedeGestionarDelegacionesSgc(): boolean {
+    return this.esRootOCalidad();
+  }
+
+  /**
+   * Superadministrador (root) o perfil Calidad (sergio56 / calidad).
+   * Usado para acciones destructivas sensibles (eliminar en SGC / repositorio).
+   */
+  public esRootOCalidad(): boolean {
     if (this.esRoot()) {
       return true;
     }
     const username = String(this.getUsername() || '').toLowerCase().trim();
     return username === 'sergio56' || username === 'calidad';
+  }
+
+  /**
+   * Registros Recursos Humanos (FORMATOS RH):
+   * - Superadministrador (rol root)
+   * - Rozana (RozanaRG / bizna4116)
+   * - María Fernanda Becerra Hernández (mafer295)
+   */
+  public puedeVerRegistrosRh(): boolean {
+    if (this.esSuperusuario() || this.esRoot()) {
+      return true;
+    }
+    const username = String(this.getUsername() || '').toLowerCase().trim();
+    return username === 'rozanarg' || username === 'bizna4116' || username === 'mafer295';
   }
 
   /** Actualiza el flag de delegación SGC (p. ej. tras consultar /mi-permiso). */

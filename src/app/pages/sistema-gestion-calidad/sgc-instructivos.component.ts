@@ -28,6 +28,8 @@ interface MiniaturaEstado {
 export class SgcInstructivosComponent implements OnInit, OnDestroy {
   etiquetaRolUsuario = '';
   puedeGestionar = false;
+  /** Solo Superadministrador o Calidad pueden eliminar. */
+  puedeEliminar = false;
   busqueda = '';
   documentos: SgcInstructivoDoc[] = [];
   documentosFiltrados: SgcInstructivoDoc[] = [];
@@ -65,6 +67,7 @@ export class SgcInstructivosComponent implements OnInit, OnDestroy {
   errorReemplazo: string | null = null;
   documentoReemplazo: SgcInstructivoDoc | null = null;
   archivoReemplazo: File | null = null;
+  formTituloReemplazo = '';
 
   private readonly destroy$ = new Subject<void>();
 
@@ -122,10 +125,13 @@ export class SgcInstructivosComponent implements OnInit, OnDestroy {
 
   private initEtiquetaRol(): void {
     this.puedeGestionar = this.authService.esAdministradorOSuperior();
+    this.puedeEliminar = this.authService.esRootOCalidad();
     const roles = this.authService.getRoles();
     const principal = (this.authService.getRol() || '').toLowerCase();
     if (principal === 'root' || principal === 'administrador') {
       this.etiquetaRolUsuario = principal === 'root' ? 'Super administrador' : 'Administrador';
+    } else if (this.puedeEliminar) {
+      this.etiquetaRolUsuario = 'Calidad';
     } else if (roles.some(r => r === 'sgc')) {
       this.etiquetaRolUsuario = 'SGC';
     } else {
@@ -290,25 +296,159 @@ export class SgcInstructivosComponent implements OnInit, OnDestroy {
   }
 
   descargarPdfVisor(): void {
-    if (!this.puedeGestionar || !this.documentoActivo) {
+    if (!this.documentoActivo) {
       return;
     }
-    const nombre = this.documentoActivo.nombreArchivo || `${this.documentoActivo.codigo}.pdf`;
-    if (this.previewBlob) {
+    this.descargarDocumento(this.documentoActivo);
+  }
+
+  descargarDocumento(doc: SgcInstructivoDoc, event?: Event): void {
+    event?.stopPropagation();
+    if (!doc) {
+      return;
+    }
+    const nombre = doc.nombreArchivo || `${doc.codigo}.pdf`;
+    if (
+      this.previewBlob
+      && this.documentoActivo
+      && this.documentoActivo.codigo.toLowerCase() === doc.codigo.toLowerCase()
+    ) {
       this.dispararDescarga(this.previewBlob, nombre);
       return;
     }
-    this.backend.imprimirArchivoDriveComoPDF(this.documentoActivo.driveFileId, nombre).subscribe({
-      next: blob => this.dispararDescarga(blob, nombre),
-      error: () => {
-        Swal.fire({
-          icon: 'error',
-          title: 'No se pudo descargar',
-          text: 'Intenta de nuevo en unos segundos.',
-          confirmButtonColor: '#0f766e'
-        });
+    const driveId = String(doc.driveFileId || '').trim();
+    if (!driveId) {
+      void Swal.fire({
+        icon: 'info',
+        title: 'Descarga no disponible',
+        text: 'No se encontró el archivo en Drive.',
+        confirmButtonColor: '#0f766e'
+      });
+      return;
+    }
+    this.backend.imprimirArchivoDriveComoPDF(driveId, nombre)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: blob => this.dispararDescarga(blob, nombre),
+        error: () => {
+          void Swal.fire({
+            icon: 'error',
+            title: 'No se pudo descargar',
+            text: 'Intenta de nuevo en unos segundos.',
+            confirmButtonColor: '#0f766e'
+          });
+        }
+      });
+  }
+
+  renombrarDocumento(doc: SgcInstructivoDoc, event?: Event): void {
+    event?.stopPropagation();
+    if (!this.puedeGestionar || !doc?.id) {
+      return;
+    }
+    void Swal.fire({
+      title: 'Cambiar nombre',
+      input: 'text',
+      inputValue: doc.titulo,
+      inputPlaceholder: 'Nuevo título',
+      showCancelButton: true,
+      confirmButtonText: 'Guardar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#0f766e',
+      inputValidator: (valor) => {
+        const v = String(valor || '').trim();
+        if (!v) {
+          return 'El nombre no puede estar vacío';
+        }
+        return null;
       }
+    }).then((r) => {
+      if (!r.isConfirmed) {
+        return;
+      }
+      const titulo = String(r.value || '').trim();
+      if (!titulo || titulo === doc.titulo) {
+        return;
+      }
+      this.backend.renombrarSgcInstructivo(doc.id as number, titulo)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: () => {
+            void Swal.fire({
+              icon: 'success',
+              title: 'Actualizado',
+              text: `Renombrado a «${titulo}».`,
+              confirmButtonColor: '#0f766e',
+              timer: 1800,
+              showConfirmButton: false
+            });
+            this.cargarLista();
+          },
+          error: (err) => {
+            void Swal.fire({
+              icon: 'error',
+              title: 'Error',
+              text: err?.error?.message || 'No se pudo renombrar.',
+              confirmButtonColor: '#0f766e'
+            });
+          }
+        });
     });
+  }
+
+  eliminarDocumento(doc: SgcInstructivoDoc, event?: Event): void {
+    event?.stopPropagation();
+    if (!this.puedeEliminar || !doc?.id) {
+      return;
+    }
+    void Swal.fire({
+      icon: 'warning',
+      title: '¿Eliminar instructivo?',
+      html: `<p class="mb-0">Se eliminará <strong>${this.escapeHtml(doc.codigo)} — ${this.escapeHtml(doc.titulo)}</strong>.<br>Esta acción no se puede deshacer.</p>`,
+      showCancelButton: true,
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#dc3545',
+      cancelButtonColor: '#6c757d'
+    }).then((r) => {
+      if (!r.isConfirmed) {
+        return;
+      }
+      this.backend.eliminarSgcInstructivo(doc.id as number)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: () => {
+            if (this.documentoActivo?.id === doc.id || this.documentoActivo?.codigo === doc.codigo) {
+              this.cerrarVisor();
+            }
+            this.cargarLista();
+            void Swal.fire({
+              icon: 'success',
+              title: 'Eliminado',
+              text: 'El instructivo se eliminó correctamente.',
+              confirmButtonColor: '#0f766e',
+              timer: 1800,
+              showConfirmButton: false
+            });
+          },
+          error: (err) => {
+            void Swal.fire({
+              icon: 'error',
+              title: 'Error',
+              text: err?.error?.message || 'No se pudo eliminar el instructivo.',
+              confirmButtonColor: '#0f766e'
+            });
+          }
+        });
+    });
+  }
+
+  private escapeHtml(valor: string): string {
+    return String(valor || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
   }
 
   imprimirDocumento(doc?: SgcInstructivoDoc | null, event?: Event): void {
@@ -544,6 +684,7 @@ export class SgcInstructivosComponent implements OnInit, OnDestroy {
       return;
     }
     this.documentoReemplazo = doc;
+    this.formTituloReemplazo = doc.titulo || '';
     this.archivoReemplazo = null;
     this.errorReemplazo = null;
     this.mostrarReemplazo = true;
@@ -556,13 +697,21 @@ export class SgcInstructivosComponent implements OnInit, OnDestroy {
     this.mostrarReemplazo = false;
     this.documentoReemplazo = null;
     this.archivoReemplazo = null;
+    this.formTituloReemplazo = '';
     this.errorReemplazo = null;
   }
 
   onArchivoReemplazo(event: Event): void {
     const input = event.target as HTMLInputElement;
-    this.archivoReemplazo = input.files?.[0] || null;
+    const file = input.files?.[0] || null;
+    this.archivoReemplazo = file;
     this.errorReemplazo = null;
+    if (file) {
+      const inferido = this.inferirTituloDesdeNombre(file.name);
+      if (inferido) {
+        this.formTituloReemplazo = inferido;
+      }
+    }
     input.value = '';
   }
 
@@ -573,6 +722,11 @@ export class SgcInstructivosComponent implements OnInit, OnDestroy {
   async confirmarReemplazo(): Promise<void> {
     if (!this.puedeGestionar || this.reemplazando || !this.documentoReemplazo?.id || !this.archivoReemplazo) {
       this.errorReemplazo = 'Selecciona el PDF actualizado.';
+      return;
+    }
+    const titulo = this.formTituloReemplazo.trim();
+    if (!titulo) {
+      this.errorReemplazo = 'Indica el título del instructivo.';
       return;
     }
     if (!/\.pdf$/i.test(this.archivoReemplazo.name) && this.archivoReemplazo.type !== 'application/pdf') {
@@ -588,6 +742,7 @@ export class SgcInstructivosComponent implements OnInit, OnDestroy {
       const codigo = this.documentoReemplazo.codigo;
       const res = await firstValueFrom(
         this.backend.reemplazarSgcInstructivo(id, {
+          titulo,
           nombre_archivo: this.archivoReemplazo.name,
           mime_type: 'application/pdf',
           archivo_base64: base64
@@ -597,6 +752,7 @@ export class SgcInstructivosComponent implements OnInit, OnDestroy {
       this.mostrarReemplazo = false;
       this.documentoReemplazo = null;
       this.archivoReemplazo = null;
+      this.formTituloReemplazo = '';
 
       const idx = this.documentos.findIndex(d => d.id === id || d.codigo === codigo);
       if (idx >= 0) {
@@ -608,7 +764,7 @@ export class SgcInstructivosComponent implements OnInit, OnDestroy {
       await Swal.fire({
         icon: 'success',
         title: 'Archivo actualizado',
-        text: `${codigo} se reemplazó correctamente.`,
+        text: `${codigo} se reemplazó correctamente${actualizado.titulo ? ` como «${actualizado.titulo}»` : ''}.`,
         timer: 2200,
         showConfirmButton: false
       });
@@ -617,6 +773,19 @@ export class SgcInstructivosComponent implements OnInit, OnDestroy {
     } finally {
       this.reemplazando = false;
     }
+  }
+
+  /** Extrae el título desde un nombre tipo `SGC-I-01 Número de cotización....pdf`. */
+  private inferirTituloDesdeNombre(nombreArchivo: string): string {
+    const sinExt = String(nombreArchivo || '').replace(/\.pdf$/i, '').trim();
+    if (!sinExt) {
+      return '';
+    }
+    const matchCodigo = sinExt.match(/^[A-Za-z]{2,4}-I-\d{2}\s*(.*)$/i);
+    if (matchCodigo) {
+      return (matchCodigo[1] || '').trim();
+    }
+    return sinExt;
   }
 
   private leerArchivoBase64(file: File): Promise<string> {
