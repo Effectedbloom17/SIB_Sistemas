@@ -100,10 +100,11 @@
             </ng-container>
             <ng-template #tarjetaReporte let-lista="lista">
               <li class="mt-book" *ngFor="let s of lista; trackBy: trackBySol"
-                [class.mt-book--done]="!!s.pdfFirmado?.driveFileId">
+                [class.mt-book--done]="!!s.pdfFirmado?.driveFileId && !estaOculto(s)"
+                [class.mt-book--oculto]="estaOculto(s)">
                 <button type="button" class="mt-book__tap" (click)="abrirRegistro(s)"
-                  [attr.title]="'Abrir reporte ' + (s.folio || '')"
-                  [attr.aria-label]="'Abrir reporte'">
+                  [attr.title]="(estaOculto(s) ? 'Oculto · ' : '') + 'Abrir reporte ' + (s.folio || '')"
+                  [attr.aria-label]="estaOculto(s) ? 'Abrir reporte oculto' : 'Abrir reporte'">
                   <span class="mt-book__binding" aria-hidden="true">
                     <span class="mt-book__ring"></span><span class="mt-book__ring"></span>
                     <span class="mt-book__ring"></span><span class="mt-book__ring"></span>
@@ -111,8 +112,10 @@
                   <span class="mt-book__page">
                     <span class="mt-book__head">
                       <span class="mt-book__icon mt-book__icon--word"><i class="fas fa-file-word"></i></span>
-                      <span class="mt-book__estado" [class.mt-book__estado--ok]="!!s.pdfFirmado?.driveFileId">
-                        {{ s.pdfFirmado?.driveFileId ? 'Revisado' : 'Pendiente' }}
+                      <span class="mt-book__estado"
+                        [class.mt-book__estado--ok]="!!s.pdfFirmado?.driveFileId && !estaOculto(s)"
+                        [class.mt-book__estado--oculto]="estaOculto(s)">
+                        {{ estaOculto(s) ? 'Oculto' : (s.pdfFirmado?.driveFileId ? 'Revisado' : 'Pendiente') }}
                       </span>
                     </span>
                     <span class="mt-book__origen">{{ s.nombreSolicitante || 'Sin solicitante' }}</span>
@@ -130,12 +133,14 @@
                   </span>
                 </button>
                 <div class="mt-book__actions mt-book__actions--footer" *ngIf="esSuperAdmin">
-                  <button type="button" class="mt-book__borrar-btn mt-book__borrar-btn--ocultar"
+                  <button type="button" class="mt-book__borrar-btn"
+                    [class.mt-book__borrar-btn--ocultar]="!estaOculto(s)"
+                    [class.mt-book__borrar-btn--mostrar]="estaOculto(s)"
                     (click)="eliminarReporte(s, $event)"
-                    title="Ocultar formato (solo superadministrador)"
-                    aria-label="Ocultar formato">
-                    <i class="fas fa-eye-slash" aria-hidden="true"></i>
-                    <span>Ocultar formato</span>
+                    [title]="estaOculto(s) ? 'Mostrar formato (reactivar)' : 'Ocultar formato (solo superadministrador)'"
+                    [attr.aria-label]="estaOculto(s) ? 'Mostrar formato' : 'Ocultar formato'">
+                    <i class="fas" [ngClass]="estaOculto(s) ? 'fa-eye' : 'fa-eye-slash'" aria-hidden="true"></i>
+                    <span>{{ estaOculto(s) ? 'Mostrar formato' : 'Ocultar formato' }}</span>
                   </button>
                 </div>
               </li>

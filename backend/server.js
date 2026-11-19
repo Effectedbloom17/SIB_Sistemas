@@ -20959,6 +20959,26 @@ app.patch(
     }
 );
 
+app.patch(
+    '/api/mantenimiento/solicitudes/:id/activar',
+    authMiddleware,
+    denyEmpresa,
+    requireRole('root'),
+    async (req, res) => {
+        try {
+            const id = decodeURIComponent(String(req.params.id || '').trim());
+            const solicitud = await mantenimientoService.activarSolicitudCatalogo(pool, id);
+            res.json({ success: true, solicitud });
+        } catch (error) {
+            console.error('[mantenimiento] activar solicitud:', error);
+            res.status(error.status || 500).json({
+                success: false,
+                message: error.message || 'No se pudo reactivar la solicitud'
+            });
+        }
+    }
+);
+
 app.post(
     '/api/mantenimiento/solicitudes/:folio/evidencias',
     authMiddleware,

@@ -612,8 +612,9 @@ function fusionarCamposSolicitudDb(primario, secundario) {
     if (key) evMap.set(key, ev);
   }
   a.evidencias = Array.from(evMap.values());
-  // Solo oculto si ambos están ocultos (recupera reportes llenos mal desactivados).
-  a.activo = !(a.activo === false && b.activo === false);
+  // Respetar activo del primario: un cascarón no revive ocultos intencionales
+  // ni un cascarón oculto esconde un reporte lleno activo.
+  a.activo = a.activo !== false;
   const tsA = String(a.actualizadoEn || '');
   const tsB = String(b.actualizadoEn || '');
   a.actualizadoEn = tsA >= tsB ? tsA : tsB;
@@ -687,29 +688,8 @@ async function consolidarDuplicadosCatalogo(pool) {
       .map((s) => [String(s.formsResponseId).trim(), s.id])
   );
 
-  // Por formsResponseId: si el ganador tiene gestión y había cascarones, recuperar visibilidad.
-  const grupoPorForms = new Map();
-  for (const raw of todas) {
-    const rid = String(raw.formsResponseId || '').trim();
-    if (!rid) continue;
-    if (!grupoPorForms.has(rid)) grupoPorForms.set(rid, []);
-    grupoPorForms.get(rid).push(raw);
-  }
-  for (const sol of consolidadas) {
-    const rid = String(sol.formsResponseId || '').trim();
-    if (!rid) continue;
-    const grupo = grupoPorForms.get(rid) || [];
-    if (grupo.length < 2) continue;
-    const score = scoreRiquezaSolicitudDb(sol);
-    const habiaCascaron = grupo.some(
-      (s) => s.id !== sol.id && scoreRiquezaSolicitudDb(s) < Math.max(4, score)
-    );
-    const algunoActivo = grupo.some((s) => s.activo !== false);
-    // Recupera reportes con gestión que quedaron ocultos por cascarones duplicados.
-    if (sol.activo === false && score >= 4 && (algunoActivo || habiaCascaron)) {
-      sol.activo = true;
-    }
-  }
+  // No reactivar ganadores ocultos: "Ocultar formato" debe persistir aunque
+  // existan cascarones duplicados activos del mismo Forms.
 
   let ganadores = 0;
   let ocultos = 0;
@@ -827,7 +807,7 @@ async function guardarSolicitudesCatalogo(pool, lista) {
   return { guardados };
 }
 
-async function desactivarSolicitudCatalogo(pool, id) {
+async function setActivoSolicitudCatalogo(pool, id, activo) {
   await asegurarEsquemaSolicitudes(pool);
   const key = String(id || '').trim();
   if (!key) {
@@ -846,20 +826,29 @@ async function desactivarSolicitudCatalogo(pool, id) {
     err.status = 404;
     throw err;
   }
+  const visible = activo !== false && activo !== 0 && activo !== '0';
   const datos = normalizarSolicitudDb(parseDatosJson(row.datos_json), row) || {
     id: key,
     folio: row.folio,
-    activo: false
+    activo: visible
   };
-  datos.activo = false;
+  datos.activo = visible;
   datos.actualizadoEn = new Date().toISOString();
   await pool.query(
     `UPDATE mantenimiento_solicitud
-     SET activo = 0, datos_json = ?, actualizado_en = NOW()
+     SET activo = ?, datos_json = ?, actualizado_en = NOW()
      WHERE id = ?`,
-    [JSON.stringify(datos), key]
+    [visible ? 1 : 0, JSON.stringify(datos), key]
   );
   return datos;
+}
+
+async function desactivarSolicitudCatalogo(pool, id) {
+  return setActivoSolicitudCatalogo(pool, id, false);
+}
+
+async function activarSolicitudCatalogo(pool, id) {
+  return setActivoSolicitudCatalogo(pool, id, true);
 }
 
 /**
@@ -970,6 +959,7 @@ module.exports = {
   listarSolicitudesCatalogo,
   guardarSolicitudesCatalogo,
   desactivarSolicitudCatalogo,
+  activarSolicitudCatalogo,
   aplicarCamposReporteF04AlCatalogo,
   consolidarDuplicadosCatalogo,
   consolidarSolicitudesEnMemoria

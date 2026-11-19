@@ -2,6 +2,7 @@ import { ChangeDetectorRef, Component, ElementRef, EventEmitter, Input, OnDestro
 import { DomSanitizer, SafeResourceUrl, SafeUrl } from '@angular/platform-browser';
 import { HttpEventType } from '@angular/common/http';
 import { ActivatedRoute, Router } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
 import Swal from 'sweetalert2';
 import { AuthService } from 'src/app/services/auth.service';
 import { BackendServices } from 'src/app/services/backend.services';
@@ -187,7 +188,14 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
   }
 
   get reportesActivosFiltrados(): EinF02Solicitud[] {
-    return this.filtrarReportes(soloActivos(fusionarSolicitudes(this.solicitudes, [])));
+    const base = fusionarSolicitudes(this.solicitudes, []);
+    // Root ve ocultos en gris para poder reactivarlos; el resto solo activos.
+    const visibles = this.esSuperAdmin ? base : soloActivos(base);
+    return this.filtrarReportes(visibles);
+  }
+
+  estaOculto(sol: EinF02Solicitud | null | undefined): boolean {
+    return !!sol && sol.activo === false;
   }
 
   /** Correctivos arriba en el archivero (incluye sin tipo). */
@@ -1342,13 +1350,17 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
     if (!sol || !this.esSuperAdmin) {
       return;
     }
+    if (this.estaOculto(sol)) {
+      await this.reactivarReporte(sol);
+      return;
+    }
     const tipo = sol.tipoMantenimiento === 'Preventivo' ? 'preventivo' : 'correctivo';
     const result = await Swal.fire({
       icon: 'warning',
       title: '¿Ocultar formato?',
       html:
-        `Se ocultará el reporte <strong>${tipo}</strong> del archivero y de la bitácora F-03.`
-        + '<br><small>Solo superadministrador puede hacer esto.</small>',
+        `Se ocultará el reporte <strong>${tipo}</strong> del archivero (gris para root) y de la bitácora F-03.`
+        + '<br><small>No se borra información; puedes reactivarlo después.</small>',
       showCancelButton: true,
       confirmButtonText: 'Ocultar',
       cancelButtonText: 'Cancelar',
@@ -1358,33 +1370,72 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
     if (!result.isConfirmed) {
       return;
     }
-    sol.activo = false;
-    sol.actualizadoEn = new Date().toISOString();
+    await this.aplicarVisibilidadReporte(sol, false);
+  }
+
+  async reactivarReporte(sol: EinF02Solicitud, event?: Event): Promise<void> {
+    event?.stopPropagation();
+    event?.preventDefault();
+    if (!sol || !this.esSuperAdmin) {
+      return;
+    }
+    const result = await Swal.fire({
+      icon: 'question',
+      title: '¿Mostrar formato?',
+      html: 'El reporte volverá a verse en el archivero y en la bitácora F-03 para todos los perfiles.',
+      showCancelButton: true,
+      confirmButtonText: 'Mostrar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#008542',
+      reverseButtons: true
+    });
+    if (!result.isConfirmed) {
+      return;
+    }
+    await this.aplicarVisibilidadReporte(sol, true);
+  }
+
+  private async aplicarVisibilidadReporte(sol: EinF02Solicitud, visible: boolean): Promise<void> {
+    const ahora = new Date().toISOString();
+    sol.activo = visible;
+    sol.actualizadoEn = ahora;
+    const marca = { activo: visible, actualizadoEn: ahora };
     const disco = cargarSolicitudesLocal().map(s =>
-      s.id === sol.id ? { ...s, activo: false, actualizadoEn: sol.actualizadoEn } : s
+      s.id === sol.id ? { ...s, ...marca } : s
     );
     if (!disco.some(s => s.id === sol.id)) {
-      disco.push({ ...sol, activo: false });
+      disco.push({ ...sol, ...marca });
     }
-    // Conservar también otros ocultos/llenos del disco al persistir.
-    const fusionDisco = fusionarSolicitudes(disco, this.solicitudes.map(s =>
-      s.id === sol.id ? { ...s, activo: false, actualizadoEn: sol.actualizadoEn } : s
-    ));
+    const fusionDisco = fusionarSolicitudes(
+      disco,
+      this.solicitudes.map(s => (s.id === sol.id ? { ...s, ...marca } : s))
+    );
     guardarSolicitudesLocal(fusionDisco);
     this.solicitudes = fusionDisco;
     this.guardadoLocal = true;
-    this.backend.desactivarSolicitudMantenimiento(sol.id).subscribe({
-      error: () => {
-        /* local ya quedó desactivado; el próximo sync reintentará */
-      }
-    });
-    if (this.seleccionada?.id === sol.id) {
+
+    const req$ = visible
+      ? this.backend.activarSolicitudMantenimiento(sol.id)
+      : this.backend.desactivarSolicitudMantenimiento(sol.id);
+    try {
+      await firstValueFrom(req$);
+    } catch {
+      this.flash(
+        visible
+          ? 'No se pudo reactivar en el servidor; quedó solo en este equipo.'
+          : 'No se pudo ocultar en el servidor; quedó solo en este equipo.'
+      );
+    }
+
+    if (!visible && this.seleccionada?.id === sol.id) {
       this.volverArchivero();
     }
     window.dispatchEvent(new CustomEvent('biznaga:ein-f02:cambio', {
-      detail: { eliminadoId: sol.id, desactivadoId: sol.id }
+      detail: visible
+        ? { reactivadoId: sol.id }
+        : { eliminadoId: sol.id, desactivadoId: sol.id }
     }));
-    this.flash('Formato oculto del archivero.');
+    this.flash(visible ? 'Formato visible de nuevo.' : 'Formato oculto (gris para root).');
   }
 
   irABitacoraF03(_sol?: EinF02Solicitud): void {

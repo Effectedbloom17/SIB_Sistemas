@@ -985,6 +985,35 @@
     color: #b45309;
     &:hover { background: #fff7ed; }
   }
+
+  &--mostrar {
+    border-color: rgba(0, 133, 66, 0.4);
+    color: #008542;
+    &:hover { background: #ecfdf5; }
+  }
+}
+
+.mt-book--oculto {
+  opacity: 0.55;
+  filter: grayscale(0.85);
+
+  .mt-book__binding {
+    background: linear-gradient(180deg, #94a3b8, #64748b) !important;
+  }
+
+  .mt-book__page {
+    background: #f1f5f9;
+  }
+
+  .mt-book__resumen,
+  .mt-book__origen {
+    color: #64748b;
+  }
+}
+
+.mt-book__estado--oculto {
+  background: #e2e8f0 !important;
+  color: #475569 !important;
 }
 
 .mt-f04-loading {

@@ -125,7 +125,17 @@ export class EinF02SolicitudComponent implements OnInit, AfterViewChecked, OnDes
   }
 
   @HostListener('window:biznaga:ein-f02:cambio', ['$event'])
-  onSolicitudesCambio(ev: CustomEvent<{ eliminadoId?: string; desactivadoId?: string }>): void {
+  onSolicitudesCambio(
+    ev: CustomEvent<{ eliminadoId?: string; desactivadoId?: string; reactivadoId?: string }>
+  ): void {
+    const reactivarId = ev?.detail?.reactivadoId;
+    if (reactivarId) {
+      this.catalogoCompleto = this.catalogoCompleto.map(f =>
+        f.id === reactivarId ? { ...f, activo: true } : f
+      );
+      this.filas = soloActivos(this.catalogoCompleto);
+      return;
+    }
     const id = ev?.detail?.desactivadoId || ev?.detail?.eliminadoId;
     if (!id) {
       return;

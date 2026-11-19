@@ -389,8 +389,10 @@ export function fusionarCamposSolicitud(
   }
   out.evidencias = Array.from(evMap.values());
 
-  // Recuperar visibilidad si al menos una copia seguía activa.
-  out.activo = !(a.activo === false && b.activo === false);
+  // Respetar el activo del primario (más reciente/rico). Un cascarón activo
+  // no debe reactivar un reporte ocultado a propósito, ni un cascarón oculto
+  // esconder un reporte lleno que sigue activo.
+  out.activo = a.activo !== false;
 
   const tsA = String(a.actualizadoEn || '');
   const tsB = String(b.actualizadoEn || '');
