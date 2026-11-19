@@ -756,11 +756,14 @@ export class BackendServices {
     generarReporteMantenimientoF04(folio: string, payload: {
         descripcionMantenimientoRealizado?: string;
         descripcionMantenimiento?: string;
+        descripcionProblema?: string;
+        tipoInfraestructura?: string;
         evidencias?: Array<{ driveFileId?: string; url?: string; webViewLink?: string; nombre?: string }>;
         tipoMantenimiento?: string;
         fechaSolicitud?: string;
         fechaRealizado?: string;
         responsable?: string;
+        responsableMantenimiento?: string;
         nombreSolicitante?: string;
         nombreArchivo?: string;
         reporteDriveFileId?: string;

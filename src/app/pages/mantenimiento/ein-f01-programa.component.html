@@ -72,33 +72,62 @@
               <h3 class="mt-panorama__title mb-0">Evolución de mantenimientos programados</h3>
             </div>
             <div class="mt-panorama__pills">
-              <span class="mt-pill mt-pill--slate">
+              <span class="mt-pill mt-pill--slate" title="Semanas marcadas P en el año">
                 <i class="fas fa-calendar-check" aria-hidden="true"></i>
-                Programados <strong>{{ totalProgramados }}</strong>
+                Semanas <strong>{{ totalProgramados }}</strong>
               </span>
-              <span class="mt-pill mt-pill--green">
+              <span class="mt-pill mt-pill--green" title="Semanas programadas de tipo interno">
                 <i class="fas fa-building" aria-hidden="true"></i>
-                Internos <strong>{{ totalInternos }}</strong>
+                Internos <strong>{{ totalProgramadosInt }}</strong>
               </span>
-              <span class="mt-pill mt-pill--amber">
+              <span class="mt-pill mt-pill--amber" title="Semanas programadas de tipo externo">
                 <i class="fas fa-handshake" aria-hidden="true"></i>
-                Externos <strong>{{ totalExternos }}</strong>
+                Externos <strong>{{ totalProgramadosExt }}</strong>
+              </span>
+              <span class="mt-pill mt-pill--muted" title="Activos en el programa">
+                <i class="fas fa-server" aria-hidden="true"></i>
+                Activos <strong>{{ filas.length }}</strong>
+                <span class="mt-pill__split">
+                  {{ totalInternos }} Int · {{ totalExternos }} Ext
+                </span>
               </span>
             </div>
           </div>
 
-          <div class="mt-bars" role="img" [attr.aria-label]="'Programados por mes en ' + meta.anio">
+          <div
+            class="mt-bars"
+            role="img"
+            [attr.aria-label]="'Semanas programadas por mes en ' + meta.anio + ': ' + totalProgramadosInt + ' internas y ' + totalProgramadosExt + ' externas'"
+          >
             <div class="mt-bars__col" *ngFor="let mes of meses; let mi = index">
               <div class="mt-bars__track">
                 <div
-                  class="mt-bars__fill"
+                  class="mt-bars__stack"
+                  [class.is-empty]="!programadosPorMes[mi]"
                   [style.height.%]="alturaBarraMes(mi)"
-                  [attr.title]="mes + ': ' + programadosPorMes[mi]"
-                ></div>
+                  [attr.title]="tituloBarraMes(mi)"
+                >
+                  <div
+                    class="mt-bars__seg mt-bars__seg--int"
+                    *ngIf="programadosIntPorMes[mi]"
+                    [style.flex-grow]="programadosIntPorMes[mi]"
+                  ></div>
+                  <div
+                    class="mt-bars__seg mt-bars__seg--ext"
+                    *ngIf="programadosExtPorMes[mi]"
+                    [style.flex-grow]="programadosExtPorMes[mi]"
+                  ></div>
+                </div>
               </div>
-              <span class="mt-bars__count">{{ programadosPorMes[mi] }}</span>
+              <span class="mt-bars__count" [class.is-zero]="!programadosPorMes[mi]">
+                {{ programadosPorMes[mi] }}
+              </span>
               <span class="mt-bars__label">{{ mes | slice:0:3 }}</span>
             </div>
+          </div>
+          <div class="mt-bars__legend" aria-hidden="true">
+            <span class="mt-bars__legend-item mt-bars__legend-item--int">Interno</span>
+            <span class="mt-bars__legend-item mt-bars__legend-item--ext">Externo</span>
           </div>
         </div>
       </section>

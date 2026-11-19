@@ -1,4 +1,4 @@
-import { Component, ElementRef, EventEmitter, Input, OnDestroy, OnInit, Output, SecurityContext, ViewChild } from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, EventEmitter, Input, OnDestroy, OnInit, Output, SecurityContext, ViewChild } from '@angular/core';
 import { DomSanitizer, SafeResourceUrl, SafeUrl } from '@angular/platform-browser';
 import { HttpEventType } from '@angular/common/http';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -21,7 +21,6 @@ import {
   fusionarSolicitudes,
   guardarSolicitudesLocal,
   puestoDesdeRol,
-  scoreRiquezaSolicitud,
   sincronizarCasosDesdeForms,
   soloActivos
 } from './ein-f02-solicitud.catalog';
@@ -48,6 +47,7 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
   @ViewChild('inputWordImport') inputWordImport?: ElementRef<HTMLInputElement>;
   @ViewChild('inputFormatoImport') inputFormatoImport?: ElementRef<HTMLInputElement>;
   @ViewChild('inputPptxImport') inputPptxImport?: ElementRef<HTMLInputElement>;
+  @ViewChild('pptxWizardRoot') pptxWizardRoot?: ElementRef<HTMLElement>;
 
   solicitudes: EinF02Solicitud[] = [];
   seleccionada: EinF02Solicitud | null = null;
@@ -60,6 +60,8 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
   importandoFormatos = false;
   pptxWizard: EinF04PptxImportPack | null = null;
   pptxSlideActiva = 0;
+  /** blob: URLs requieren bypass; Angular las marca unsafe en [src]. */
+  private pptxPreviewSafe = new Map<string, SafeUrl>();
   private fotosImportPorSolicitud = new Map<string, File[]>();
   subiendoEvidencias = false;
   progresoSubida = 0;
@@ -78,6 +80,10 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
   private claveAbrirPendiente: string | null = null;
   /** Evita que Forms recree vacíos antes de recuperar lo del servidor. */
   private catalogoServidorListo = false;
+  /** Reintentos de anclar scroll arriba tras autosize / llegada de datos. */
+  private scrollArribaTimers: ReturnType<typeof setTimeout>[] = [];
+  /** Marca de tiempo al abrir el editor; sirve para re-anclar tras sync del servidor. */
+  private editorAbiertoEn = 0;
 
   lightboxAbierto = false;
   lightboxUrl = '';
@@ -94,7 +100,8 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
     private route: ActivatedRoute,
     private router: Router,
     private sanitizer: DomSanitizer,
-    private uploadSourceChooser: UploadSourceChooserService
+    private uploadSourceChooser: UploadSourceChooserService,
+    private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
@@ -112,6 +119,7 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
 
     if (folioRoute) {
       this.claveAbrirPendiente = folioRoute;
+      this.scrollAlInicio();
       this.intentarAbrirPorClave(folioRoute);
       setTimeout(() => {
         if (!this.destruido) {
@@ -122,6 +130,13 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
       this.nuevoReporte();
       this.router.navigate([], { relativeTo: this.route, queryParams: {}, replaceUrl: true });
     }
+  }
+
+  /** True mientras se resuelve el folio de la URL y aún no hay editor. */
+  get cargandoReportePorRuta(): boolean {
+    return !this.embebido
+      && !!this.claveAbrirPendiente
+      && !(this.vista === 'editor' && this.seleccionada);
   }
 
   /** Perfiles con gestión de mantenimiento (sidebar EIN). */
@@ -149,6 +164,7 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.destruido = true;
+    this.limpiarTimersScrollArriba();
     if (this.guiaSolicitanteTimer) {
       clearTimeout(this.guiaSolicitanteTimer);
       this.guiaSolicitanteTimer = null;
@@ -170,37 +186,39 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
     return soloActivos(fusionarSolicitudes(this.solicitudes, [])).filter(s => !esRegistroForms(s));
   }
 
-  get reportesFormsFiltrados(): EinF02Solicitud[] {
-    return this.filtrarReportes(this.solicitudesForms);
+  get reportesActivosFiltrados(): EinF02Solicitud[] {
+    return this.filtrarReportes(soloActivos(fusionarSolicitudes(this.solicitudes, [])));
   }
 
-  get reportesManualesFiltrados(): EinF02Solicitud[] {
-    return this.filtrarReportes(this.solicitudesManuales);
+  /** Correctivos arriba en el archivero (incluye sin tipo). */
+  get reportesCorrectivosFiltrados(): EinF02Solicitud[] {
+    return this.reportesActivosFiltrados.filter(s => s.tipoMantenimiento !== 'Preventivo');
+  }
+
+  /** Preventivos abajo en el archivero. */
+  get reportesPreventivosFiltrados(): EinF02Solicitud[] {
+    return this.reportesActivosFiltrados.filter(s => s.tipoMantenimiento === 'Preventivo');
   }
 
   esDeForms(sol: EinF02Solicitud | null | undefined): boolean {
     return esRegistroForms(sol as EinF02Solicitud);
   }
 
-  /** Texto visible en tarjeta para recuperar lo capturado por cada perfil. */
+  /** Descripción del problema (prioridad) para la tarjeta del archivero. */
   resumenTarjeta(s: EinF02Solicitud): string {
-    const gestion = String(s.descripcionMantenimientoRealizado || '').trim();
-    if (gestion) {
-      return gestion;
-    }
     const problema = String(s.descripcionProblema || '').trim();
     if (problema) {
       return problema;
+    }
+    const gestion = String(s.descripcionMantenimientoRealizado || '').trim();
+    if (gestion) {
+      return gestion;
     }
     const infra = String(s.tipoInfraestructura || s.ubicacion || '').trim();
     if (infra) {
       return infra;
     }
     return '';
-  }
-
-  tieneGestion(s: EinF02Solicitud): boolean {
-    return scoreRiquezaSolicitud(s) >= 4;
   }
 
   get solicitantesGuia(): string[] {
@@ -358,6 +376,9 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
     }
     this.descripcionAutosizeTick += 1;
     this.asegurarSnapshotDrive(sol);
+    this.editorAbiertoEn = Date.now();
+    // Anclar arriba al abrir: la info superior llega/asize después y si no, la lectura queda de abajo hacia arriba.
+    this.scrollAlInicio(true);
   }
 
   /** @deprecated usar abrirRegistro */
@@ -402,16 +423,20 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
           return;
         }
         const base = fusionarSolicitudes(
-          conservarReportesManuales(this.solicitudes, cargarSolicitudesLocal()),
+          this.inyectarSeleccionadaEnLista(
+            conservarReportesManuales(this.solicitudes, cargarSolicitudesLocal())
+          ),
           cargarSolicitudesLocal()
         );
         const { lista, nuevos, eliminados } = sincronizarCasosDesdeForms(base, casos);
         this.solicitudes = fusionarSolicitudes(lista, base);
         this.persistir();
         if (this.seleccionada) {
-          const refreshed = encontrarSolicitudPorClave(this.solicitudes, this.seleccionada.id);
-          if (refreshed && refreshed.activo !== false) {
-            this.seleccionada = refreshed;
+          if (this.seleccionada.activo !== false) {
+            this.descripcionAutosizeTick += 1;
+            if (this.vista === 'editor' && Date.now() - this.editorAbiertoEn < 2800) {
+              this.scrollAlInicio(true);
+            }
           } else {
             this.seleccionada = null;
             this.vista = 'archivero';
@@ -554,9 +579,23 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
   }
 
   cerrarWizardPptx(): void {
+    this.setWizardBodyState(false);
     liberarPreviewsPptx(this.pptxWizard);
+    this.pptxPreviewSafe.clear();
     this.pptxWizard = null;
     this.pptxSlideActiva = 0;
+  }
+
+  /** Previews del wizard PPTX (blob:) sanitizadas para <img [src]>. */
+  previewPptx(src: string): SafeUrl {
+    const key = String(src || '');
+    const cached = this.pptxPreviewSafe.get(key);
+    if (cached) {
+      return cached;
+    }
+    const safe = this.sanitizer.bypassSecurityTrustUrl(key);
+    this.pptxPreviewSafe.set(key, safe);
+    return safe;
   }
 
   seleccionarSlideWizard(idx: number): void {
@@ -580,6 +619,10 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
       this.cerrarWizardPptx();
       this.pptxWizard = pack;
       this.pptxSlideActiva = Math.max(0, pack.slides.findIndex(s => s.incluir));
+      // Sacarlo del stacking context de .mt-main-wrap (debajo del sidebar).
+      this.cdr.detectChanges();
+      this.attachWizardToBody();
+      setTimeout(() => this.attachWizardToBody(), 50);
       if (aplicarASeleccionado && this.seleccionada && pack.slides.filter(s => s.incluir).length === 1) {
         const unica = pack.slides.find(s => s.incluir);
         if (unica) {
@@ -658,7 +701,7 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
     if (creados.length === 1 && !this.embebido) {
       this.abrirRegistro(creados[0]);
     } else {
-      this.flash(`${creados.length} reporte(s) listos en «Escritos aquí».`);
+      this.flash(`${creados.length} reporte(s) listos en el archivero.`);
     }
   }
 
@@ -815,19 +858,33 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
       this.flash('Indica el responsable que realizó el mantenimiento.');
       return;
     }
-    this.onCampoChange();
+    // Persistir catálogo (BD) con el objeto vivo del editor; Drive es aparte.
+    sol.actualizadoEn = new Date().toISOString();
+    this.persistir(true);
     this.generandoReporte = true;
-    this.backend.generarReporteMantenimientoF04(sol.folio, this.payloadReporteF04(sol)).subscribe({
+    const solViva = this.seleccionada?.id === sol.id ? this.seleccionada : sol;
+    this.backend.generarReporteMantenimientoF04(solViva.folio, this.payloadReporteF04(solViva)).subscribe({
       next: (res) => {
         this.generandoReporte = false;
         const reporte = res?.reporte;
-        if (reporte?.driveFileId) {
-          sol.reporteDriveFileId = reporte.driveFileId;
-          sol.reporteWebViewLink = reporte.webViewLink || sol.reporteWebViewLink;
-          this.persistir();
-          this.marcarSincronizadoDrive(sol);
+        const actual = this.seleccionada?.id === sol.id ? this.seleccionada : sol;
+        const desdeCatalogo = res?.solicitud;
+        if (desdeCatalogo && actual) {
+          if (desdeCatalogo.reporteDriveFileId) {
+            actual.reporteDriveFileId = desdeCatalogo.reporteDriveFileId;
+          }
+          if (desdeCatalogo.reporteWebViewLink) {
+            actual.reporteWebViewLink = desdeCatalogo.reporteWebViewLink;
+          }
         }
-        this.flash('Información guardada en Word/Drive.');
+        if (reporte?.driveFileId) {
+          actual.reporteDriveFileId = reporte.driveFileId;
+          actual.reporteWebViewLink = reporte.webViewLink || actual.reporteWebViewLink;
+          actual.actualizadoEn = new Date().toISOString();
+          this.persistir(true);
+          this.marcarSincronizadoDrive(actual);
+        }
+        this.flash('Información guardada en catálogo y Word/Drive.');
       },
       error: (err) => {
         this.generandoReporte = false;
@@ -839,11 +896,14 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
   private payloadReporteF04(sol: EinF02Solicitud): Record<string, unknown> {
     return {
       descripcionMantenimientoRealizado: sol.descripcionMantenimientoRealizado,
+      descripcionProblema: sol.descripcionProblema,
+      tipoInfraestructura: sol.tipoInfraestructura,
       evidencias: sol.evidencias || [],
       tipoMantenimiento: sol.tipoMantenimiento,
       fechaSolicitud: sol.fechaSolicitud,
       fechaRealizado: sol.fechaRealizado,
       responsable: sol.responsableMantenimiento,
+      responsableMantenimiento: sol.responsableMantenimiento,
       nombreSolicitante: sol.nombreSolicitante,
       nombreArchivo: sol.folio,
       reporteDriveFileId: sol.reporteDriveFileId
@@ -1134,7 +1194,39 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
 
   private setEditorBodyState(abierto: boolean): void {
     document.body.classList.toggle('mt-drive-editor-open', abierto);
-    document.body.style.overflow = abierto ? 'hidden' : '';
+    if (!document.body.classList.contains('mt-pptx-wizard-open')) {
+      document.body.style.overflow = abierto ? 'hidden' : '';
+    }
+  }
+
+  /** El modal vive dentro de .mt-main-wrap (z-index 5); hay que montarlo en body. */
+  private attachWizardToBody(): void {
+    const el = this.pptxWizardRoot?.nativeElement;
+    if (!el || !this.pptxWizard) {
+      return;
+    }
+    if (el.parentElement !== document.body) {
+      document.body.appendChild(el);
+    }
+    // Inline por si el encapsulado no aplica al mover el nodo (sidebar z-index 1050).
+    el.style.position = 'fixed';
+    el.style.inset = '0';
+    el.style.zIndex = '100050';
+    el.style.display = 'flex';
+    el.style.alignItems = 'center';
+    el.style.justifyContent = 'center';
+    this.setWizardBodyState(true);
+  }
+
+  private setWizardBodyState(abierto: boolean): void {
+    document.body.classList.toggle('mt-pptx-wizard-open', abierto);
+    if (abierto) {
+      document.body.style.overflow = 'hidden';
+      return;
+    }
+    if (!document.body.classList.contains('mt-drive-editor-open')) {
+      document.body.style.overflow = '';
+    }
   }
 
   private mostrarEditorIntegradoF04(sol: EinF02Solicitud): void {
@@ -1250,17 +1342,17 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
     if (!sol || !this.esSuperAdmin) {
       return;
     }
-    const origen = esRegistroForms(sol) ? 'Forms' : 'escrito aquí';
+    const tipo = sol.tipoMantenimiento === 'Preventivo' ? 'preventivo' : 'correctivo';
     const result = await Swal.fire({
       icon: 'warning',
-      title: '¿Borrar reporte?',
+      title: '¿Ocultar formato?',
       html:
-        `Se desactiva <strong>${sol.folio}</strong> (${origen}) del archivero y de la bitácora F-03.`
+        `Se ocultará el reporte <strong>${tipo}</strong> del archivero y de la bitácora F-03.`
         + '<br><small>Solo superadministrador puede hacer esto.</small>',
       showCancelButton: true,
-      confirmButtonText: 'Borrar',
+      confirmButtonText: 'Ocultar',
       cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#b91c1c',
+      confirmButtonColor: '#b45309',
       reverseButtons: true
     });
     if (!result.isConfirmed) {
@@ -1292,7 +1384,7 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
     window.dispatchEvent(new CustomEvent('biznaga:ein-f02:cambio', {
       detail: { eliminadoId: sol.id, desactivadoId: sol.id }
     }));
-    this.flash('Reporte borrado del archivero.');
+    this.flash('Formato oculto del archivero.');
   }
 
   irABitacoraF03(_sol?: EinF02Solicitud): void {
@@ -1421,10 +1513,14 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
           return;
         }
         const remoto = Array.isArray(res?.solicitudes) ? res.solicitudes : [];
-        const local = conservarReportesManuales(this.solicitudes, cargarSolicitudesLocal());
+        // Incluye ediciones vivas del editor para que el remoto vacío no las borre.
+        const local = this.inyectarSeleccionadaEnLista(
+          conservarReportesManuales(this.solicitudes, cargarSolicitudesLocal())
+        );
         const fusion = fusionarSolicitudes(local, remoto);
         this.solicitudes = fusion;
-        this.guardadoLocal = guardarSolicitudesLocal(fusion);
+        this.reasignarSeleccionadaTrasFusion();
+        this.guardadoLocal = guardarSolicitudesLocal(this.solicitudes);
         this.catalogoServidorListo = true;
         this.desactivarDuplicadosForms(remoto, fusion);
         const pendientesSubir = soloActivos(fusion).filter(s =>
@@ -1435,10 +1531,11 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
         }
         if (this.claveAbrirPendiente) {
           this.intentarAbrirPorClave(this.claveAbrirPendiente);
-        } else if (this.seleccionada) {
-          const refreshed = encontrarSolicitudPorClave(soloActivos(fusion), this.seleccionada.id);
-          if (refreshed) {
-            this.seleccionada = refreshed;
+        } else if (this.seleccionada && this.vista === 'editor') {
+          this.descripcionAutosizeTick += 1;
+          // Si el catálogo llegó justo al abrir, re-anclar para no quedar a media página.
+          if (Date.now() - this.editorAbiertoEn < 2800) {
+            this.scrollAlInicio(true);
           }
         }
         this.sincronizarDesdeForms(true);
@@ -1472,17 +1569,49 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
     }
   }
 
-  private persistir(): void {
+  /**
+   * `fusionarSolicitudes` clona objetos; si no reinyectamos `seleccionada`,
+   * el editor sigue mutando una copia huérfana y el catálogo/BD nunca reciben
+   * los cambios (Drive sí, porque lee el objeto vivo).
+   */
+  private inyectarSeleccionadaEnLista(lista: EinF02Solicitud[]): EinF02Solicitud[] {
+    if (!this.seleccionada?.id) {
+      return lista || [];
+    }
+    const out = [...(lista || [])];
+    const idx = out.findIndex(s => s.id === this.seleccionada!.id);
+    if (idx >= 0) {
+      out[idx] = this.seleccionada;
+    } else {
+      out.unshift(this.seleccionada);
+    }
+    return out;
+  }
+
+  private reasignarSeleccionadaTrasFusion(): void {
+    if (!this.seleccionada) {
+      return;
+    }
+    const refreshed =
+      encontrarSolicitudPorClave(this.solicitudes, this.seleccionada.id)
+      || encontrarSolicitudPorClave(this.solicitudes, this.seleccionada.folio);
+    if (refreshed) {
+      this.seleccionada = refreshed;
+    }
+  }
+
+  private persistir(inmediatoServidor = false): void {
     const disco = cargarSolicitudesLocal();
-    this.solicitudes = fusionarSolicitudes(
-      conservarReportesManuales(this.solicitudes, disco),
-      disco
+    const memoria = this.inyectarSeleccionadaEnLista(
+      conservarReportesManuales(this.solicitudes, disco)
     );
+    this.solicitudes = fusionarSolicitudes(memoria, disco);
+    this.reasignarSeleccionadaTrasFusion();
     this.guardadoLocal = guardarSolicitudesLocal(this.solicitudes);
     if (!this.guardadoLocal) {
       this.flash('No se pudo guardar localmente.');
     }
-    this.programarSyncServidor();
+    this.programarSyncServidor(inmediatoServidor);
   }
 
   private programarSyncServidor(inmediato = false): void {
@@ -1519,6 +1648,38 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
         this.mensajeEstado = '';
       }
     }, 2800);
+  }
+
+  /** Lleva el viewport al inicio del reporte (hero / toolbar), no a media página. */
+  private scrollAlInicio(conReintentos = false): void {
+    const run = () => {
+      if (this.destruido) {
+        return;
+      }
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      const ancla = document.getElementById('mt-f04-top');
+      if (ancla) {
+        ancla.scrollIntoView({ behavior: 'auto', block: 'start' });
+      }
+    };
+    run();
+    if (!conReintentos) {
+      return;
+    }
+    this.limpiarTimersScrollArriba();
+    // Tras pintar editor, autosize de textareas y fusión del servidor.
+    for (const ms of [0, 80, 220, 500]) {
+      this.scrollArribaTimers.push(setTimeout(run, ms));
+    }
+  }
+
+  private limpiarTimersScrollArriba(): void {
+    for (const t of this.scrollArribaTimers) {
+      clearTimeout(t);
+    }
+    this.scrollArribaTimers = [];
   }
 }
 

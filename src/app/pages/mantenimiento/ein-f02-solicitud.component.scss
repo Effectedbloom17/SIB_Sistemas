@@ -1002,8 +1002,13 @@
   }
 }
 
-.mt-archivero__grupo--manual .mt-archivero__grupo-title {
+.mt-archivero__grupo--manual .mt-archivero__grupo-title,
+.mt-archivero__grupo--correctivo .mt-archivero__grupo-title {
   color: #1d4ed8;
+}
+
+.mt-archivero__grupo--preventivo .mt-archivero__grupo-title {
+  color: #0f766e;
 }
 
 .mt-archivero__stats {
@@ -2242,6 +2247,14 @@
     font-size: 0.78rem;
     line-height: 1.2;
     overflow-wrap: anywhere;
+  }
+
+  .mt-book__resumen {
+    font-size: 0.8rem;
+    line-height: 1.35;
+    min-height: 2.8rem;
+    -webkit-line-clamp: 4;
+    line-clamp: 4;
   }
 
   .mt-book__estado {

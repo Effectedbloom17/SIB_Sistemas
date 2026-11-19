@@ -862,6 +862,95 @@ async function desactivarSolicitudCatalogo(pool, id) {
   return datos;
 }
 
+/**
+ * Persiste en mantenimiento_solicitud los campos del EIN-F-04 al generar el Word.
+ * Evita que Drive diga “ok” y el catálogo quede sin la gestión capturada.
+ */
+async function aplicarCamposReporteF04AlCatalogo(pool, folio, campos = {}, reporte = null) {
+  await asegurarEsquemaSolicitudes(pool);
+  const folioKey = String(folio || '').trim();
+  if (!folioKey || !pool) {
+    return null;
+  }
+  const [rows] = await pool.query(
+    `SELECT id, folio, forms_response_id, activo, datos_json, creado_en, actualizado_en
+     FROM mantenimiento_solicitud
+     WHERE folio = ? OR id = ?
+     ORDER BY actualizado_en DESC
+     LIMIT 8`,
+    [folioKey, folioKey]
+  );
+  if (!rows || !rows.length) {
+    return null;
+  }
+
+  const candidatas = [];
+  for (const row of rows) {
+    const parsed = normalizarSolicitudDb(parseDatosJson(row.datos_json), row);
+    if (parsed) {
+      candidatas.push(parsed);
+    }
+  }
+  if (!candidatas.length) {
+    return null;
+  }
+  candidatas.sort((a, b) => {
+    const sa = scoreRiquezaSolicitudDb(a);
+    const sb = scoreRiquezaSolicitudDb(b);
+    if (sa !== sb) return sb - sa;
+    return String(b.actualizadoEn || '').localeCompare(String(a.actualizadoEn || ''));
+  });
+  const target = candidatas[0];
+  const setIfDefined = (key, value) => {
+    if (value === undefined || value === null) return;
+    if (typeof value === 'string' && !value.trim() && String(target[key] || '').trim()) {
+      return;
+    }
+    target[key] = value;
+  };
+
+  setIfDefined(
+    'descripcionMantenimientoRealizado',
+    campos.descripcionMantenimientoRealizado || campos.descripcionMantenimiento
+  );
+  setIfDefined('descripcionProblema', campos.descripcionProblema);
+  setIfDefined('tipoInfraestructura', campos.tipoInfraestructura);
+  setIfDefined('tipoMantenimiento', campos.tipoMantenimiento);
+  setIfDefined('fechaSolicitud', campos.fechaSolicitud);
+  setIfDefined('fechaRealizado', campos.fechaRealizado);
+  setIfDefined(
+    'responsableMantenimiento',
+    campos.responsableMantenimiento || campos.responsable
+  );
+  setIfDefined('nombreSolicitante', campos.nombreSolicitante);
+  if (Array.isArray(campos.evidencias) && campos.evidencias.length) {
+    const prev = Array.isArray(target.evidencias) ? target.evidencias : [];
+    const map = new Map();
+    for (const ev of [...prev, ...campos.evidencias]) {
+      const key = String(ev?.driveFileId || ev?.url || ev?.webViewLink || '').trim();
+      if (key) map.set(key, ev);
+    }
+    target.evidencias = Array.from(map.values());
+  }
+  if (reporte?.driveFileId) {
+    target.reporteDriveFileId = reporte.driveFileId;
+  }
+  if (reporte?.webViewLink) {
+    target.reporteWebViewLink = reporte.webViewLink;
+  }
+  target.actualizadoEn = new Date().toISOString();
+  const activo = target.activo === false ? 0 : 1;
+  const formsId = target.formsResponseId ? String(target.formsResponseId).trim() : null;
+  const payload = JSON.stringify({ ...target, activo: activo === 1 });
+  await pool.query(
+    `UPDATE mantenimiento_solicitud
+     SET folio = ?, forms_response_id = ?, activo = ?, datos_json = ?, actualizado_en = NOW()
+     WHERE id = ?`,
+    [String(target.folio || folioKey).trim() || folioKey, formsId, activo, payload, target.id]
+  );
+  return target;
+}
+
 module.exports = {
   CARPETA_MANTENIMIENTO_ID,
   CARPETA_FIRMADOS_F04_ID,
@@ -881,6 +970,7 @@ module.exports = {
   listarSolicitudesCatalogo,
   guardarSolicitudesCatalogo,
   desactivarSolicitudCatalogo,
+  aplicarCamposReporteF04AlCatalogo,
   consolidarDuplicadosCatalogo,
   consolidarSolicitudesEnMemoria
 };

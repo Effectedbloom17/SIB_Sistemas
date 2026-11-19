@@ -57,25 +57,170 @@ export function textoPlanoDesdeSlideXml(xml: string): string {
     .trim();
 }
 
-function valorTrasEtiqueta(texto: string, etiquetas: string[]): string | undefined {
-  const lineas = texto.split(/\n+/);
+const RE_ETIQUETA_LINEA =
+  /^(fecha|tipo|responsable|descripci[oó]n|evidencia|folio|nombre|solicitante|breve\s+descripci|c[oó]digo|no\.?\s*rev)/i;
+
+function esOtraEtiqueta(linea: string): boolean {
+  const t = String(linea || '').trim();
+  if (!t) {
+    return false;
+  }
+  if (RE_ETIQUETA_LINEA.test(t)) {
+    return true;
+  }
+  // "Responsable quien realizó el mantenimiento:" sin valor
+  if (/[:：]\s*$/.test(t) && t.length < 90) {
+    return true;
+  }
+  return false;
+}
+
+function esValorInutil(valor: string): boolean {
+  const v = String(valor || '').trim();
+  if (!v) {
+    return true;
+  }
+  if (esOtraEtiqueta(v)) {
+    return true;
+  }
+  if (/^(pendiente|n\/?a|-|—|x)$/i.test(v)) {
+    return true;
+  }
+  return false;
+}
+
+function escapeRe(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
+}
+
+/** Ventana de texto entre una etiqueta y la siguiente etiqueta conocida del formato. */
+function ventanaTrasEtiqueta(texto: string, etiquetas: string[]): string {
+  for (const et of etiquetas) {
+    const re = new RegExp(escapeRe(et) + '\\s*[:：]?', 'i');
+    const m = re.exec(texto);
+    if (!m || m.index == null) {
+      continue;
+    }
+    const resto = texto.slice(m.index + m[0].length);
+    const fin = resto.search(
+      /\n?\s*(?:Fecha\s+(?:de\s+la\s+solicitud|en\s+la\s+que)|Tipo\s+de\s+mantenimiento|Responsable\s+quien|Breve\s+descripci[oó]n|Descripci[oó]n\s+del|Evidencia\s+fotogr[aá]fica|Nombre\s+y\s+firma|Nombre\s+del\s+solicitante)/i
+    );
+    return (fin >= 0 ? resto.slice(0, fin) : resto.slice(0, 400)).trim();
+  }
+  return '';
+}
+
+function primerValorUtil(ventana: string): string | undefined {
+  const lineas = String(ventana || '')
+    .split(/\n+/)
+    .map(l => l.replace(/^[:：\s\-–—]+/, '').trim())
+    .filter(Boolean);
   for (const linea of lineas) {
-    const normLinea = normalizar(linea);
-    for (const et of etiquetas) {
-      const normEt = normalizar(et);
-      if (!normEt || !normLinea.includes(normEt)) {
-        continue;
-      }
-      const idxColon = linea.search(/[:：]/);
-      if (idxColon >= 0) {
-        const despues = linea.slice(idxColon + 1).trim();
-        if (despues) {
-          return despues.replace(/^[\s\-–—]+/, '').trim();
-        }
-      }
+    if (esValorInutil(linea)) {
+      continue;
+    }
+    return linea;
+  }
+  // A veces todo queda en una sola línea: "etiqueta valor"
+  const plano = String(ventana || '').replace(/^[:：\s\-–—]+/, '').trim();
+  if (plano && !esValorInutil(plano) && plano.length < 180) {
+    return plano;
+  }
+  return undefined;
+}
+
+function fechaEnVentana(ventana: string): string | undefined {
+  const re = /\b(\d{1,2}[\/\-.\s]\d{1,2}[\/\-.\s]\d{2,4})\b/g;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(ventana))) {
+    const iso = parsearFechaWord(match[1]);
+    if (iso) {
+      return iso;
     }
   }
   return undefined;
+}
+
+/** Fechas del cuerpo (ignora "Fecha Rev." del encabezado EIN-F-04). */
+function fechasCuerpo(texto: string): string[] {
+  const out: string[] = [];
+  const vistos = new Set<string>();
+  const re = /\b(\d{1,2}[\/\-.\s]\d{1,2}[\/\-.\s]\d{2,4})\b/g;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(texto))) {
+    const ctx = texto.slice(Math.max(0, match.index - 40), match.index);
+    if (/fecha\s*rev|c[oó]digo\s*:|no\.?\s*rev/i.test(ctx)) {
+      continue;
+    }
+    const iso = parsearFechaWord(match[1]);
+    if (!iso || vistos.has(iso)) {
+      continue;
+    }
+    vistos.add(iso);
+    out.push(iso);
+  }
+  return out;
+}
+
+function extraerResponsable(texto: string): string | undefined {
+  const ventana = ventanaTrasEtiqueta(texto, [
+    'Responsable quien realizó el mantenimiento',
+    'Responsable quien realizo el mantenimiento',
+    'Responsable quien realizó',
+    'Responsable del mantenimiento'
+  ]);
+  const lineasVentana = String(ventana || '')
+    .split(/\n+/)
+    .map(l => l.replace(/^[:：\s\-–—]+/, '').trim())
+    .filter(Boolean);
+  for (const linea of lineasVentana) {
+    if (esValorInutil(linea) || /^\d{1,2}[\/\-.]/.test(linea) || linea.length < 5) {
+      continue;
+    }
+    if (/^(preventivo|correctivo)$/i.test(linea)) {
+      continue;
+    }
+    return linea.replace(/\s+/g, ' ').trim();
+  }
+
+  // "Nombre Apellido (Cargo)" típico en estos reportes
+  const conCargo = texto.match(
+    /\b([A-ZÁÉÍÓÚÑ][a-záéíóúñA-ZÁÉÍÓÚÑ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñA-ZÁÉÍÓÚÑ]+){1,3}\s*\([^)]{2,40}\))/
+  );
+  if (conCargo?.[1] && !/biznaga|sistema|gesti[oó]n|mantenimiento/i.test(conCargo[1])) {
+    return conCargo[1].replace(/\s+/g, ' ').trim();
+  }
+
+  return undefined;
+}
+
+function extraerFechasFormulario(texto: string): { solicitud?: string; realizado?: string } {
+  const sol = fechaEnVentana(
+    ventanaTrasEtiqueta(texto, [
+      'Fecha de la solicitud del mantenimiento',
+      'Fecha de la solicitud',
+      'Fecha solicitud'
+    ])
+  );
+  const real = fechaEnVentana(
+    ventanaTrasEtiqueta(texto, [
+      'Fecha en la que se realizó el mantenimiento',
+      'Fecha en la que se realizo el mantenimiento',
+      'Fecha realizado',
+      'Fecha de realización'
+    ])
+  );
+
+  if (sol && real) {
+    return { solicitud: sol, realizado: real };
+  }
+
+  // PDF→PPT suele listar etiquetas juntas y las fechas después, en orden.
+  const todas = fechasCuerpo(texto);
+  return {
+    solicitud: sol || todas[0],
+    realizado: real || (sol ? todas.find(f => f !== sol) : todas[1]) || todas[1]
+  };
 }
 
 function detectarTipo(texto: string): EinF04TipoMantenimiento | undefined {
@@ -119,6 +264,19 @@ function detectarTipo(texto: string): EinF04TipoMantenimiento | undefined {
   return undefined;
 }
 
+function limpiarLineasDescripcion(cuerpo: string): string {
+  return String(cuerpo || '')
+    .split(/\n+/)
+    .map(l => l.trim())
+    .filter(Boolean)
+    .filter(l => !esOtraEtiqueta(l))
+    .filter(l => !/^\d{1,2}[\/\-.\s]\d{1,2}[\/\-.\s]\d{2,4}$/.test(l))
+    // Evitar que el nombre del responsable quede pegado al final de la descripción
+    .filter(l => !/^[A-ZÁÉÍÓÚÑ][a-záéíóúñA-ZÁÉÍÓÚÑ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñA-ZÁÉÍÓÚÑ]+){1,3}\s*\([^)]+\)$/.test(l))
+    .join('\n')
+    .trim();
+}
+
 function extraerDescripcion(texto: string): string | undefined {
   const labelMatch = texto.match(
     /breve\s+descripci[oó]n\s+del\s+mantenimiento\s+realizado|descripci[oó]n\s+del\s+mantenimiento\s+realizado|descripci[oó]n\s+del\s+problema|actividades?\s+realizadas?/i
@@ -126,19 +284,20 @@ function extraerDescripcion(texto: string): string | undefined {
   if (!labelMatch || labelMatch.index == null) {
     // Si no hay etiqueta, usar el bloque de texto más largo como descripción.
     const lineas = texto.split(/\n+/).map(l => l.trim()).filter(Boolean);
-    const candidatas = lineas.filter(l => l.length >= 40 && !/^(folio|fecha|tipo|responsable)/i.test(l));
+    const candidatas = lineas.filter(l => l.length >= 40 && !esOtraEtiqueta(l));
     if (candidatas.length) {
-      return candidatas.slice(0, 4).join('\n');
+      return limpiarLineasDescripcion(candidatas.slice(0, 4).join('\n'));
     }
     return undefined;
   }
   const from = labelMatch.index + labelMatch[0].length;
   const resto = texto.slice(from);
   const finMatch = resto.match(
-    /\n?\s*evidencia\s+fotogr[aá]fica|\n?\s*nombre\s+y\s+firma|\n?\s*responsable/i
+    /\n?\s*evidencia\s+fotogr[aá]fica|\n?\s*nombre\s+y\s+firma|\n?\s*responsable\s+quien|\n?\s*fecha\s+en\s+la\s+que/i
   );
   const hasta = finMatch?.index != null ? finMatch.index : resto.length;
   let cuerpo = resto.slice(0, hasta).trim().replace(/^[:：\s\-–—]+/, '').trim();
+  cuerpo = limpiarLineasDescripcion(cuerpo);
   return cuerpo || undefined;
 }
 
@@ -148,19 +307,57 @@ function detectarFolio(texto: string): string | undefined {
   return m ? String(m[1]).replace(/\s+/g, '').toUpperCase() : undefined;
 }
 
-function mimeDesdeNombre(nombre: string): string {
+/** Detecta MIME real por cabecera; null = no previsualizable en navegador (EMF/WMF/etc.). */
+function detectarMimeImagen(bytes: Uint8Array, nombre: string): string | null {
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return 'image/jpeg';
+  }
+  if (bytes.length >= 8
+    && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+    return 'image/png';
+  }
+  if (bytes.length >= 6
+    && bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46) {
+    return 'image/gif';
+  }
+  if (bytes.length >= 12
+    && bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46
+    && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50) {
+    return 'image/webp';
+  }
+  if (bytes.length >= 2 && bytes[0] === 0x42 && bytes[1] === 0x4d) {
+    return 'image/bmp';
+  }
+  // EMF placeable / WMF: el navegador no puede mostrarlos → imagen “corrupta”
+  if (bytes.length >= 4 && bytes[0] === 0x01 && bytes[1] === 0x00 && bytes[2] === 0x00 && bytes[3] === 0x00) {
+    return null;
+  }
+  if (bytes.length >= 6
+    && bytes[0] === 0xd7 && bytes[1] === 0xcd && bytes[2] === 0xc6 && bytes[3] === 0x9a) {
+    return null;
+  }
+
   const n = String(nombre || '').toLowerCase();
+  if (/\.(emf|wmf|tif|tiff|svg)$/i.test(n)) {
+    return null;
+  }
   if (n.endsWith('.png')) return 'image/png';
   if (n.endsWith('.webp')) return 'image/webp';
   if (n.endsWith('.gif')) return 'image/gif';
-  return 'image/jpeg';
+  if (n.endsWith('.bmp')) return 'image/bmp';
+  if (/\.jpe?g$/i.test(n)) return 'image/jpeg';
+  return null;
 }
 
-function extensionDesdeNombre(nombre: string, mime: string): string {
+function extensionDesdeMime(mime: string, nombre: string): string {
   const m = String(nombre || '').toLowerCase().match(/\.([a-z0-9]+)$/);
-  if (m) return m[1];
+  if (m && /^(png|jpe?g|gif|webp|bmp)$/i.test(m[1])) {
+    return m[1].toLowerCase() === 'jpeg' ? 'jpg' : m[1].toLowerCase();
+  }
   if (mime.includes('png')) return 'png';
   if (mime.includes('webp')) return 'webp';
+  if (mime.includes('gif')) return 'gif';
+  if (mime.includes('bmp')) return 'bmp';
   return 'jpg';
 }
 
@@ -192,10 +389,11 @@ async function leerMapaRels(zip: JSZip, relsPath: string): Promise<Map<string, s
 function rIdsImagenEnSlide(slideXml: string): string[] {
   const ids: string[] = [];
   const vistos = new Set<string>();
-  const re = /<(?:a:blip|asvg:blip|p:blip)\b[^>]*>/gi;
+  // a:blip / a14:blip / asvg:svgBlip — r:embed o r:link
+  const re = /<(?:[a-z0-9]+:)?(?:blip|svgBlip)\b[^>]*>/gi;
   let match: RegExpExecArray | null;
   while ((match = re.exec(slideXml))) {
-    const rid = (match[0].match(/\b(?:r:embed|r:link)="([^"]+)"/i) || [])[1];
+    const rid = (match[0].match(/\b(?:r:embed|r:link|embed|link)="([^"]+)"/i) || [])[1];
     if (!rid || vistos.has(rid)) continue;
     vistos.add(rid);
     ids.push(rid);
@@ -214,35 +412,17 @@ function parsearCamposDesdeTexto(texto: string): EinF04WordImportResult {
     camposAplicados.push('tipo');
   }
 
-  const fechaSolRaw = valorTrasEtiqueta(texto, [
-    'Fecha de la solicitud del mantenimiento',
-    'Fecha de la solicitud',
-    'Fecha solicitud'
-  ]);
-  const fechaSol = parsearFechaWord(fechaSolRaw || '');
-  if (fechaSol) {
-    result.fechaSolicitud = fechaSol;
+  const fechas = extraerFechasFormulario(texto);
+  if (fechas.solicitud) {
+    result.fechaSolicitud = fechas.solicitud;
     camposAplicados.push('fechaSolicitud');
   }
-
-  const fechaRealRaw = valorTrasEtiqueta(texto, [
-    'Fecha en la que se realizó el mantenimiento',
-    'Fecha en la que se realizo el mantenimiento',
-    'Fecha realizado',
-    'Fecha de realización'
-  ]);
-  const fechaReal = parsearFechaWord(fechaRealRaw || '');
-  if (fechaReal) {
-    result.fechaRealizado = fechaReal;
+  if (fechas.realizado) {
+    result.fechaRealizado = fechas.realizado;
     camposAplicados.push('fechaRealizado');
   }
 
-  const responsable = valorTrasEtiqueta(texto, [
-    'Responsable quien realizó el mantenimiento',
-    'Responsable quien realizo el mantenimiento',
-    'Responsable quien realizó',
-    'Responsable del mantenimiento'
-  ]);
+  const responsable = extraerResponsable(texto);
   if (
     responsable
     && !/^pendiente$/i.test(responsable)
@@ -264,15 +444,57 @@ function parsearCamposDesdeTexto(texto: string): EinF04WordImportResult {
     result.folioDetectado = folio;
   }
 
-  const solicitante = valorTrasEtiqueta(texto, [
-    'Nombre del solicitante',
-    'Solicitante',
-    'Reportó',
-    'Reporto'
-  ]);
-  if (solicitante) {
+  const solicitante = primerValorUtil(
+    ventanaTrasEtiqueta(texto, [
+      'Nombre del solicitante',
+      'Solicitante',
+      'Reportó',
+      'Reporto'
+    ])
+  );
+  if (solicitante && solicitante.length >= 3) {
     result.nombreSolicitante = solicitante;
     camposAplicados.push('solicitante');
+  }
+
+  // Quitar de la descripción valores ya capturados como campos (fechas, nombres).
+  if (result.descripcionMantenimientoRealizado) {
+    const excluir = [
+      result.fechaSolicitud,
+      result.fechaRealizado,
+      result.responsableMantenimiento,
+      result.nombreSolicitante,
+      result.folioDetectado
+    ]
+      .filter(Boolean)
+      .map(v => normalizar(String(v)));
+    const limpia = result.descripcionMantenimientoRealizado
+      .split(/\n+/)
+      .map(l => l.trim())
+      .filter(Boolean)
+      .filter(l => {
+        const n = normalizar(l);
+        if (excluir.some(e => e && (n === e || n.includes(e)))) {
+          return false;
+        }
+        // Fechas crudas tipo 09/09/2026 si ya hay fecha parseada
+        if ((result.fechaRealizado || result.fechaSolicitud)
+          && /^\d{1,2}[\/\-.\s]\d{1,2}[\/\-.\s]\d{2,4}$/.test(l)) {
+          return false;
+        }
+        return true;
+      })
+      .join('\n')
+      .trim();
+    if (limpia) {
+      result.descripcionMantenimientoRealizado = limpia;
+    } else if (camposAplicados.includes('descripcion') && camposAplicados.length > 1) {
+      delete result.descripcionMantenimientoRealizado;
+      const idx = camposAplicados.indexOf('descripcion');
+      if (idx >= 0) {
+        camposAplicados.splice(idx, 1);
+      }
+    }
   }
 
   if (!camposAplicados.length && texto.trim().length >= 20) {
@@ -343,32 +565,45 @@ export async function importarEinF04DesdePptx(archivo: File): Promise<EinF04Pptx
     const rels = await leerMapaRels(zip, relsPath);
     const imagenes: File[] = [];
     const imagenPreviews: string[] = [];
+    const rIds = rIdsImagenEnSlide(slideXml);
+    const mediaPaths = (rIds.length
+      ? rIds.map(rid => rels.get(rid)).filter((p): p is string => !!p)
+      : [...new Set(rels.values())]);
     let imgIdx = 1;
-    for (const rid of rIdsImagenEnSlide(slideXml)) {
-      const mediaPath = rels.get(rid);
+    let omitidasNoRaster = 0;
+    for (const mediaPath of mediaPaths) {
       if (!mediaPath) continue;
       const mediaEntry = zip.file(mediaPath);
       if (!mediaEntry) continue;
-      const base = mediaPath.split('/').pop() || `slide-${slideNum}-${imgIdx}.jpg`;
-      const mime = mimeDesdeNombre(base);
-      if (!/^image\//i.test(mime)) continue;
-      const blob = await mediaEntry.async('blob');
+      const base = mediaPath.split('/').pop() || `slide-${slideNum}-${imgIdx}.bin`;
+      const buffer = await mediaEntry.async('arraybuffer');
+      const bytes = new Uint8Array(buffer);
+      const mime = detectarMimeImagen(bytes, base);
+      if (!mime) {
+        omitidasNoRaster += 1;
+        continue;
+      }
       // Plantilla EIN-F-04: el logo Biznaga suele ser la 1.ª imagen; no es evidencia.
-      if (imagenes.length === 0 && rIdsImagenEnSlide(slideXml).length > 2 && blob.size < 120_000) {
-        const esLogoProbable = /logo|biznaga|header|membrete/i.test(base) || blob.size < 45_000;
+      if (imagenes.length === 0 && mediaPaths.length > 2 && bytes.byteLength < 120_000) {
+        const esLogoProbable = /logo|biznaga|header|membrete/i.test(base) || bytes.byteLength < 45_000;
         if (esLogoProbable) {
           continue;
         }
       }
-      const ext = extensionDesdeNombre(base, mime);
+      const ext = extensionDesdeMime(mime, base);
       const file = new File(
-        [blob],
+        [buffer],
         `pptx-s${slideNum}-ev-${imgIdx}.${ext}`,
-        { type: mime === 'image/jpg' ? 'image/jpeg' : mime }
+        { type: mime }
       );
       imagenes.push(file);
-      imagenPreviews.push(URL.createObjectURL(file));
+      imagenPreviews.push(URL.createObjectURL(new Blob([buffer], { type: mime })));
       imgIdx += 1;
+    }
+    if (omitidasNoRaster && !imagenes.length) {
+      parsed.avisos.push(
+        'La diapositiva trae imágenes en formato no previsualizable (p. ej. EMF/WMF). Exporte la evidencia como PNG/JPG en PowerPoint.'
+      );
     }
     parsed.imagenes = imagenes;
     if (imagenes.length) {

@@ -21163,12 +21163,38 @@ app.post(
                 tipoMantenimiento: body.tipoMantenimiento || 'Correctivo',
                 fechaSolicitud: body.fechaSolicitud,
                 fechaRealizado: body.fechaRealizado,
-                responsable: body.responsable || '',
+                responsable: body.responsable || body.responsableMantenimiento || '',
                 nombreSolicitante: body.nombreSolicitante,
                 nombreArchivo: body.nombreArchivo,
                 reporteDriveFileId: body.reporteDriveFileId || body.documentId
             });
-            res.json({ success: true, reporte });
+            let solicitud = null;
+            try {
+                solicitud = await mantenimientoService.aplicarCamposReporteF04AlCatalogo(
+                    pool,
+                    folio,
+                    {
+                        descripcionMantenimientoRealizado:
+                            body.descripcionMantenimiento || body.descripcionMantenimientoRealizado,
+                        descripcionProblema: body.descripcionProblema,
+                        tipoInfraestructura: body.tipoInfraestructura,
+                        tipoMantenimiento: body.tipoMantenimiento || 'Correctivo',
+                        fechaSolicitud: body.fechaSolicitud,
+                        fechaRealizado: body.fechaRealizado,
+                        responsableMantenimiento:
+                            body.responsable || body.responsableMantenimiento || '',
+                        nombreSolicitante: body.nombreSolicitante,
+                        evidencias: body.evidencias || []
+                    },
+                    reporte
+                );
+            } catch (catalogErr) {
+                console.warn(
+                    '[mantenimiento] No se pudo persistir F-04 en catálogo:',
+                    catalogErr?.message || catalogErr
+                );
+            }
+            res.json({ success: true, reporte, solicitud });
         } catch (error) {
             console.error('[mantenimiento] reporte F04:', error);
             res.status(500).json({

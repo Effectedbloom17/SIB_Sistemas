@@ -73,7 +73,11 @@ export class EinF01ProgramaComponent implements OnInit, AfterViewInit, AfterView
   editorDriveUrlSafe: SafeResourceUrl | '' = '';
   kpiCards: MtKpiCard[] = [];
   programadosPorMes: number[] = Array(12).fill(0);
+  programadosIntPorMes: number[] = Array(12).fill(0);
+  programadosExtPorMes: number[] = Array(12).fill(0);
   maxProgramadosMes = 1;
+  totalProgramadosInt = 0;
+  totalProgramadosExt = 0;
   private autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
   private resizeTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingDriveSave = false;
@@ -558,10 +562,21 @@ export class EinF01ProgramaComponent implements OnInit, AfterViewInit, AfterView
 
   alturaBarraMes(mes: number): number {
     const n = this.programadosPorMes[mes] || 0;
-    if (!this.maxProgramadosMes) {
-      return 8;
+    if (!n || !this.maxProgramadosMes) {
+      return 0;
     }
-    return Math.max(8, Math.round((n / this.maxProgramadosMes) * 100));
+    return Math.max(6, Math.round((n / this.maxProgramadosMes) * 100));
+  }
+
+  tituloBarraMes(mes: number): string {
+    const total = this.programadosPorMes[mes] || 0;
+    const intN = this.programadosIntPorMes[mes] || 0;
+    const extN = this.programadosExtPorMes[mes] || 0;
+    const nombre = this.meses[mes] || '';
+    if (!total) {
+      return `${nombre}: sin programaciones`;
+    }
+    return `${nombre}: ${total} · Int ${intN} · Ext ${extN}`;
   }
 
   private despuesDeCambio(): void {
@@ -661,18 +676,30 @@ export class EinF01ProgramaComponent implements OnInit, AfterViewInit, AfterView
 
   private recalcularIndicadores(): void {
     const porMes = Array(12).fill(0);
+    const porMesInt = Array(12).fill(0);
+    const porMesExt = Array(12).fill(0);
     for (const fila of this.filas) {
+      const esExt = fila.tipo === 'Ext';
       for (const [key, estado] of Object.entries(fila.programado)) {
-        if (estado !== 'P' && estado !== 'reservado') {
+        if (estado !== 'P') {
           continue;
         }
         const m = Number(key.split('-')[0]?.replace('m', ''));
         if (m >= 0 && m < 12) {
-          porMes[m] += estado === 'P' ? 1 : 0;
+          porMes[m] += 1;
+          if (esExt) {
+            porMesExt[m] += 1;
+          } else {
+            porMesInt[m] += 1;
+          }
         }
       }
     }
     this.programadosPorMes = porMes;
+    this.programadosIntPorMes = porMesInt;
+    this.programadosExtPorMes = porMesExt;
+    this.totalProgramadosInt = porMesInt.reduce((a, b) => a + b, 0);
+    this.totalProgramadosExt = porMesExt.reduce((a, b) => a + b, 0);
     this.maxProgramadosMes = Math.max(1, ...porMes);
 
     const cobertura = this.coberturaPct;

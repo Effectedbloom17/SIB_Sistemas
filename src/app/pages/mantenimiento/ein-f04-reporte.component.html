@@ -1,4 +1,4 @@
-<div class="mt-embed" [class.mt-embed--standalone]="!embebido">
+<div class="mt-embed" [class.mt-embed--standalone]="!embebido" id="mt-f04-top">
   <div
     *ngIf="!embebido"
     class="header header-bg-image mt-hero mt-hero--f04 pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden"
@@ -17,7 +17,15 @@
     <div [class.row]="!embebido" [class.justify-content-center]="!embebido">
       <div [class.col-xl-11]="!embebido">
 
-        <div class="mt-archivero card border-0 shadow-sm" *ngIf="vista === 'archivero' || embebido">
+        <div class="mt-archivero card border-0 shadow-sm" *ngIf="cargandoReportePorRuta">
+          <div class="mt-shell-accent" aria-hidden="true"></div>
+          <div class="card-body mt-f04-loading">
+            <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+            <p>Cargando reporte…</p>
+          </div>
+        </div>
+
+        <div class="mt-archivero card border-0 shadow-sm" *ngIf="!cargandoReportePorRuta && (vista === 'archivero' || embebido)">
           <div class="mt-shell-accent" aria-hidden="true"></div>
           <div class="card-body">
             <div class="mt-archivero__intro">
@@ -65,28 +73,28 @@
             </div>
 
             <div class="mt-archivero__stats">
-              <span>{{ solicitudesForms.length }} desde Forms</span>
-              <span>{{ solicitudesManuales.length }} escritos aquí</span>
+              <span>{{ reportesCorrectivosFiltrados.length }} correctivos</span>
+              <span>{{ reportesPreventivosFiltrados.length }} preventivos</span>
               <span class="mt-local ml-auto" *ngIf="guardadoLocal"><i class="fas fa-hdd"></i> Local</span>
             </div>
 
-            <ng-container *ngIf="reportesFormsFiltrados.length || reportesManualesFiltrados.length; else vacio">
-              <section class="mt-archivero__grupo" *ngIf="reportesFormsFiltrados.length">
+            <ng-container *ngIf="reportesCorrectivosFiltrados.length || reportesPreventivosFiltrados.length; else vacio">
+              <section class="mt-archivero__grupo mt-archivero__grupo--correctivo" *ngIf="reportesCorrectivosFiltrados.length">
                 <h3 class="mt-archivero__grupo-title">
-                  <i class="fas fa-cloud-download-alt" aria-hidden="true"></i>
-                  Desde Forms
+                  <i class="fas fa-wrench" aria-hidden="true"></i>
+                  Correctivos
                 </h3>
                 <ul class="mt-archivero__grid">
-                  <ng-container *ngTemplateOutlet="tarjetaReporte; context: { lista: reportesFormsFiltrados }"></ng-container>
+                  <ng-container *ngTemplateOutlet="tarjetaReporte; context: { lista: reportesCorrectivosFiltrados }"></ng-container>
                 </ul>
               </section>
-              <section class="mt-archivero__grupo mt-archivero__grupo--manual" *ngIf="reportesManualesFiltrados.length">
+              <section class="mt-archivero__grupo mt-archivero__grupo--preventivo" *ngIf="reportesPreventivosFiltrados.length">
                 <h3 class="mt-archivero__grupo-title">
-                  <i class="fas fa-pen" aria-hidden="true"></i>
-                  Escritos aquí
+                  <i class="fas fa-shield-alt" aria-hidden="true"></i>
+                  Preventivos
                 </h3>
                 <ul class="mt-archivero__grid">
-                  <ng-container *ngTemplateOutlet="tarjetaReporte; context: { lista: reportesManualesFiltrados }"></ng-container>
+                  <ng-container *ngTemplateOutlet="tarjetaReporte; context: { lista: reportesPreventivosFiltrados }"></ng-container>
                 </ul>
               </section>
             </ng-container>
@@ -94,8 +102,8 @@
               <li class="mt-book" *ngFor="let s of lista; trackBy: trackBySol"
                 [class.mt-book--done]="!!s.pdfFirmado?.driveFileId">
                 <button type="button" class="mt-book__tap" (click)="abrirRegistro(s)"
-                  [attr.title]="'Abrir reporte ' + s.folio"
-                  [attr.aria-label]="'Abrir reporte ' + s.folio">
+                  [attr.title]="'Abrir reporte ' + (s.folio || '')"
+                  [attr.aria-label]="'Abrir reporte'">
                   <span class="mt-book__binding" aria-hidden="true">
                     <span class="mt-book__ring"></span><span class="mt-book__ring"></span>
                     <span class="mt-book__ring"></span><span class="mt-book__ring"></span>
@@ -108,13 +116,11 @@
                       </span>
                     </span>
                     <span class="mt-book__origen">{{ s.nombreSolicitante || 'Sin solicitante' }}</span>
-                    <span class="mt-book__folio">{{ s.folio }}</span>
                     <span class="mt-book__resumen" *ngIf="resumenTarjeta(s) as resumen" [title]="resumen">
                       {{ resumen }}
                     </span>
-                    <span class="mt-book__meta-row" *ngIf="s.tipoMantenimiento || s.responsableMantenimiento || tieneGestion(s)">
+                    <span class="mt-book__meta-row" *ngIf="s.tipoMantenimiento || s.responsableMantenimiento">
                       <span class="mt-book__chip" *ngIf="s.tipoMantenimiento">{{ s.tipoMantenimiento }}</span>
-                      <span class="mt-book__chip mt-book__chip--ok" *ngIf="tieneGestion(s)">Con información</span>
                       <span class="mt-book__chip mt-book__chip--muted" *ngIf="s.responsableMantenimiento">
                         {{ s.responsableMantenimiento }}
                       </span>
@@ -124,12 +130,12 @@
                   </span>
                 </button>
                 <div class="mt-book__actions mt-book__actions--footer" *ngIf="esSuperAdmin">
-                  <button type="button" class="mt-book__borrar-btn"
+                  <button type="button" class="mt-book__borrar-btn mt-book__borrar-btn--ocultar"
                     (click)="eliminarReporte(s, $event)"
-                    title="Borrar reporte (solo superadministrador)"
-                    aria-label="Borrar reporte">
-                    <i class="fas fa-trash-alt" aria-hidden="true"></i>
-                    <span>Borrar</span>
+                    title="Ocultar formato (solo superadministrador)"
+                    aria-label="Ocultar formato">
+                    <i class="fas fa-eye-slash" aria-hidden="true"></i>
+                    <span>Ocultar formato</span>
                   </button>
                 </div>
               </li>
@@ -551,7 +557,7 @@
   <p class="mt-f02-lightbox__caption">{{ lightboxNombre }}</p>
 </div>
 
-<div class="mt-pptx-wizard" *ngIf="pptxWizard as pack" role="dialog" aria-modal="true" aria-label="Revisión de diapositivas">
+<div class="mt-pptx-wizard" #pptxWizardRoot *ngIf="pptxWizard as pack" role="dialog" aria-modal="true" aria-label="Revisión de diapositivas">
   <div class="mt-pptx-wizard__backdrop" (click)="cerrarWizardPptx()"></div>
   <div class="mt-pptx-wizard__panel">
     <header class="mt-pptx-wizard__head">
@@ -590,23 +596,46 @@
           </span>
         </div>
 
-        <div class="mt-pptx-wizard__fields" *ngIf="slide.parsed.camposAplicados.length">
-          <div *ngIf="slide.parsed.tipoMantenimiento"><em>Tipo</em><span>{{ slide.parsed.tipoMantenimiento }}</span></div>
-          <div *ngIf="slide.parsed.fechaSolicitud"><em>Fecha solicitud</em><span>{{ slide.parsed.fechaSolicitud }}</span></div>
-          <div *ngIf="slide.parsed.fechaRealizado"><em>Fecha realizado</em><span>{{ slide.parsed.fechaRealizado }}</span></div>
-          <div *ngIf="slide.parsed.responsableMantenimiento"><em>Responsable</em><span>{{ slide.parsed.responsableMantenimiento }}</span></div>
-          <div *ngIf="slide.parsed.nombreSolicitante"><em>Solicitante</em><span>{{ slide.parsed.nombreSolicitante }}</span></div>
-          <div *ngIf="slide.parsed.folioDetectado"><em>Folio</em><span>{{ slide.parsed.folioDetectado }}</span></div>
+        <div class="mt-pptx-wizard__form" *ngIf="slide.parsed.camposAplicados.length || slide.imagenPreviews.length; else sinDatosSlide">
+          <div class="mt-pptx-wizard__row" *ngIf="slide.parsed.tipoMantenimiento">
+            <span class="mt-pptx-wizard__label">Tipo de mantenimiento</span>
+            <span class="mt-pptx-wizard__value">{{ slide.parsed.tipoMantenimiento }}</span>
+          </div>
+          <div class="mt-pptx-wizard__row" *ngIf="slide.parsed.fechaSolicitud">
+            <span class="mt-pptx-wizard__label">Fecha de la solicitud del mantenimiento</span>
+            <span class="mt-pptx-wizard__value">{{ formatearFecha(slide.parsed.fechaSolicitud) }}</span>
+          </div>
+          <div class="mt-pptx-wizard__row" *ngIf="slide.parsed.fechaRealizado">
+            <span class="mt-pptx-wizard__label">Fecha en la que se realizó el mantenimiento</span>
+            <span class="mt-pptx-wizard__value">{{ formatearFecha(slide.parsed.fechaRealizado) }}</span>
+          </div>
+          <div class="mt-pptx-wizard__row" *ngIf="slide.parsed.responsableMantenimiento">
+            <span class="mt-pptx-wizard__label">Responsable quien realizó el mantenimiento</span>
+            <span class="mt-pptx-wizard__value">{{ slide.parsed.responsableMantenimiento }}</span>
+          </div>
+          <div class="mt-pptx-wizard__row" *ngIf="slide.parsed.nombreSolicitante">
+            <span class="mt-pptx-wizard__label">Nombre del solicitante</span>
+            <span class="mt-pptx-wizard__value">{{ slide.parsed.nombreSolicitante }}</span>
+          </div>
+          <div class="mt-pptx-wizard__row" *ngIf="slide.parsed.folioDetectado">
+            <span class="mt-pptx-wizard__label">Folio</span>
+            <span class="mt-pptx-wizard__value">{{ slide.parsed.folioDetectado }}</span>
+          </div>
+          <div class="mt-pptx-wizard__row mt-pptx-wizard__row--block" *ngIf="slide.parsed.descripcionMantenimientoRealizado">
+            <span class="mt-pptx-wizard__label">Breve descripción del mantenimiento realizado</span>
+            <p class="mt-pptx-wizard__value mt-pptx-wizard__value--multi">{{ slide.parsed.descripcionMantenimientoRealizado }}</p>
+          </div>
+          <div class="mt-pptx-wizard__row mt-pptx-wizard__row--block" *ngIf="slide.imagenPreviews.length">
+            <span class="mt-pptx-wizard__label">Evidencia fotográfica</span>
+            <div class="mt-pptx-wizard__imgs">
+              <img *ngFor="let src of slide.imagenPreviews" [src]="previewPptx(src)" alt="Evidencia de diapositiva" />
+            </div>
+          </div>
+          <p class="mt-pptx-wizard__hint" *ngIf="slide.parsed.avisos?.length">{{ slide.parsed.avisos[0] }}</p>
         </div>
-
-        <div class="mt-pptx-wizard__desc" *ngIf="slide.parsed.descripcionMantenimientoRealizado">
-          <em>Descripción</em>
-          <p>{{ slide.parsed.descripcionMantenimientoRealizado }}</p>
-        </div>
-
-        <div class="mt-pptx-wizard__imgs" *ngIf="slide.imagenPreviews.length">
-          <img *ngFor="let src of slide.imagenPreviews" [src]="src" alt="Evidencia de diapositiva" />
-        </div>
+        <ng-template #sinDatosSlide>
+          <p class="mt-pptx-wizard__empty">No se detectaron campos útiles en esta diapositiva.</p>
+        </ng-template>
 
         <details class="mt-pptx-wizard__raw" *ngIf="slide.textoPlano">
           <summary>Texto detectado</summary>
