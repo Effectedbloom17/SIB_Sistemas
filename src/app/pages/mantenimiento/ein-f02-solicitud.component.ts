@@ -147,8 +147,10 @@ export class EinF02SolicitudComponent implements OnInit, AfterViewChecked, OnDes
   }
 
   get filasBitacora(): EinF02Solicitud[] {
-    // Siempre deduplicar: un Forms = una fila (evita 26 por 13 respuestas).
-    return soloActivos(fusionarSolicitudes(this.filas, []));
+    // Usar this.filas directamente (ya deduplicado en aplicarCatalogo).
+    // No reclonar aquí: si fusionarSolicitudes corre en cada CD, el toggle
+    // Int/Ext y las observaciones mutan copias y el cambio se pierde.
+    return this.filas;
   }
 
   guardarInformacionDrive(silencioso = false): void {
@@ -331,6 +333,9 @@ export class EinF02SolicitudComponent implements OnInit, AfterViewChecked, OnDes
   }
 
   alternarEjemploInterno(): void {
+    this.detenerDemoInterno();
+    this.ejemploCursor = false;
+    this.ejemploPresion = false;
     this.ejemploInterno = !this.ejemploInterno;
   }
 
@@ -390,13 +395,19 @@ export class EinF02SolicitudComponent implements OnInit, AfterViewChecked, OnDes
   }
 
   alternarInternoExterno(fila: EinF02Solicitud): void {
-    const actual = fila.internoExterno || 'Interno';
-    fila.internoExterno = actual === 'Interno' ? 'Externo' : 'Interno';
+    const destino = this.esInterno(fila) ? 'Externo' : 'Interno';
+    fila.internoExterno = destino;
+    const enCatalogo = this.catalogoCompleto.find(s => s.id === fila.id);
+    if (enCatalogo && enCatalogo !== fila) {
+      enCatalogo.internoExterno = destino;
+      enCatalogo.actualizadoEn = new Date().toISOString();
+    }
     this.onCampoChange(fila);
   }
 
   esInterno(fila: EinF02Solicitud): boolean {
-    return (fila.internoExterno || 'Interno') === 'Interno';
+    const v = String(fila.internoExterno || 'Interno').trim().toLowerCase();
+    return v === 'interno' || v === 'int' || v === '';
   }
 
   etiquetaInternoExterno(fila: EinF02Solicitud): string {

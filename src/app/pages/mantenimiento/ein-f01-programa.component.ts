@@ -144,6 +144,9 @@ export class EinF01ProgramaComponent implements OnInit, AfterViewInit, AfterView
   }
 
   alternarEjemploInterno(): void {
+    this.detenerDemoInterno();
+    this.ejemploCursor = false;
+    this.ejemploPresion = false;
     this.ejemploInterno = !this.ejemploInterno;
   }
 

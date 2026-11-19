@@ -6,6 +6,7 @@ import { firstValueFrom } from 'rxjs';
 import Swal from 'sweetalert2';
 import { AuthService } from 'src/app/services/auth.service';
 import { BackendServices } from 'src/app/services/backend.services';
+import { DocumentPreviewService } from 'src/app/services/document-preview.service';
 import { UploadSourceChooserService } from 'src/app/services/upload-source-chooser.service';
 import {
   EIN_F04_META,
@@ -102,6 +103,7 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
     private router: Router,
     private sanitizer: DomSanitizer,
     private uploadSourceChooser: UploadSourceChooserService,
+    private documentPreview: DocumentPreviewService,
     private cdr: ChangeDetectorRef
   ) {}
 
@@ -509,6 +511,26 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
       return '';
     }
     return formatearFechaCorta(iso.includes('T') ? iso.slice(0, 10) : iso) || iso;
+  }
+
+  /** Abre el PDF firmado en el visor interno del sistema (no en Drive). */
+  abrirPdfFirmado(sol: EinF02Solicitud): void {
+    const pdf = sol?.pdfFirmado;
+    const driveFileId = String(pdf?.driveFileId || '').trim();
+    if (!driveFileId) {
+      this.flash('No hay PDF firmado para abrir.');
+      return;
+    }
+    const nombre = String(pdf?.nombreArchivo || `EIN-F-04 ${sol.folio || ''}.pdf`).trim()
+      || 'EIN-F-04 firmado.pdf';
+    this.documentPreview.abrir({
+      nombre,
+      archivo_nombre: nombre,
+      archivo_url: driveFileId,
+      tipoHint: 'pdf',
+      etiqueta: `EIN-F-04 · ${sol.folio || 'Firmado'}`,
+      tema: 'default'
+    });
   }
 
   onCampoChange(): void {
