@@ -1937,6 +1937,51 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return this.plantillaSlug === 'ath-f-11';
   }
 
+  @HostBinding('class.sgc-preview--ath-f-03')
+  get esAthF03(): boolean {
+    return this.plantillaSlug === 'ath-f-03';
+  }
+
+  @HostBinding('class.sgc-preview--ath-f-06')
+  get esAthF06(): boolean {
+    return this.plantillaSlug === 'ath-f-06';
+  }
+
+  @HostBinding('class.sgc-preview--ath-f-08')
+  get esAthF08(): boolean {
+    return this.plantillaSlug === 'ath-f-08';
+  }
+
+  @HostBinding('class.sgc-preview--ath-f-13')
+  get esAthF13(): boolean {
+    return this.plantillaSlug === 'ath-f-13';
+  }
+
+  @HostBinding('class.sgc-preview--ath-f-14')
+  get esAthF14(): boolean {
+    return this.plantillaSlug === 'ath-f-14';
+  }
+
+  @HostBinding('class.sgc-preview--sgc-f-17')
+  get esSgcF17(): boolean {
+    return this.plantillaSlug === 'sgc-f-17';
+  }
+
+  @HostBinding('class.sgc-preview--sgc-f-19')
+  get esSgcF19(): boolean {
+    return this.plantillaSlug === 'sgc-f-19';
+  }
+
+  @HostBinding('class.sgc-preview--sgc-f-20')
+  get esSgcF20(): boolean {
+    return this.plantillaSlug === 'sgc-f-20';
+  }
+
+  @HostBinding('class.sgc-preview--sgc-f-27-medicion')
+  get esSgcF27Medicion(): boolean {
+    return this.plantillaSlug === 'sgc-f-27-medicion';
+  }
+
   @HostBinding('class.sgc-preview--dg-f-04')
   get esDgF04(): boolean {
     return this.plantillaSlug === 'dg-f-04';
@@ -1995,6 +2040,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   @HostBinding('class.sgc-preview--sgc-f-02')
   get esSgcF02(): boolean {
     return this.plantillaSlug === 'sgc-f-02';
+  }
+
+  @HostBinding('class.sgc-preview--sgc-f-03')
+  get esSgcF03(): boolean {
+    return this.plantillaSlug === 'sgc-f-03';
   }
 
   @HostBinding('class.sgc-preview--sgc-f-04')

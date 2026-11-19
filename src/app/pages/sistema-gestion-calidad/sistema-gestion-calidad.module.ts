@@ -8,6 +8,7 @@ import { RoleGuard } from '../../guards/role.guard';
 import { SistemaGestionCalidadComponent } from './sistema-gestion-calidad.component';
 import { SgcFormatoDetalleComponent } from './sgc-formato-detalle.component';
 import { SgcPlantillaPreviewComponent } from './sgc-plantilla-preview.component';
+import { SgcBtnRevelarDirective } from './sgc-btn-revelar.directive';
 import { SgcCapitulosComponent } from './sgc-capitulos.component';
 import { SgcCapitulosPanelComponent } from './sgc-capitulos-panel.component';
 import { SgcProcedimientosComponent } from './sgc-procedimientos.component';
@@ -101,6 +102,7 @@ const routes: Routes = [
     SgcCapitulosPanelComponent,
     SgcFormatoDetalleComponent,
     SgcPlantillaPreviewComponent,
+    SgcBtnRevelarDirective,
     SgcProcedimientosComponent,
     SgcInstructivosComponent,
     SgcFormatosDescargaComponent,
