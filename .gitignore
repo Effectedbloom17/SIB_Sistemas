@@ -77,6 +77,7 @@ ACCESOS-Y-DEPLOY.md
 /backend/MIGRACION-PRODUCCION.md
 /docker/restore-backups.ps1
 /backend/scripts/db-backup-mensual.sh
+/backups-mant/
 /.github/skills/deploy-produccion-biznaga/
 /reports/security-audit/
 

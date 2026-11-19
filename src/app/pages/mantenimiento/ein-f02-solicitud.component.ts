@@ -67,6 +67,9 @@ export class EinF02SolicitudComponent implements OnInit, AfterViewChecked, OnDes
   private pendingDriveSave = false;
   private abrirEditorTrasGuardar = false;
   private editorMontadoEnBody = false;
+  private catalogoServidorListo = false;
+  /** Catálogo completo (incluye ocultos) para no recrearlos desde Forms. */
+  private catalogoCompleto: EinF02Solicitud[] = [];
 
   readonly meta = EIN_F03_META;
   ejemploInterno = true;
@@ -87,7 +90,6 @@ export class EinF02SolicitudComponent implements OnInit, AfterViewChecked, OnDes
   ngOnInit(): void {
     this.cargar();
     this.cargarDrive();
-    this.sincronizarDesdeForms();
     this.iniciarDemoInterno();
   }
 
@@ -128,13 +130,15 @@ export class EinF02SolicitudComponent implements OnInit, AfterViewChecked, OnDes
     if (!id) {
       return;
     }
-    this.filas = this.filas
-      .map(f => (f.id === id ? { ...f, activo: false } : f))
-      .filter(f => f.activo !== false);
+    this.catalogoCompleto = this.catalogoCompleto.map(f =>
+      f.id === id ? { ...f, activo: false } : f
+    );
+    this.filas = soloActivos(this.catalogoCompleto);
   }
 
   get filasBitacora(): EinF02Solicitud[] {
-    return soloActivos(this.filas);
+    // Siempre deduplicar: un Forms = una fila (evita 26 por 13 respuestas).
+    return soloActivos(fusionarSolicitudes(this.filas, []));
   }
 
   guardarInformacionDrive(silencioso = false): void {
@@ -467,7 +471,10 @@ export class EinF02SolicitudComponent implements OnInit, AfterViewChecked, OnDes
     return f.id;
   }
 
-  sincronizarDesdeForms(): void {
+  sincronizarDesdeForms(forzar = false): void {
+    if (!forzar && !this.catalogoServidorListo) {
+      return;
+    }
     this.sincronizandoForms = true;
     this.backend.obtenerEstadisticasFormsMantenimientoF02().subscribe({
       next: (res) => {
@@ -479,9 +486,9 @@ export class EinF02SolicitudComponent implements OnInit, AfterViewChecked, OnDes
         if (!casos.length) {
           return;
         }
-        const base = conservarReportesManuales(this.filas, cargarSolicitudesLocal());
+        const base = fusionarSolicitudes(this.catalogoCompleto, cargarSolicitudesLocal());
         const { lista, nuevos, eliminados } = sincronizarCasosDesdeForms(base, casos);
-        this.filas = soloActivos(lista);
+        this.aplicarCatalogo(fusionarSolicitudes(lista, base));
         this.persistir();
         this.pendingTextareaResize = true;
         this.programarAutoGuardadoDrive();
@@ -546,14 +553,19 @@ export class EinF02SolicitudComponent implements OnInit, AfterViewChecked, OnDes
     return `https://docs.google.com/spreadsheets/d/${EIN_F03_TEMPLATE_ID}/edit`;
   }
 
-  private cargar(): void {
-    this.filas = soloActivos(cargarSolicitudesLocal());
+  private aplicarCatalogo(lista: EinF02Solicitud[]): void {
+    this.catalogoCompleto = fusionarSolicitudes(lista, []);
+    this.filas = soloActivos(this.catalogoCompleto);
     for (const f of this.filas) {
       asegurarIdSerie(f, this.filas);
       f.bitacoraDriveFileId = EIN_F03_TEMPLATE_ID;
       f.bitacoraWebViewLink = this.urlDocumentoEinF03();
     }
-    this.guardadoLocal = this.filas.length > 0;
+  }
+
+  private cargar(): void {
+    this.aplicarCatalogo(cargarSolicitudesLocal());
+    this.guardadoLocal = this.catalogoCompleto.length > 0;
     this.pendingTextareaResize = true;
     this.cargarDesdeServidor();
   }
@@ -565,15 +577,11 @@ export class EinF02SolicitudComponent implements OnInit, AfterViewChecked, OnDes
           return;
         }
         const remoto = Array.isArray(res?.solicitudes) ? res.solicitudes : [];
-        const local = conservarReportesManuales(this.filas, cargarSolicitudesLocal());
+        const local = conservarReportesManuales(this.catalogoCompleto, cargarSolicitudesLocal());
         const fusion = fusionarSolicitudes(local, remoto);
-        this.filas = soloActivos(fusion);
-        for (const f of this.filas) {
-          asegurarIdSerie(f, this.filas);
-          f.bitacoraDriveFileId = EIN_F03_TEMPLATE_ID;
-          f.bitacoraWebViewLink = this.urlDocumentoEinF03();
-        }
-        this.guardadoLocal = guardarSolicitudesLocal(fusion);
+        this.aplicarCatalogo(fusion);
+        this.guardadoLocal = guardarSolicitudesLocal(this.catalogoCompleto);
+        this.catalogoServidorListo = true;
         this.pendingTextareaResize = true;
         const pendientesSubir = soloActivos(fusion).filter(s =>
           !remoto.some((r: any) => r?.id === s.id)
@@ -581,16 +589,24 @@ export class EinF02SolicitudComponent implements OnInit, AfterViewChecked, OnDes
         if (pendientesSubir.length) {
           this.programarSyncServidor(true);
         }
+        this.sincronizarDesdeForms(true);
       },
       error: () => {
-        /* sin servidor: se sigue con localStorage */
+        this.catalogoServidorListo = true;
+        this.sincronizarDesdeForms(true);
       }
     });
   }
 
   private persistir(): void {
-    this.filas = conservarReportesManuales(this.filas, cargarSolicitudesLocal());
-    this.guardadoLocal = guardarSolicitudesLocal(this.filas);
+    const disco = cargarSolicitudesLocal();
+    // Mezcla activos en pantalla + ocultos del catálogo/disco para no “revivir” Forms ocultos.
+    const mezcla = fusionarSolicitudes(
+      [...this.filas, ...this.catalogoCompleto.filter(s => s.activo === false)],
+      disco
+    );
+    this.aplicarCatalogo(mezcla);
+    this.guardadoLocal = guardarSolicitudesLocal(this.catalogoCompleto);
     if (!this.guardadoLocal) {
       this.flash('No se pudo guardar localmente.');
     }

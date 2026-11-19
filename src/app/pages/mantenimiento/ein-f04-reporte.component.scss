@@ -22,6 +22,78 @@
   margin-top: 0.45rem;
 }
 
+.mt-book__resumen {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: #334155;
+  text-align: left;
+  min-height: 2.1rem;
+}
+
+.mt-book__meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.28rem;
+}
+
+.mt-book__chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 0.12rem 0.42rem;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  &--ok {
+    border-color: rgba(22, 163, 74, 0.35);
+    background: rgba(22, 163, 74, 0.12);
+    color: #166534;
+  }
+
+  &--muted {
+    color: #64748b;
+    font-weight: 600;
+  }
+}
+
+.mt-book__editor-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 1.85rem;
+  padding: 0 0.55rem;
+  border: 1px solid rgba(30, 41, 59, 0.35);
+  background: #fff;
+  color: #1e293b;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.68rem;
+  font-weight: 700;
+
+  &:hover {
+    background: rgba(30, 41, 59, 0.08);
+  }
+
+  i {
+    font-size: 0.72rem;
+  }
+}
+
 .mt-book__delete-btn {
   display: inline-flex;
   align-items: center;
@@ -38,6 +110,23 @@
   &:hover {
     background: rgba(180, 83, 9, 0.1);
   }
+}
+
+.mt-problema-ref__sub {
+  margin: 0.15rem 0 0;
+  font-size: 0.75rem;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+.mt-problema-ref--forms {
+  border-color: rgba(14, 165, 233, 0.28);
+  background: linear-gradient(135deg, #f8fafc 0%, #e0f2fe 48%, #f1f5f9 100%);
+}
+
+.mt-problema-ref--forms .mt-problema-ref__ribbon {
+  background: rgba(14, 165, 233, 0.12);
+  color: #0369a1;
 }
 
 .mt-tipo-toggle {
@@ -481,4 +570,393 @@
     min-width: 2.2rem;
     justify-content: center;
   }
+}
+
+.mt-archivero__btn-import {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 10px;
+  padding: 0.55rem 0.95rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  border: 0;
+  color: #fff;
+  background: linear-gradient(135deg, #b45309, #c2410c);
+
+  &:hover:not(:disabled) {
+    filter: brightness(1.05);
+  }
+
+  &:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+  }
+}
+
+.mt-tool-btn--pptx {
+  background: rgba(180, 83, 9, 0.1);
+  border-color: rgba(180, 83, 9, 0.35);
+  color: #9a3412;
+
+  &:hover:not(:disabled) {
+    background: rgba(180, 83, 9, 0.16);
+  }
+}
+
+.mt-pptx-wizard {
+  position: fixed;
+  inset: 0;
+  z-index: 1080;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.mt-pptx-wizard__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+}
+
+.mt-pptx-wizard__panel {
+  position: relative;
+  z-index: 1;
+  width: min(980px, 100%);
+  max-height: min(88vh, 820px);
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+  overflow: hidden;
+}
+
+.mt-pptx-wizard__head,
+.mt-pptx-wizard__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.95rem 1.15rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.mt-pptx-wizard__foot {
+  border-bottom: 0;
+  border-top: 1px solid #e2e8f0;
+}
+
+.mt-pptx-wizard__head h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.mt-pptx-wizard__head p,
+.mt-pptx-wizard__foot p {
+  margin: 0.15rem 0 0;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.mt-pptx-wizard__close {
+  width: 2rem;
+  height: 2rem;
+  border: 0;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #334155;
+  cursor: pointer;
+}
+
+.mt-pptx-wizard__body {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  min-height: 0;
+  flex: 1;
+}
+
+.mt-pptx-wizard__list {
+  overflow: auto;
+  border-right: 1px solid #e2e8f0;
+  background: #f8fafc;
+  padding: 0.55rem;
+}
+
+.mt-pptx-wizard__item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  text-align: left;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 10px;
+  padding: 0.55rem 0.5rem;
+  cursor: pointer;
+  margin-bottom: 0.3rem;
+
+  &.is-active {
+    background: #fff;
+    border-color: #cbd5e1;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  }
+
+  &.is-skip {
+    opacity: 0.55;
+  }
+}
+
+.mt-pptx-wizard__item-num {
+  flex: 0 0 auto;
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 800;
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.mt-pptx-wizard__item-meta {
+  flex: 1 1 auto;
+  min-width: 0;
+
+  strong, small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  strong {
+    font-size: 0.8rem;
+    color: #0f172a;
+  }
+
+  small {
+    font-size: 0.68rem;
+    color: #64748b;
+  }
+}
+
+.mt-pptx-wizard__check input {
+  width: 1rem;
+  height: 1rem;
+  cursor: pointer;
+}
+
+.mt-pptx-wizard__detail {
+  overflow: auto;
+  padding: 1rem 1.15rem;
+}
+
+.mt-pptx-wizard__detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+
+  h4 {
+    margin: 0;
+    font-size: 0.98rem;
+    font-weight: 800;
+  }
+}
+
+.mt-pptx-wizard__badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: #fee2e2;
+  color: #b91c1c;
+
+  &.is-on {
+    background: #dcfce7;
+    color: #15803d;
+  }
+}
+
+.mt-pptx-wizard__fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem 0.85rem;
+  margin-bottom: 0.85rem;
+
+  div {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 0.45rem 0.6rem;
+  }
+
+  em {
+    display: block;
+    font-style: normal;
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  span {
+    font-size: 0.86rem;
+    color: #0f172a;
+    font-weight: 600;
+  }
+}
+
+.mt-pptx-wizard__desc {
+  margin-bottom: 0.85rem;
+
+  em {
+    display: block;
+    font-style: normal;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #64748b;
+    margin-bottom: 0.25rem;
+  }
+
+  p {
+    margin: 0;
+    white-space: pre-wrap;
+    font-size: 0.88rem;
+    color: #1e293b;
+    line-height: 1.45;
+  }
+}
+
+.mt-pptx-wizard__imgs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.85rem;
+
+  img {
+    width: 92px;
+    height: 92px;
+    object-fit: cover;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+  }
+}
+
+.mt-pptx-wizard__raw {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.45rem 0.65rem;
+  background: #f8fafc;
+
+  summary {
+    cursor: pointer;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #475569;
+  }
+
+  pre {
+    margin: 0.45rem 0 0;
+    white-space: pre-wrap;
+    font-size: 0.72rem;
+    color: #334155;
+    max-height: 180px;
+    overflow: auto;
+  }
+}
+
+.mt-pptx-wizard__foot-actions {
+  display: inline-flex;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+.mt-pptx-wizard__btn {
+  border-radius: 10px;
+  padding: 0.55rem 0.95rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  border: 0;
+}
+
+.mt-pptx-wizard__btn--ghost {
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.mt-pptx-wizard__btn--primary {
+  background: #9a3412;
+  color: #fff;
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+}
+
+@media (max-width: 800px) {
+  .mt-pptx-wizard__body {
+    grid-template-columns: 1fr;
+  }
+
+  .mt-pptx-wizard__list {
+    max-height: 160px;
+    border-right: 0;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .mt-pptx-wizard__fields {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+.mt-archivero__btn-import {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 10px;
+  padding: 0.55rem 0.95rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  border: 0;
+  color: #fff;
+  background: linear-gradient(135deg, #b45309, #c2410c);
+  &:hover:not(:disabled) { filter: brightness(1.05); }
+  &:disabled { opacity: 0.65; cursor: not-allowed; }
+}
+
+.mt-book__actions--footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 0.65rem 0.65rem;
+}
+
+.mt-book__borrar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid rgba(185, 28, 28, 0.35);
+  background: #fff;
+  color: #b91c1c;
+  border-radius: 9px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  &:hover { background: #fef2f2; }
 }

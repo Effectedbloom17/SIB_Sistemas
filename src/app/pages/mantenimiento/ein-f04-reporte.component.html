@@ -28,8 +28,8 @@
                 <div>
                   <h2 class="mt-archivero__title">Archivero de reportes</h2>
                   <p class="mt-archivero__hint">
-                    Los de Forms llegan como correctivos. Los escritos aquí (incluidos preventivos) se comparten entre todos los perfiles:
-                    pulsa una tarjeta para abrirla, completar datos, generar el Word y subir el PDF firmado.
+                    Importa formatos EIN-F-04 desde Word (.docx) o PowerPoint (.pptx). En PPT se revisa cada diapositiva antes de crear el reporte.
+                    Abre una tarjeta con un clic en toda ella. Las solicitudes de Forms se traen solo si pulsas «Desde Forms».
                   </p>
                 </div>
               </div>
@@ -39,11 +39,24 @@
                   <input type="search" [(ngModel)]="filtro" placeholder="Buscar folio, área, responsable…" />
                 </label>
                 <div class="mt-archivero__actions">
+                  <input #inputFormatoImport type="file"
+                    accept=".docx,.pptx,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                    hidden
+                    [disabled]="importandoFormatos || importandoWord || generandoReporte"
+                    (change)="onFormatoArchiveroSeleccionado($event)" />
+                  <button type="button" class="mt-archivero__btn-import"
+                    (click)="abrirSelectorFormatos()"
+                    [disabled]="importandoFormatos || importandoWord || generandoReporte"
+                    title="Importar Word (.docx) o PowerPoint (.pptx)">
+                    <i class="fas" [ngClass]="importandoFormatos ? 'fa-spinner fa-spin' : 'fa-file-import'"></i>
+                    {{ importandoFormatos ? 'Importando…' : 'Importar formatos' }}
+                  </button>
                   <button type="button" class="mt-archivero__btn-manual" (click)="nuevoReporte()">
                     <i class="fas fa-plus"></i>
                     Nuevo reporte
                   </button>
-                  <button type="button" class="mt-archivero__btn-nuevo" (click)="sincronizarDesdeForms()" [disabled]="sincronizandoForms">
+                  <button type="button" class="mt-archivero__btn-nuevo" (click)="sincronizarDesdeForms(true)" [disabled]="sincronizandoForms"
+                    title="Opcional: traer solicitudes del Forms EIN-F-02">
                     <i class="fas" [ngClass]="sincronizandoForms ? 'fa-spinner fa-spin' : 'fa-cloud-download-alt'"></i>
                     {{ sincronizandoForms ? 'Sync…' : 'Desde Forms' }}
                   </button>
@@ -80,7 +93,9 @@
             <ng-template #tarjetaReporte let-lista="lista">
               <li class="mt-book" *ngFor="let s of lista; trackBy: trackBySol"
                 [class.mt-book--done]="!!s.pdfFirmado?.driveFileId">
-                <button type="button" class="mt-book__tap" (click)="abrirRegistro(s)">
+                <button type="button" class="mt-book__tap" (click)="abrirRegistro(s)"
+                  [attr.title]="'Abrir reporte ' + s.folio"
+                  [attr.aria-label]="'Abrir reporte ' + s.folio">
                   <span class="mt-book__binding" aria-hidden="true">
                     <span class="mt-book__ring"></span><span class="mt-book__ring"></span>
                     <span class="mt-book__ring"></span><span class="mt-book__ring"></span>
@@ -94,23 +109,35 @@
                     </span>
                     <span class="mt-book__origen">{{ s.nombreSolicitante || 'Sin solicitante' }}</span>
                     <span class="mt-book__folio">{{ s.folio }}</span>
-                    <span class="mt-book__lines" aria-hidden="true"><span></span><span></span><span></span></span>
-                    <span class="mt-book__fecha-solicitud">{{ formatearFecha(s.fechaSolicitud) }}</span>
-                    <span class="mt-book__actions" *ngIf="!esDeForms(s)" (click)="$event.stopPropagation()">
-                      <button type="button" class="mt-book__delete-btn"
-                        (click)="eliminarReporte(s, $event)"
-                        title="Desactivar reporte" aria-label="Desactivar reporte">
-                        <i class="fas fa-ban" aria-hidden="true"></i>
-                      </button>
+                    <span class="mt-book__resumen" *ngIf="resumenTarjeta(s) as resumen" [title]="resumen">
+                      {{ resumen }}
                     </span>
+                    <span class="mt-book__meta-row" *ngIf="s.tipoMantenimiento || s.responsableMantenimiento || tieneGestion(s)">
+                      <span class="mt-book__chip" *ngIf="s.tipoMantenimiento">{{ s.tipoMantenimiento }}</span>
+                      <span class="mt-book__chip mt-book__chip--ok" *ngIf="tieneGestion(s)">Con información</span>
+                      <span class="mt-book__chip mt-book__chip--muted" *ngIf="s.responsableMantenimiento">
+                        {{ s.responsableMantenimiento }}
+                      </span>
+                    </span>
+                    <span class="mt-book__lines" aria-hidden="true" *ngIf="!resumenTarjeta(s)"><span></span><span></span><span></span></span>
+                    <span class="mt-book__fecha-solicitud">{{ formatearFecha(s.fechaSolicitud) }}</span>
                   </span>
                 </button>
+                <div class="mt-book__actions mt-book__actions--footer" *ngIf="esSuperAdmin">
+                  <button type="button" class="mt-book__borrar-btn"
+                    (click)="eliminarReporte(s, $event)"
+                    title="Borrar reporte (solo superadministrador)"
+                    aria-label="Borrar reporte">
+                    <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                    <span>Borrar</span>
+                  </button>
+                </div>
               </li>
             </ng-template>
             <ng-template #vacio>
               <div class="mt-archivero__empty">
                 <i class="fas fa-archive"></i>
-                <p>Aún no hay reportes. Crea uno con «Nuevo reporte» o sincroniza con «Desde Forms».</p>
+                <p>Aún no hay reportes. Usa «Importar formatos» (Word/PPT), «Nuevo reporte» o, si lo necesitas, «Desde Forms».</p>
               </div>
             </ng-template>
 
@@ -144,28 +171,37 @@
               </div>
               <div class="mt-editor__toolbar-actions mt-editor__toolbar-actions--compact">
                 <input #inputWordImport type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden
-                  [disabled]="importandoWord || generandoReporte || editorDriveAbierto"
+                  [disabled]="importandoWord || importandoFormatos || generandoReporte || editorDriveAbierto"
                   (change)="onWordSeleccionado($event)" />
+                <input #inputPptxImport type="file" accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation" hidden
+                  [disabled]="importandoWord || importandoFormatos || generandoReporte || editorDriveAbierto"
+                  (change)="onPptxSeleccionado($event)" />
                 <button type="button" class="mt-tool-btn" (click)="guardarInformacionF04()"
-                  [disabled]="generandoReporte || editorDriveAbierto || importandoWord"
+                  [disabled]="generandoReporte || editorDriveAbierto || importandoWord || importandoFormatos"
                   title="Guardar información en Word/Drive">
                   <i class="fas" [ngClass]="generandoReporte ? 'fa-spinner fa-spin' : 'fa-save'"></i>
                   <span>Guardar</span>
                 </button>
                 <button type="button" class="mt-tool-btn mt-tool-btn--word" (click)="abrirSelectorWord()"
-                  [disabled]="importandoWord || generandoReporte || editorDriveAbierto"
+                  [disabled]="importandoWord || importandoFormatos || generandoReporte || editorDriveAbierto"
                   title="Importar datos desde un Word EIN-F-04 (.docx)">
                   <i class="fas" [ngClass]="importandoWord ? 'fa-spinner fa-spin' : 'fa-file-word'"></i>
                   <span>{{ importandoWord ? 'Importando…' : 'Importar Word' }}</span>
                 </button>
+                <button type="button" class="mt-tool-btn mt-tool-btn--pptx" (click)="abrirSelectorPptx()"
+                  [disabled]="importandoWord || importandoFormatos || generandoReporte || editorDriveAbierto"
+                  title="Importar datos desde PowerPoint (.pptx), diapositiva por diapositiva">
+                  <i class="fas" [ngClass]="importandoFormatos ? 'fa-spinner fa-spin' : 'fa-file-powerpoint'"></i>
+                  <span>{{ importandoFormatos ? 'Importando…' : 'Importar PPT' }}</span>
+                </button>
                 <button type="button" class="mt-tool-btn" (click)="abrirEditorIntegradoF04()"
-                  [disabled]="generandoReporte || importandoWord"
+                  [disabled]="generandoReporte || importandoWord || importandoFormatos"
                   title="Abrir editor integrado en Drive">
                   <i class="fas" [ngClass]="generandoReporte ? 'fa-spinner fa-spin' : 'fa-pen'"></i>
                   <span>Editor</span>
                 </button>
                 <button type="button" class="mt-tool-btn mt-tool-btn--pdf" (click)="descargarPdfF04()"
-                  [disabled]="generandoReporte || editorDriveAbierto || importandoWord"
+                  [disabled]="generandoReporte || editorDriveAbierto || importandoWord || importandoFormatos"
                   title="Descargar PDF" aria-label="Descargar PDF">
                   <i class="fas" [ngClass]="generandoReporte ? 'fa-spinner fa-spin' : 'fa-file-pdf'"></i>
                   <span>PDF</span>
@@ -173,12 +209,13 @@
               </div>
             </div>
 
-            <aside class="mt-problema-ref mt-problema-ref--editable" *ngIf="!esDeForms(sol)"
+            <aside class="mt-problema-ref mt-problema-ref--editable"
               [class.mt-problema-ref--guia]="guiaSolicitanteAbierta"
+              [class.mt-problema-ref--forms]="esDeForms(sol)"
               aria-label="Descripción del problema">
               <div class="mt-problema-ref__ribbon" aria-hidden="true">
-                <i class="fas fa-pen"></i>
-                <span>Para escribir</span>
+                <i class="fas" [ngClass]="esDeForms(sol) ? 'fa-cloud-download-alt' : 'fa-pen'"></i>
+                <span>{{ esDeForms(sol) ? 'Forms · editable' : 'Para escribir' }}</span>
               </div>
               <div class="mt-problema-ref__head">
                 <div class="mt-problema-ref__icon" aria-hidden="true">
@@ -186,6 +223,9 @@
                 </div>
                 <div class="mt-problema-ref__intro">
                   <h3 class="mt-problema-ref__title">Descripción del problema</h3>
+                  <p class="mt-problema-ref__sub" *ngIf="esDeForms(sol)">
+                    Origen Google Forms. Puedes corregir o completar lo capturado para recuperarlo en todos los perfiles.
+                  </p>
                 </div>
               </div>
               <div class="mt-problema-ref__editor">
@@ -235,37 +275,20 @@
                     </ul>
                   </label>
                 </div>
-              </div>
-            </aside>
-
-            <aside class="mt-problema-ref" *ngIf="esDeForms(sol)" aria-label="Referencia del problema reportado en Forms">
-              <div class="mt-problema-ref__ribbon" aria-hidden="true">
-                <i class="fas fa-eye"></i>
-                <span>Solo referencia</span>
-              </div>
-              <div class="mt-problema-ref__head">
-                <div class="mt-problema-ref__icon" aria-hidden="true">
-                  <i class="fas fa-clipboard-list"></i>
+                <div class="mt-problema-ref__meta" *ngIf="esDeForms(sol) && sol.fechaSolicitud">
+                  <span>
+                    <i class="fas fa-calendar-alt" aria-hidden="true"></i>
+                    Solicitud {{ formatearFecha(sol.fechaSolicitud) }}
+                  </span>
+                  <span *ngIf="sol.ubicacion">
+                    <i class="fas fa-map-marker-alt" aria-hidden="true"></i>
+                    {{ sol.ubicacion }}
+                  </span>
+                  <span *ngIf="sol.prioridad">
+                    <i class="fas fa-flag" aria-hidden="true"></i>
+                    {{ sol.prioridad }}
+                  </span>
                 </div>
-                <div class="mt-problema-ref__intro">
-                  <h3 class="mt-problema-ref__title">Descripción del problema</h3>
-                </div>
-              </div>
-              <blockquote
-                class="mt-problema-ref__quote"
-                [class.mt-problema-ref__quote--empty]="!sol.descripcionProblema?.trim()">
-                <span class="mt-problema-ref__quote-mark" aria-hidden="true">“</span>
-                <p>{{ sol.descripcionProblema?.trim() || 'Sin descripción en Forms.' }}</p>
-              </blockquote>
-              <div class="mt-problema-ref__meta" *ngIf="sol.nombreSolicitante || sol.fechaSolicitud">
-                <span *ngIf="sol.nombreSolicitante">
-                  <i class="fas fa-user" aria-hidden="true"></i>
-                  {{ sol.nombreSolicitante }}
-                </span>
-                <span *ngIf="sol.fechaSolicitud">
-                  <i class="fas fa-calendar-alt" aria-hidden="true"></i>
-                  Solicitud {{ formatearFecha(sol.fechaSolicitud) }}
-                </span>
               </div>
             </aside>
 
@@ -308,8 +331,7 @@
 
                 <label class="mt-doc__linea">
                   <span class="mt-doc__label">Fecha de la solicitud del mantenimiento*:</span>
-                  <input type="date" [(ngModel)]="sol.fechaSolicitud" (ngModelChange)="onCampoChange()"
-                    [readonly]="esDeForms(sol)" [attr.tabindex]="esDeForms(sol) ? -1 : null" />
+                  <input type="date" [(ngModel)]="sol.fechaSolicitud" (ngModelChange)="onCampoChange()" />
                 </label>
 
                 <label class="mt-doc__linea">
@@ -527,4 +549,81 @@
   </button>
   <img [src]="lightboxUrl" [alt]="lightboxNombre" (click)="$event.stopPropagation()" />
   <p class="mt-f02-lightbox__caption">{{ lightboxNombre }}</p>
+</div>
+
+<div class="mt-pptx-wizard" *ngIf="pptxWizard as pack" role="dialog" aria-modal="true" aria-label="Revisión de diapositivas">
+  <div class="mt-pptx-wizard__backdrop" (click)="cerrarWizardPptx()"></div>
+  <div class="mt-pptx-wizard__panel">
+    <header class="mt-pptx-wizard__head">
+      <div>
+        <h3>Revisar diapositivas</h3>
+        <p>{{ pack.archivoNombre }} · {{ pptxSlidesIncluidas }}/{{ pack.slides.length }} seleccionadas</p>
+      </div>
+      <button type="button" class="mt-pptx-wizard__close" (click)="cerrarWizardPptx()" aria-label="Cerrar">
+        <i class="fas fa-times"></i>
+      </button>
+    </header>
+
+    <div class="mt-pptx-wizard__body">
+      <aside class="mt-pptx-wizard__list">
+        <button type="button" class="mt-pptx-wizard__item"
+          *ngFor="let s of pack.slides; let i = index"
+          [class.is-active]="i === pptxSlideActiva"
+          [class.is-skip]="!s.incluir"
+          (click)="seleccionarSlideWizard(i)">
+          <span class="mt-pptx-wizard__item-num">{{ s.indice }}</span>
+          <span class="mt-pptx-wizard__item-meta">
+            <strong>{{ s.titulo }}</strong>
+            <small>{{ s.parsed.camposAplicados.join(', ') || 'Sin campos' }}</small>
+          </span>
+          <label class="mt-pptx-wizard__check" (click)="$event.stopPropagation()">
+            <input type="checkbox" [checked]="s.incluir" (change)="toggleSlideIncluir(i)" />
+          </label>
+        </button>
+      </aside>
+
+      <section class="mt-pptx-wizard__detail" *ngIf="slideWizardActiva as slide">
+        <div class="mt-pptx-wizard__detail-head">
+          <h4>Diapositiva {{ slide.indice }}</h4>
+          <span class="mt-pptx-wizard__badge" [class.is-on]="slide.incluir">
+            {{ slide.incluir ? 'Se importará' : 'Omitida' }}
+          </span>
+        </div>
+
+        <div class="mt-pptx-wizard__fields" *ngIf="slide.parsed.camposAplicados.length">
+          <div *ngIf="slide.parsed.tipoMantenimiento"><em>Tipo</em><span>{{ slide.parsed.tipoMantenimiento }}</span></div>
+          <div *ngIf="slide.parsed.fechaSolicitud"><em>Fecha solicitud</em><span>{{ slide.parsed.fechaSolicitud }}</span></div>
+          <div *ngIf="slide.parsed.fechaRealizado"><em>Fecha realizado</em><span>{{ slide.parsed.fechaRealizado }}</span></div>
+          <div *ngIf="slide.parsed.responsableMantenimiento"><em>Responsable</em><span>{{ slide.parsed.responsableMantenimiento }}</span></div>
+          <div *ngIf="slide.parsed.nombreSolicitante"><em>Solicitante</em><span>{{ slide.parsed.nombreSolicitante }}</span></div>
+          <div *ngIf="slide.parsed.folioDetectado"><em>Folio</em><span>{{ slide.parsed.folioDetectado }}</span></div>
+        </div>
+
+        <div class="mt-pptx-wizard__desc" *ngIf="slide.parsed.descripcionMantenimientoRealizado">
+          <em>Descripción</em>
+          <p>{{ slide.parsed.descripcionMantenimientoRealizado }}</p>
+        </div>
+
+        <div class="mt-pptx-wizard__imgs" *ngIf="slide.imagenPreviews.length">
+          <img *ngFor="let src of slide.imagenPreviews" [src]="src" alt="Evidencia de diapositiva" />
+        </div>
+
+        <details class="mt-pptx-wizard__raw" *ngIf="slide.textoPlano">
+          <summary>Texto detectado</summary>
+          <pre>{{ slide.textoPlano }}</pre>
+        </details>
+      </section>
+    </div>
+
+    <footer class="mt-pptx-wizard__foot">
+      <p *ngIf="pack.avisos.length">{{ pack.avisos[0] }}</p>
+      <div class="mt-pptx-wizard__foot-actions">
+        <button type="button" class="mt-pptx-wizard__btn mt-pptx-wizard__btn--ghost" (click)="cerrarWizardPptx()">Cancelar</button>
+        <button type="button" class="mt-pptx-wizard__btn mt-pptx-wizard__btn--primary"
+          (click)="confirmarWizardPptx()" [disabled]="!pptxSlidesIncluidas">
+          Importar {{ pptxSlidesIncluidas || 0 }} diapositiva(s)
+        </button>
+      </div>
+    </footer>
+  </div>
 </div>

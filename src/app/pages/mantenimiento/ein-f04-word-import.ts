@@ -11,6 +11,7 @@ export interface EinF04WordImportResult {
   fechaRealizado?: string;
   responsableMantenimiento?: string;
   descripcionMantenimientoRealizado?: string;
+  nombreSolicitante?: string;
   folioDetectado?: string;
   imagenes: File[];
   camposAplicados: string[];

@@ -282,23 +282,177 @@ export function soloActivos(lista: EinF02Solicitud[]): EinF02Solicitud[] {
   return (lista || []).filter(estaActivo);
 }
 
-/** Une local + remoto por id; gana el más reciente por actualizadoEn. */
+/** Qué tan “lleno” está un reporte (gestión EIN-F-04 / bitácora). */
+export function scoreRiquezaSolicitud(s: EinF02Solicitud | null | undefined): number {
+  if (!s) {
+    return 0;
+  }
+  let n = 0;
+  if (String(s.descripcionMantenimientoRealizado || '').trim()) {
+    n += 4;
+  }
+  if (String(s.responsableMantenimiento || '').trim()) {
+    n += 3;
+  }
+  if (String(s.fechaRealizado || '').trim()) {
+    n += 2;
+  }
+  if (String(s.descripcionProblema || '').trim()) {
+    n += 2;
+  }
+  if (s.reporteDriveFileId) {
+    n += 3;
+  }
+  if (s.pdfFirmado?.driveFileId) {
+    n += 3;
+  }
+  if (Array.isArray(s.evidencias) && s.evidencias.length) {
+    n += Math.min(s.evidencias.length, 5);
+  }
+  if (String(s.observacionesBitacora || '').trim()) {
+    n += 1;
+  }
+  if (String(s.tipoInfraestructura || '').trim()) {
+    n += 1;
+  }
+  if (String(s.tipoMantenimiento || '').trim()) {
+    n += 1;
+  }
+  return n;
+}
+
+/**
+ * Rellena huecos del ganador con datos del perdedor.
+ * Activo: solo queda oculto si AMBOS están ocultos (evita que un cascarón
+ * vacío “reactive-hide” borre un reporte lleno al fusionar duplicados).
+ */
+export function fusionarCamposSolicitud(
+  primario: EinF02Solicitud,
+  secundario: EinF02Solicitud
+): EinF02Solicitud {
+  const a = normalizarSolicitud(primario);
+  const b = normalizarSolicitud(secundario);
+  const out: EinF02Solicitud = { ...a };
+
+  const tomarSiVacio = <K extends keyof EinF02Solicitud>(key: K) => {
+    const va = out[key];
+    const vb = b[key];
+    const vacioA =
+      va == null ||
+      va === '' ||
+      (Array.isArray(va) && !(va as unknown[]).length);
+    if (vacioA && vb != null && vb !== '' && !(Array.isArray(vb) && !(vb as unknown[]).length)) {
+      (out as any)[key] = vb;
+    }
+  };
+
+  const tsAms = Date.parse(String(a.actualizadoEn || '')) || 0;
+  const tsBms = Date.parse(String(b.actualizadoEn || '')) || 0;
+  // Si el primario es claramente más nuevo, no rellenar gestión con datos viejos del secundario
+  // (evita que localStorage de prueba pise un espejo reciente de producción).
+  const primarioMasNuevo = tsAms - tsBms > 2000;
+
+  tomarSiVacio('nombreSolicitante');
+  tomarSiVacio('puesto');
+  tomarSiVacio('area');
+  tomarSiVacio('descripcionProblema');
+  if (!primarioMasNuevo) {
+    tomarSiVacio('descripcionMantenimientoRealizado');
+    tomarSiVacio('observacionesAdministrador');
+    tomarSiVacio('tipoMantenimiento');
+    tomarSiVacio('fechaRealizado');
+    tomarSiVacio('responsableMantenimiento');
+    tomarSiVacio('reporteDriveFileId');
+    tomarSiVacio('reporteWebViewLink');
+    tomarSiVacio('observacionesBitacora');
+  }
+  tomarSiVacio('tipoInfraestructura');
+  tomarSiVacio('idSerie');
+  tomarSiVacio('internoExterno');
+  tomarSiVacio('bitacoraDriveFileId');
+  tomarSiVacio('bitacoraWebViewLink');
+  tomarSiVacio('ubicacion');
+  tomarSiVacio('prioridad');
+  tomarSiVacio('formsResponseId');
+  tomarSiVacio('folio');
+
+  if (!out.pdfFirmado?.driveFileId && b.pdfFirmado?.driveFileId && !primarioMasNuevo) {
+    out.pdfFirmado = { ...b.pdfFirmado };
+  }
+
+  const evMap = new Map<string, EinF02Evidencia>();
+  for (const ev of [...(b.evidencias || []), ...(a.evidencias || [])]) {
+    const key = String(ev?.driveFileId || ev?.url || ev?.webViewLink || '').trim();
+    if (key) {
+      evMap.set(key, ev);
+    }
+  }
+  out.evidencias = Array.from(evMap.values());
+
+  // Recuperar visibilidad si al menos una copia seguía activa.
+  out.activo = !(a.activo === false && b.activo === false);
+
+  const tsA = String(a.actualizadoEn || '');
+  const tsB = String(b.actualizadoEn || '');
+  out.actualizadoEn = tsAms >= tsBms ? (a.actualizadoEn || tsA) : (b.actualizadoEn || tsB);
+  out.creadoEn =
+    String(a.creadoEn || '') <= String(b.creadoEn || '')
+      ? String(a.creadoEn || b.creadoEn || out.creadoEn)
+      : String(b.creadoEn || a.creadoEn || out.creadoEn);
+
+  return out;
+}
+
+function preferirSolicitud(a: EinF02Solicitud, b: EinF02Solicitud): EinF02Solicitud {
+  const ta = Date.parse(String(a.actualizadoEn || '')) || 0;
+  const tb = Date.parse(String(b.actualizadoEn || '')) || 0;
+  const sa = scoreRiquezaSolicitud(a);
+  const sb = scoreRiquezaSolicitud(b);
+  // Gana lo más reciente (p. ej. sync prod→local); la riqueza solo desempata
+  // si las marcas de tiempo están casi iguales (±2s), para no revivir localStorage viejo.
+  let primario: EinF02Solicitud;
+  if (Math.abs(ta - tb) > 2000) {
+    primario = ta >= tb ? a : b;
+  } else if (sa !== sb) {
+    primario = sa > sb ? a : b;
+  } else {
+    primario = ta >= tb ? a : b;
+  }
+  const secundario = primario === a ? b : a;
+  return fusionarCamposSolicitud(primario, secundario);
+}
+
+/**
+ * Une local + remoto por id y por formsResponseId.
+ * Evita duplicados vacíos de Forms que “borran” reportes ya gestionados.
+ */
 export function fusionarSolicitudes(
   local: EinF02Solicitud[],
   remoto: EinF02Solicitud[]
 ): EinF02Solicitud[] {
-  const map = new Map<string, EinF02Solicitud>();
+  const byId = new Map<string, EinF02Solicitud>();
   for (const raw of [...(remoto || []), ...(local || [])]) {
     const s = normalizarSolicitud(raw);
     if (!s.id) {
       continue;
     }
-    const prev = map.get(s.id);
-    if (!prev || String(s.actualizadoEn || '') >= String(prev.actualizadoEn || '')) {
-      map.set(s.id, s);
-    }
+    const prev = byId.get(s.id);
+    byId.set(s.id, prev ? preferirSolicitud(prev, s) : s);
   }
-  return Array.from(map.values()).sort((a, b) =>
+
+  const byForms = new Map<string, EinF02Solicitud>();
+  const sinForms: EinF02Solicitud[] = [];
+  for (const s of byId.values()) {
+    const rid = String(s.formsResponseId || '').trim();
+    if (!rid) {
+      sinForms.push(s);
+      continue;
+    }
+    const prev = byForms.get(rid);
+    byForms.set(rid, prev ? preferirSolicitud(prev, s) : s);
+  }
+
+  return [...Array.from(byForms.values()), ...sinForms].sort((a, b) =>
     String(b.actualizadoEn || '').localeCompare(String(a.actualizadoEn || ''))
   );
 }
@@ -399,30 +553,80 @@ export interface FormsCasoMantenimiento {
 
 /**
  * Incorpora respuestas del Forms que aún no existen (por formsResponseId).
- * Devuelve { lista, nuevos } sin tocar campos de gestión ya capturados en filas existentes.
+ * Conserva gestión ya capturada, ocultos (activo=false) y huérfanos con datos.
  */
 export function sincronizarCasosDesdeForms(
   existentes: EinF02Solicitud[],
   casos: FormsCasoMantenimiento[]
 ): { lista: EinF02Solicitud[]; nuevos: number; eliminados: number } {
-  const idsForms = new Set(
-    (casos || [])
-      .map(c => String(c.formsResponseId || '').trim())
-      .filter(Boolean)
-  );
   const manuales = (existentes || []).filter(s => !esRegistroForms(s));
-  const formsAntes = (existentes || []).filter(esRegistroForms).length;
+  const formsExistentes = (existentes || []).filter(esRegistroForms);
 
   const byForms = new Map<string, EinF02Solicitud>();
-  for (const s of existentes) {
+  for (const s of formsExistentes) {
     const rid = String(s.formsResponseId || '').trim();
-    if (rid && idsForms.has(rid) && !byForms.has(rid)) {
-      byForms.set(rid, s);
+    if (!rid) {
+      continue;
     }
+    const prev = byForms.get(rid);
+    byForms.set(rid, prev ? preferirSolicitud(prev, s) : s);
   }
+  const formsUnicosAntes = byForms.size;
 
-  let lista = Array.from(byForms.values());
+  const lista: EinF02Solicitud[] = [];
+  const vistos = new Set<string>();
   let nuevos = 0;
+
+  const aplicarMetaForms = (prev: EinF02Solicitud, caso: FormsCasoMantenimiento): void => {
+    let changed = false;
+    // Solo rellena huecos o actualiza metadatos de Forms; nunca borra gestión local.
+    if (caso.tipoInfraestructura && !String(prev.tipoInfraestructura || '').trim()) {
+      prev.tipoInfraestructura = caso.tipoInfraestructura;
+      changed = true;
+    } else if (
+      caso.tipoInfraestructura &&
+      prev.tipoInfraestructura !== caso.tipoInfraestructura &&
+      scoreRiquezaSolicitud(prev) < 4
+    ) {
+      prev.tipoInfraestructura = caso.tipoInfraestructura;
+      changed = true;
+    }
+    if (caso.descripcionProblema && !String(prev.descripcionProblema || '').trim()) {
+      prev.descripcionProblema = caso.descripcionProblema;
+      changed = true;
+    }
+    if (caso.nombreSolicitante && !String(prev.nombreSolicitante || '').trim()) {
+      prev.nombreSolicitante = caso.nombreSolicitante;
+      changed = true;
+    }
+    if (caso.puesto && !String(prev.puesto || '').trim()) {
+      prev.puesto = caso.puesto;
+      changed = true;
+    }
+    const areaNueva = caso.area || caso.ubicacion || '';
+    if (areaNueva && !String(prev.area || '').trim()) {
+      prev.area = areaNueva;
+      changed = true;
+    }
+    if (caso.ubicacion && !String(prev.ubicacion || '').trim()) {
+      prev.ubicacion = caso.ubicacion;
+      changed = true;
+    }
+    if (caso.prioridad && !String(prev.prioridad || '').trim()) {
+      prev.prioridad = caso.prioridad;
+      changed = true;
+    }
+    if (caso.fechaSolicitud && !String(prev.fechaSolicitud || '').trim()) {
+      prev.fechaSolicitud = caso.fechaSolicitud;
+      changed = true;
+    }
+    if (asegurarIdSerie(prev, [...lista, ...manuales])) {
+      changed = true;
+    }
+    if (changed) {
+      prev.actualizadoEn = new Date().toISOString();
+    }
+  };
 
   for (const caso of casos || []) {
     const rid = String(caso.formsResponseId || '').trim();
@@ -431,51 +635,16 @@ export function sincronizarCasosDesdeForms(
     }
     const prev = byForms.get(rid);
     if (prev) {
-      let changed = false;
-      if (caso.tipoInfraestructura && prev.tipoInfraestructura !== caso.tipoInfraestructura) {
-        prev.tipoInfraestructura = caso.tipoInfraestructura;
-        changed = true;
-      }
-      if (caso.descripcionProblema && prev.descripcionProblema !== caso.descripcionProblema) {
-        prev.descripcionProblema = caso.descripcionProblema;
-        changed = true;
-      }
-      if (caso.nombreSolicitante && prev.nombreSolicitante !== caso.nombreSolicitante) {
-        prev.nombreSolicitante = caso.nombreSolicitante;
-        changed = true;
-      }
-      if (caso.puesto && prev.puesto !== caso.puesto) {
-        prev.puesto = caso.puesto;
-        changed = true;
-      }
-      const areaNueva = caso.area || caso.ubicacion || '';
-      if (areaNueva && prev.area !== areaNueva) {
-        prev.area = areaNueva;
-        changed = true;
-      }
-      if (caso.ubicacion && prev.ubicacion !== caso.ubicacion) {
-        prev.ubicacion = caso.ubicacion;
-        changed = true;
-      }
-      if (caso.prioridad && prev.prioridad !== caso.prioridad) {
-        prev.prioridad = caso.prioridad;
-        changed = true;
-      }
-      if (caso.fechaSolicitud && prev.fechaSolicitud !== caso.fechaSolicitud) {
-        prev.fechaSolicitud = caso.fechaSolicitud;
-        changed = true;
-      }
-      if (asegurarIdSerie(prev, lista)) {
-        changed = true;
-      }
-      if (changed) {
-        prev.actualizadoEn = new Date().toISOString();
+      aplicarMetaForms(prev, caso);
+      if (!vistos.has(rid)) {
+        lista.push(prev);
+        vistos.add(rid);
       }
       continue;
     }
 
     // Folios e ID serie deben considerar también los manuales para no colisionar.
-    const baseFolio = [...lista, ...manuales];
+    const baseFolio = [...lista, ...manuales, ...Array.from(byForms.values())];
     const sol = crearSolicitudVacia(baseFolio, {
       nombreSolicitante: caso.nombreSolicitante || '',
       puesto: caso.puesto || '',
@@ -498,9 +667,27 @@ export function sincronizarCasosDesdeForms(
     sol.prioridad = caso.prioridad || '';
     sol.tipoMantenimiento = 'Correctivo';
     asegurarIdSerie(sol, baseFolio);
-    lista = [sol, ...lista];
+    lista.unshift(sol);
     byForms.set(rid, sol);
+    vistos.add(rid);
     nuevos += 1;
+  }
+
+  // Conservar Forms ocultos o con gestión aunque ya no vengan en Google Forms.
+  for (const s of byForms.values()) {
+    const rid = String(s.formsResponseId || '').trim();
+    if (!rid || vistos.has(rid)) {
+      continue;
+    }
+    const conservar =
+      s.activo === false ||
+      scoreRiquezaSolicitud(s) > 0 ||
+      !!s.reporteDriveFileId ||
+      !!s.pdfFirmado?.driveFileId;
+    if (conservar) {
+      lista.push(s);
+      vistos.add(rid);
+    }
   }
 
   const listaCompleta = [...lista, ...manuales];
@@ -508,11 +695,11 @@ export function sincronizarCasosDesdeForms(
     asegurarIdSerie(s, listaCompleta);
   }
 
-  const conservados = lista.length - nuevos;
+  const conservadosDeAntes = Math.max(0, lista.length - nuevos);
   return {
     lista: listaCompleta,
     nuevos,
-    eliminados: Math.max(0, formsAntes - conservados)
+    eliminados: Math.max(0, formsUnicosAntes - conservadosDeAntes)
   };
 }
 
