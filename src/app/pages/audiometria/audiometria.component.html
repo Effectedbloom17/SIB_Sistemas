@@ -111,9 +111,9 @@
         <div class="stepper">
           <div class="stepper-line"><div class="stepper-line-progress" [style.width.%]="progresoPorcentaje"></div></div>
           <button type="button" *ngFor="let paso of pasos" class="stepper-step" (click)="irAPaso(paso.numero)">
-            <span class="stepper-circle" [class.active]="pasoActual === paso.numero" [class.done]="pasoActual > paso.numero">
-              <i *ngIf="pasoActual > paso.numero" class="fas fa-check"></i>
-              <span *ngIf="pasoActual <= paso.numero">{{ paso.numero }}</span>
+            <span class="stepper-circle" [class.active]="pasoActual === paso.numero" [class.done]="mostrarPalomita(paso.numero)">
+              <i *ngIf="mostrarPalomita(paso.numero)" class="fas fa-check"></i>
+              <span *ngIf="!mostrarPalomita(paso.numero)">{{ paso.numero }}</span>
             </span>
             <span class="stepper-label">{{ paso.titulo }}</span>
           </button>
@@ -682,7 +682,7 @@
           <table class="hc-table hc-preguntas hc-diagnostico" [style.font-size.px]="12">
             <tr><td colspan="12" class="hc-section-header" [style.font-size.px]="12">6. Diagnóstico</td></tr>
             <tr>
-              <td colspan="12" class="hc-cell hc-multiline hc-izq" [style.font-size.px]="12"><strong>INTERPRETACIÓN AUTOMÁTICA:</strong> {{ interpretacion() }}</td>
+              <td colspan="12" class="hc-cell hc-multiline hc-izq" [style.font-size.px]="12"><strong>INTERPRETACIÓN AUTOMÁTICA:</strong><br>{{ interpretacion() }}</td>
             </tr>
             <tr>
               <td colspan="12" class="hc-cell hc-multiline hc-izq" [style.font-size.px]="12"><strong>DIAGNÓSTICO:</strong> {{ formulario.diagnostico }}</td>

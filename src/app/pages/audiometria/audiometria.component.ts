@@ -272,6 +272,95 @@ export class AudiometriaComponent implements OnInit, OnDestroy {
     }
   }
 
+  mostrarPalomita(numero: number): boolean {
+    return numero !== this.pasoActual && this.pasoCompleto(numero);
+  }
+
+  private pasoCompleto(numero: number): boolean {
+    const form = this.formulario;
+    if (numero === 1) {
+      return this.camposLlenos(
+        form.tipoAudiometria,
+        form.nombre,
+        form.fechaElaboracion,
+        form.ocupacion,
+        form.edad,
+        form.usoProtector,
+        form.anosEnPuesto,
+        form.horasExposicion,
+        form.tipoRuido
+      );
+    }
+    if (numero === 2) {
+      const base = this.camposLlenos(
+        form.perdidaUnilateral,
+        form.perdidaBilateral,
+        form.enfermedadSubita,
+        form.enfermedadProgresiva,
+        form.enfermedadFluctuante,
+        form.perdidaAuditiva,
+        form.enfermedadOido,
+        form.trastornosComunicacion
+      );
+      if (!base) return false;
+      if (this.esSi(form.perdidaAuditiva) && !this.textoLleno(form.perdidaParentesco)) return false;
+      if (this.esSi(form.enfermedadOido) && !this.camposLlenos(form.enfermedadCual, form.enfermedadParentesco)) return false;
+      if (this.esSi(form.trastornosComunicacion) && !this.textoLleno(form.trastornosTipo)) return false;
+      return true;
+    }
+    if (numero === 3) {
+      const base = this.camposLlenos(form.infecciosos, form.traumatismo, form.audifonos, form.quimicos);
+      if (!base) return false;
+      if (this.esSi(form.audifonos) && !this.textoLleno(form.audifonosHoras)) return false;
+      if (this.esSi(form.quimicos) && !this.textoLleno(form.quimicosHoras)) return false;
+      return true;
+    }
+    if (numero === 4) {
+      const base = this.camposLlenos(
+        form.disminucionAudicion,
+        form.otalgia,
+        form.mareos,
+        form.vertigo,
+        form.otorrea,
+        form.oyeBien,
+        form.repetirFrases,
+        form.aumentarVolumenTv,
+        form.oyeMejorConRuido,
+        form.molestanRuidosIntensos
+      );
+      if (!base) return false;
+      if (this.esNo(form.oyeBien) && !this.textoLleno(form.oyeBienDesdeCuando)) return false;
+      return true;
+    }
+    if (numero === 5) {
+      return this.camposLlenos(form.otoscopiaOd, form.otoscopiaOi) && this.viaAereaCompleta();
+    }
+    if (numero === 6) {
+      return this.camposLlenos(form.diagnostico, form.personalElaboro, form.cedulaProfesional);
+    }
+    return false;
+  }
+
+  private viaAereaCompleta(): boolean {
+    return this.umbrales.every((umbral) => this.valorNum(umbral.vaOd) != null && this.valorNum(umbral.vaOi) != null);
+  }
+
+  private camposLlenos(...valores: unknown[]): boolean {
+    return valores.every((valor) => this.textoLleno(valor));
+  }
+
+  private textoLleno(valor: unknown): boolean {
+    return String(valor ?? '').trim() !== '';
+  }
+
+  private esSi(valor: unknown): boolean {
+    return String(valor ?? '').trim().toUpperCase() === 'SI';
+  }
+
+  private esNo(valor: unknown): boolean {
+    return String(valor ?? '').trim().toUpperCase() === 'NO';
+  }
+
   abrirAyudaBinaural(evento: Event): void {
     evento.preventDefault();
     evento.stopPropagation();
@@ -550,55 +639,16 @@ export class AudiometriaComponent implements OnInit, OnDestroy {
     return ((7 * mejor) + peor) / 8;
   }
 
-  porcentajeDiscapacidad(): number | null {
-    const derecho = this.porcentajeOido('Od');
-    const izquierdo = this.porcentajeOido('Oi');
-    if (derecho == null || izquierdo == null) return null;
-    const binaural = ((7 * Math.min(derecho, izquierdo)) + Math.max(derecho, izquierdo)) / 8;
-    if (binaural <= 0) return 0;
-    const tramos = [
-      1.6, 3.2, 4.8, 6.4, 8, 9.6, 11.2, 12.8, 14.4, 16,
-      17.6, 19.2, 20.8, 22.4, 23.9, 25.4, 26.9, 28.4, 29.9, 32.5,
-      35, 37.5, 40, 42.5, 45, 47.5, 50, 52.5, 54.9, 59.5,
-      64, 68.5, 73, 77.5, 81.9, 85.6, 89.2, 92.8, 96.4, 100
-    ];
-    const indice = tramos.findIndex((hasta) => binaural <= hasta);
-    return indice === -1 ? 40 : indice + 1;
-  }
-
-  tipoPerdidaDb(): number | null {
-    const derecho = this.mediaLado('Od');
-    const izquierdo = this.mediaLado('Oi');
-    if (derecho == null || izquierdo == null) return null;
-    return (derecho + izquierdo) / 2;
-  }
-
-  clasificarTipo(db: number | null): string {
-    if (db == null) return '—';
-    if (db > 120) return 'Cofósis';
-    if (db > 111) return 'Profunda. 3er. grado';
-    if (db > 101) return 'Profunda. 2º grado';
-    if (db > 91) return 'Profunda. 1er. grado';
-    if (db > 81) return 'Severa. 2º grado';
-    if (db > 71) return 'Severa. 1er. grado';
-    if (db > 55) return 'Moderada. 2º grado';
-    if (db > 40) return 'Moderada. 1er. grado';
-    if (db > 20) return 'Leve';
-    return 'Pérdida';
-  }
-
   textoNumero(valor: number | null, decimales: number): string {
     if (valor == null || !Number.isFinite(valor)) return '—';
     return valor.toFixed(decimales);
   }
 
   interpretacion(): string {
-    const tipo = this.tipoPerdidaDb();
     return [
       `Oído derecho: media ${this.textoNumero(this.mediaLado('Od'), 2)}, suma ${this.textoNumero(this.sumaDb('Od'), 0)} dB, ${this.textoNumero(this.porcentajeOido('Od'), 0)} %.`,
       `Oído izquierdo: media ${this.textoNumero(this.mediaLado('Oi'), 2)}, suma ${this.textoNumero(this.sumaDb('Oi'), 0)} dB, ${this.textoNumero(this.porcentajeOido('Oi'), 0)} %.`,
-      `Tipo de pérdida ${this.textoNumero(tipo, 2)} dB, ${this.clasificarTipo(tipo)}.`,
-      `% pérdida SNDA binaural ${this.textoNumero(this.porcentajeBinaural(), 1)}. % discapacidad ${this.textoNumero(this.porcentajeDiscapacidad(), 0)}.`
+      `Porcentaje binaural ${this.textoNumero(this.porcentajeBinaural(), 1)}.`
     ].join('\n');
   }
 
