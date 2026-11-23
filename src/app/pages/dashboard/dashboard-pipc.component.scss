@@ -142,6 +142,101 @@ $border: #e9ecef;
 }
 .pc-carga-kpi--proximo.is-active { border-color: #fb6340; color: #fb6340; }
 .pc-carga-kpi--vencido.is-active { border-color: #f5365c; color: #f5365c; }
+.pc-analytics-card--atencion { overflow: visible; }
+
+.pc-empleado-buscar-wrap {
+  position: relative;
+  z-index: 12;
+}
+
+.pc-empleado-ayuda {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  margin: 0;
+  padding: 0.3rem;
+  list-style: none;
+  background: #fff;
+  border: 1px solid #e6ebf1;
+  border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(50, 50, 93, 0.14);
+  max-height: 220px;
+  overflow: auto;
+
+  button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    border: 0;
+    background: transparent;
+    color: $text-dark;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border-radius: 8px;
+    padding: 0.4rem 0.55rem;
+  }
+
+  button:hover { background: #f4f7f2; color: $primary; }
+}
+
+.pc-empleado-buscar {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: #fff;
+  border: 1px solid #e6ebf1;
+  border-radius: 999px;
+  padding: 0.32rem 0.75rem;
+  margin: 0;
+
+  i { color: $text-muted; font-size: 0.75rem; }
+  input {
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: $text-dark;
+    font-size: 0.8rem;
+    min-width: 180px;
+    width: 210px;
+  }
+}
+
+.pc-estatus-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.85rem;
+}
+
+.pc-estatus-filtro {
+  border: 1px solid color-mix(in srgb, var(--filtro-color) 42%, #fff);
+  background: #fff;
+  color: var(--filtro-color);
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.78rem;
+  padding: 0.4rem 0.85rem;
+
+  i {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--filtro-color);
+    margin-right: 0.4rem;
+  }
+
+  &.is-active {
+    background: var(--filtro-color);
+    border-color: var(--filtro-color);
+    color: #fff;
+
+    i { background: #fff; }
+  }
+}
+
 .pc-carga-board { padding: 0.4rem 1.15rem 1.15rem; }
 .pc-carga-vacio { color: $text-muted; text-align: center; padding: 1.5rem 0; }
 

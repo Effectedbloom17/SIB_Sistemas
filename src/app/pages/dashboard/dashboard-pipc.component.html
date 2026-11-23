@@ -108,7 +108,7 @@
           </div>
         </article>
 
-        <article class="pc-feature-carousel__slide">
+        <article class="pc-feature-carousel__slide" *ngIf="mostrarAtencion">
           <div class="pc-feature-carousel__slide-inner">
             <div class="card border-0 pc-analytics-card pc-analytics-card--atencion">
               <div class="pc-avance-hero-head">
@@ -120,6 +120,25 @@
                   </div>
                 </div>
                 <div class="pc-avance-hero-head__side">
+                  <div class="pc-empleado-buscar-wrap" *ngIf="esAdmin">
+                    <label class="pc-empleado-buscar">
+                      <i class="fas fa-search" aria-hidden="true"></i>
+                      <input type="search"
+                             placeholder="Buscar empleado o encargado"
+                             aria-label="Buscar empleado o encargado"
+                             autocomplete="off"
+                             [value]="busquedaEmpleado"
+                             (input)="buscarEmpleado($any($event.target).value)"
+                             (focus)="abrirMenuAyuda()"
+                             (blur)="cerrarMenuAyuda()"
+                             (keydown)="teclaBusqueda($event)">
+                    </label>
+                    <ul class="pc-empleado-ayuda" *ngIf="menuAyudaAbierto && sugerenciasEmpleado.length" role="listbox">
+                      <li *ngFor="let nombre of sugerenciasEmpleado">
+                        <button type="button" (mousedown)="$event.preventDefault(); elegirEmpleado(nombre)">{{ nombre }}</button>
+                      </li>
+                    </ul>
+                  </div>
                   <button type="button" class="pc-gantt-rango" [class.is-active]="ganttVistaAnual" (click)="alternarVistaGantt()">
                     {{ etiquetaBotonGantt }}
                   </button>
@@ -130,7 +149,17 @@
               </div>
 
               <div class="pc-carga-board" *ngIf="cargaKpis.total > 0">
-                <div class="pc-carga-kpis">
+                <div class="pc-estatus-filtros" *ngIf="!esAdmin">
+                  <button type="button"
+                          class="pc-estatus-filtro"
+                          *ngFor="let filtro of filtrosColor"
+                          [class.is-active]="filtroEstatus === filtro.estatus"
+                          [style.--filtro-color]="filtro.color"
+                          (click)="alternarEstatusCarga(filtro.estatus)">
+                    <i></i>{{ filtro.label }}
+                  </button>
+                </div>
+                <div class="pc-carga-kpis" *ngIf="esAdmin">
                   <button type="button" class="pc-carga-kpi" [class.is-active]="!cargaFiltroActivo" (click)="limpiarFiltrosCarga()">
                     <span>Total de PIPC</span>
                     <strong>{{ cargaKpis.total }}</strong>

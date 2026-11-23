@@ -1478,6 +1478,11 @@ function mapearResolutivoAtencion(row, estatus) {
         nombre_asignacion: row.nombre_asignacion || '',
         tipo_tramite: row.tipo_tramite || '',
         responsable: row.responsable || '',
+        responsable_usuario_id: Number(row.responsable_usuario_id || 0) || null,
+        responsable_registro: row.responsable_registro || '',
+        responsable_registro_usuario_id: Number(row.responsable_registro_usuario_id || 0) || null,
+        encargado_nombre: row.encargado_nombre || '',
+        encargado_usuario_id: Number(row.encargado_usuario_id || 0) || null,
         estatus,
         fecha_aprobacion: formatearFechaMx(row.fecha_aprobacion),
         fecha_vencimiento: formatearFechaMx(row.fecha_vencimiento),
@@ -1724,6 +1729,8 @@ async function obtenerDatosControlResolutivos(poolSgc, poolPC = null, poolBiznag
         const fechasOps = fechasCentroOps.get(Number(row.empresa_id_biznaga)) || {};
         const pipcUsuarioId = fechasOps.responsable_pipc_usuario_id || null;
         const responsablePipcNombre = pipcUsuarioId ? (nombresPipc.get(pipcUsuarioId) || null) : null;
+        const responsableRegistro = String(row.responsable || '').trim();
+        const responsableRegistroId = Number(row.responsable_usuario_id || 0) || null;
         // Preferir siempre el responsable asignado en Asignar documentos (PIPC)
         const responsable = responsablePipcNombre
             || await resolverNombreResponsableUsuario(
@@ -1736,6 +1743,10 @@ async function obtenerDatosControlResolutivos(poolSgc, poolPC = null, poolBiznag
             estatus,
             responsable,
             responsable_usuario_id: pipcUsuarioId || row.responsable_usuario_id || null,
+            responsable_registro: responsableRegistro,
+            responsable_registro_usuario_id: responsableRegistroId,
+            encargado_nombre: responsablePipcNombre || '',
+            encargado_usuario_id: pipcUsuarioId,
             // Preferir fechas propias del registro; fallback a centro de operaciones
             fecha_ingreso_tramite: row.fecha_ingreso_tramite || fechasOps.fecha_ingreso_tramite || null,
             fecha_oficio_observaciones: row.fecha_oficio_observaciones || fechasOps.fecha_oficio_observaciones || null

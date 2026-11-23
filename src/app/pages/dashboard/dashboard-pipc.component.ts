@@ -25,6 +25,11 @@ interface ResolutivoPipc {
   nombre_asignacion?: string;
   tipo_tramite?: string;
   responsable?: string;
+  responsable_usuario_id?: number | null;
+  responsable_registro?: string;
+  responsable_registro_usuario_id?: number | null;
+  encargado_nombre?: string;
+  encargado_usuario_id?: number | null;
   estatus: string;
   fecha_aprobacion?: string;
   fecha_vencimiento?: string;
@@ -109,6 +114,16 @@ export class DashboardPipcComponent implements OnInit, OnDestroy {
 
   filtroEstatus: string | null = null;
   soloAsignados = false;
+  busquedaEmpleado = '';
+  menuAyudaAbierto = false;
+  sugerenciasEmpleado: string[] = [];
+  tienePipcPropios = false;
+  readonly filtrosColor = [
+    { estatus: 'Vigentes', label: 'Vigentes', color: '#2dce89' },
+    { estatus: 'Próximo a vencer', label: 'Próximo a vencer', color: '#fb6340' },
+    { estatus: 'Vencido', label: 'Vencidos', color: '#f5365c' },
+    { estatus: 'En tramite', label: 'En trámite', color: '#5e72e4' }
+  ];
   cargaKpis = { total: 0, personas: 0, proximos: 0, vencidos: 0 };
   ganttVistaAnual = false;
   ganttMeses: { etiqueta: string; anioOffset: number }[] = [];
@@ -153,6 +168,14 @@ export class DashboardPipcComponent implements OnInit, OnDestroy {
     return this.auth.puedeVerControlResolutivosPipc();
   }
 
+  get esAdmin(): boolean {
+    return this.auth.esAdministradorOSuperior();
+  }
+
+  get mostrarAtencion(): boolean {
+    return this.esAdmin || this.tienePipcPropios;
+  }
+
   get empresasUnicas(): EmpresaPipc[] {
     const vistos = new Set<number>();
     const lista: EmpresaPipc[] = [];
@@ -193,7 +216,7 @@ export class DashboardPipcComponent implements OnInit, OnDestroy {
   }
 
   get cargaFiltroActivo(): boolean {
-    return !!this.filtroEstatus || this.soloAsignados;
+    return !!this.filtroEstatus || this.soloAsignados || !!this.busquedaEmpleado.trim();
   }
 
   get etiquetaBotonGantt(): string {
@@ -216,7 +239,41 @@ export class DashboardPipcComponent implements OnInit, OnDestroy {
   limpiarFiltrosCarga(): void {
     this.filtroEstatus = null;
     this.soloAsignados = false;
+    this.busquedaEmpleado = '';
+    this.menuAyudaAbierto = false;
     this.armarVistaCarga();
+  }
+
+  buscarEmpleado(valor: string): void {
+    this.busquedaEmpleado = String(valor || '');
+    this.menuAyudaAbierto = true;
+    this.armarVistaCarga();
+  }
+
+  abrirMenuAyuda(): void {
+    this.menuAyudaAbierto = true;
+    this.actualizarSugerencias();
+  }
+
+  cerrarMenuAyuda(): void {
+    this.menuAyudaAbierto = false;
+  }
+
+  elegirEmpleado(nombre: string): void {
+    this.busquedaEmpleado = nombre;
+    this.menuAyudaAbierto = false;
+    this.armarVistaCarga();
+  }
+
+  teclaBusqueda(evento: KeyboardEvent): void {
+    if (evento.key === 'Escape') {
+      this.menuAyudaAbierto = false;
+      return;
+    }
+    if (evento.key === 'Enter' && this.sugerenciasEmpleado.length) {
+      evento.preventDefault();
+      this.elegirEmpleado(this.sugerenciasEmpleado[0]);
+    }
   }
 
   alternarSoloAsignados(): void {
@@ -424,22 +481,114 @@ export class DashboardPipcComponent implements OnInit, OnDestroy {
   }
 
   private armarVistaCarga(): void {
-    const fuente = this.resolutivosCarga.filter((item) => this.pasaFiltro(item));
+    const personal = this.fuentePersonal();
+    this.tienePipcPropios = personal.length > 0;
+    const buscada = this.esAdmin
+      ? personal.filter((item) => this.coincideBusqueda(item))
+      : personal;
+    const fuente = buscada.filter((item) => this.pasaFiltro(item));
     const personas = this.agrupar(fuente);
-    const todas = this.agrupar(this.resolutivosCarga);
+    const baseKpi = this.esAdmin ? this.resolutivosCarga : personal;
+    const todas = this.agrupar(baseKpi);
     this.cargaKpis = {
-      total: this.resolutivosCarga.length,
+      total: baseKpi.length,
       personas: todas.filter((p) => !p.sinResponsable).length,
-      proximos: this.resolutivosCarga.filter((r) => r.estatus === 'Próximo a vencer').length,
-      vencidos: this.resolutivosCarga.filter((r) => r.estatus === 'Vencido').length
+      proximos: baseKpi.filter((r) => r.estatus === 'Próximo a vencer').length,
+      vencidos: baseKpi.filter((r) => r.estatus === 'Vencido').length
     };
     this.armarGantt(personas);
+    if (this.menuAyudaAbierto) this.actualizarSugerencias();
+  }
+
+  private actualizarSugerencias(): void {
+    const consulta = this.normalizar(this.busquedaEmpleado);
+    const nombres = this.personasConPipc();
+    this.sugerenciasEmpleado = consulta
+      ? nombres.filter((nombre) => this.normalizar(nombre).includes(consulta))
+      : nombres;
+  }
+
+  private personasConPipc(): string[] {
+    const vistos = new Map<string, string>();
+    for (const item of this.resolutivosCarga) {
+      for (const nombre of this.nombresDe(item)) {
+        const clave = this.normalizar(nombre);
+        if (!clave || vistos.has(clave)) continue;
+        vistos.set(clave, nombre);
+      }
+    }
+    return [...vistos.values()].sort((a, b) => a.localeCompare(b, 'es'));
+  }
+
+  private fuentePersonal(): ResolutivoPipc[] {
+    if (this.esAdmin) return this.resolutivosCarga;
+    const id = this.miUsuarioId();
+    const nombre = this.miNombre();
+    return this.resolutivosCarga.filter((item) => this.esDeLaPersona(item, id, nombre));
   }
 
   private pasaFiltro(item: ResolutivoPipc): boolean {
     if (this.filtroEstatus && item.estatus !== this.filtroEstatus) return false;
-    if (this.soloAsignados && this.responsable(item.responsable) === 'Sin asignar') return false;
+    if (this.esAdmin && this.soloAsignados && this.responsable(item.responsable) === 'Sin asignar') return false;
     return true;
+  }
+
+  private coincideBusqueda(item: ResolutivoPipc): boolean {
+    const consulta = this.normalizar(this.busquedaEmpleado);
+    if (!consulta) return true;
+    return this.nombresDe(item).some((nombre) => this.normalizar(nombre).includes(consulta));
+  }
+
+  private esDeLaPersona(item: ResolutivoPipc, usuarioId: number, nombre: string): boolean {
+    if (usuarioId && this.idsDe(item).includes(usuarioId)) return true;
+    const usuario = this.normalizar(this.auth.usuarioActualValue?.username);
+    if (usuario && this.nombresDe(item).some((guardado) => this.normalizar(guardado) === usuario)) return true;
+    return this.nombresDe(item).some((guardado) => this.nombrePertenece(guardado, nombre));
+  }
+
+  private idsDe(item: ResolutivoPipc): number[] {
+    return [item.responsable_usuario_id, item.encargado_usuario_id, item.responsable_registro_usuario_id]
+      .map((id) => Number(id) || 0)
+      .filter((id) => id > 0);
+  }
+
+  private nombresDe(item: ResolutivoPipc): string[] {
+    return [item.responsable, item.encargado_nombre, item.responsable_registro]
+      .map((nombre) => String(nombre || '').trim())
+      .filter((nombre) => nombre && this.normalizar(nombre) !== 'sin asignar');
+  }
+
+  private miUsuarioId(): number {
+    const usuario = this.auth.usuarioActualValue;
+    return Number(usuario?.id || usuario?.usuario_id || 0) || 0;
+  }
+
+  private miNombre(): string {
+    const usuario = this.auth.usuarioActualValue;
+    const completo = [usuario?.nombre, usuario?.apellido_paterno || usuario?.apellido, usuario?.apellido_materno]
+      .map((parte) => String(parte || '').trim())
+      .filter(Boolean)
+      .join(' ');
+    return completo || String(usuario?.username || '').trim();
+  }
+
+  private normalizar(valor?: string): string {
+    return String(valor || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private nombrePertenece(almacenado: string, persona: string): boolean {
+    const nombre = this.normalizar(almacenado);
+    const yo = this.normalizar(persona);
+    if (!nombre || !yo || nombre === 'sin asignar') return false;
+    if (nombre === yo) return true;
+    const palabrasYo = yo.split(' ').filter((palabra) => palabra.length > 2);
+    const palabrasNombre = nombre.split(' ');
+    return palabrasYo.length >= 2 && palabrasYo.every((palabra) => palabrasNombre.includes(palabra));
   }
 
   private agrupar(lista: ResolutivoPipc[]): CargaPersona[] {
