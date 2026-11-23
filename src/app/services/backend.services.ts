@@ -1313,6 +1313,13 @@ export class BackendServices {
         );
     }
 
+    marcarEntregadoPendienteAcuse(programadoId: number, activo: boolean = true): Observable<any> {
+        return this.httpClient.post(
+            `${this.baseUrl}/cursos-programados/${programadoId}/marcar-entregado-pendiente-acuse`,
+            { activo }
+        );
+    }
+
     diagnosticarConstanciasDc3(programadoId: number): Observable<any> {
         return this.httpClient.get(
             `${this.baseUrl}/cursos-programados/${programadoId}/constancias-dc3/diagnostico`
@@ -3093,6 +3100,33 @@ export class BackendServices {
 
     archivarSeguridadAsignacion(id: number): Observable<any> {
         return this.httpClient.post(`${this.baseUrl}/seguridad/asignacion/${id}/archivar`, {});
+    }
+
+    desactivarGestionSeguridadEmpresa(empresaId: number, asignacionId?: number | null): Observable<any> {
+        const body: { asignacion_id?: number } = {};
+        if (asignacionId && asignacionId > 0) body.asignacion_id = asignacionId;
+        return this.httpClient.post(
+            `${this.baseUrl}/seguridad/asignacion/empresas/${empresaId}/desactivar`,
+            body
+        );
+    }
+
+    reactivarGestionSeguridadEmpresa(empresaId: number, asignacionId?: number | null): Observable<any> {
+        const body: { asignacion_id?: number } = {};
+        if (asignacionId && asignacionId > 0) body.asignacion_id = asignacionId;
+        return this.httpClient.post(
+            `${this.baseUrl}/seguridad/asignacion/empresas/${empresaId}/reactivar`,
+            body
+        );
+    }
+
+    eliminarGestionSeguridadEmpresa(empresaId: number, asignacionId?: number | null): Observable<any> {
+        const params: any = {};
+        if (asignacionId && asignacionId > 0) params.asignacion_id = String(asignacionId);
+        return this.httpClient.delete(
+            `${this.baseUrl}/seguridad/asignacion/empresas/${empresaId}/gestion`,
+            { params }
+        );
     }
 
     reemplazarSgcNormativa(fileId: string, formData: FormData): Observable<any> {
@@ -6129,6 +6163,41 @@ export class BackendServices {
             `${this.baseUrl}/rrhh/registros/archivo/${encodeURIComponent(fileId)}${qs ? `?${qs}` : ''}`,
             { responseType: 'blob' }
         );
+    }
+
+    // =====================================================
+    // Recursos Humanos — Riesgos Psicosociales (NOM-035)
+    // =====================================================
+
+    obtenerDashboardRrhhNom035(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/rrhh/riesgos-psicosociales/dashboard`);
+    }
+
+    listarRrhhNom035(tipo?: string): Observable<any> {
+        const qs = tipo ? `?tipo=${encodeURIComponent(tipo)}` : '';
+        return this.httpClient.get(`${this.baseUrl}/rrhh/riesgos-psicosociales${qs}`);
+    }
+
+    previsualizarRrhhNom035(file: File, texto?: string): Observable<any> {
+        const form = new FormData();
+        form.append('file', file, file.name);
+        if (texto) form.append('texto', texto);
+        return this.httpClient.post(`${this.baseUrl}/rrhh/riesgos-psicosociales/previsualizar`, form);
+    }
+
+    guardarRrhhNom035(payload: any, file?: File): Observable<any> {
+        const form = new FormData();
+        form.append('payload', JSON.stringify(payload || {}));
+        if (file) form.append('file', file, file.name);
+        return this.httpClient.post(`${this.baseUrl}/rrhh/riesgos-psicosociales`, form);
+    }
+
+    actualizarRrhhNom035(id: number, payload: any): Observable<any> {
+        return this.httpClient.put(`${this.baseUrl}/rrhh/riesgos-psicosociales/${id}`, payload || {});
+    }
+
+    eliminarRrhhNom035(id: number): Observable<any> {
+        return this.httpClient.delete(`${this.baseUrl}/rrhh/riesgos-psicosociales/${id}`);
     }
 
     // =====================================================

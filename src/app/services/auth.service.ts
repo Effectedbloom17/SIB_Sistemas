@@ -398,6 +398,11 @@ export class AuthService {
     return username === 'rozanarg' || username === 'bizna4116' || username === 'mafer295';
   }
 
+  /** Riesgos Psicosociales (NOM-035): de momento solo superadministrador (root). */
+  public puedeVerRiesgosPsicosociales(): boolean {
+    return this.esSuperusuario() || this.esRoot();
+  }
+
   /** Actualiza el flag de delegación SGC (p. ej. tras consultar /mi-permiso). */
   public setEditorSgcDelegado(valor: boolean): void {
     this.editorSgcDelegado = !!valor;

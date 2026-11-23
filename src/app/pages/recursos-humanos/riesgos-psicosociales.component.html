@@ -1,0 +1,450 @@
+<div class="header header-bg-image rrhh-hero rrhh-hero--compact pb-5 pt-4 pt-md-5 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="rrhh-hero-icon icon icon-shape text-white rounded-circle shadow mb-2">
+            <i class="fas fa-brain" aria-hidden="true"></i>
+          </div>
+          <h1 class="text-white mb-0 rrhh-hero-title">Riesgos Psicosociales</h1>
+          <p class="text-white-50 rrhh-hero-sub mb-0">
+            NOM-035 · indicadores y reportes · solo superadministrador
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid rrhh-main mt--4">
+  <div class="row justify-content-center">
+    <div class="col-12">
+      <div class="card rrhh-shell border-0 shadow-sm">
+        <div class="rrhh-shell-accent" aria-hidden="true"></div>
+        <div class="card-body rrhh-shell-body rp-shell">
+
+          <header class="rp-top">
+            <div class="rp-top__copy">
+              <span class="rp-badge">NOM-035</span>
+              <h2>Indicadores psicosociales</h2>
+              <p>Importa reportes PDF de la plataforma externa y visualiza KPIs, rangos y resultados.</p>
+            </div>
+            <div class="rp-top__actions">
+              <button type="button" class="rr-btn rr-btn--ghost" (click)="cargarDashboard()" [disabled]="cargando">
+                <i class="fas" [ngClass]="cargando ? 'fa-spinner fa-spin' : 'fa-sync-alt'"></i>
+                <span>Actualizar</span>
+              </button>
+              <button type="button" class="rr-btn rr-btn--primary" (click)="dispararImportacion()">
+                <i class="fas fa-file-import"></i>
+                <span>Importar PDF</span>
+              </button>
+              <input #fileInput type="file" class="d-none"
+                     accept=".pdf,application/pdf,image/png,image/jpeg,image/webp,image/gif"
+                     (change)="onFileSelected($event)">
+            </div>
+          </header>
+
+          <div class="rp-alert rp-alert--error" *ngIf="errorCarga">
+            <i class="fas fa-exclamation-triangle"></i>
+            <span>{{ errorCarga }}</span>
+            <button type="button" class="rp-alert__close" (click)="errorCarga = ''" aria-label="Cerrar">×</button>
+          </div>
+          <div class="rp-alert rp-alert--ok" *ngIf="mensajeOk && !errorCarga">
+            <i class="fas fa-check-circle"></i>
+            <span>{{ mensajeOk }}</span>
+            <button type="button" class="rp-alert__close" (click)="mensajeOk = ''" aria-label="Cerrar">×</button>
+          </div>
+
+          <nav class="rp-tabs" aria-label="Secciones NOM-035">
+            <button type="button" class="rp-tab" [class.is-active]="pestana === 'factores'" (click)="irPestana('factores')">
+              Factores de riesgo
+            </button>
+            <button type="button" class="rp-tab" [class.is-active]="pestana === 'ats'" (click)="irPestana('ats')">
+              Acontecimientos traumáticos
+            </button>
+            <button type="button" class="rp-tab" [class.is-active]="pestana === 'importar'" (click)="irPestana('importar')">
+              Importar
+            </button>
+            <button type="button" class="rp-tab" [class.is-active]="pestana === 'historial'" (click)="irPestana('historial')">
+              Historial
+              <span class="rp-tab__count" *ngIf="totales.reportes">{{ totales.reportes }}</span>
+            </button>
+          </nav>
+
+          <div *ngIf="cargando" class="rp-empty">
+            <div class="spinner-border text-danger" role="status"></div>
+            <p>Cargando indicadores…</p>
+          </div>
+
+          <!-- ===== FACTORES ===== -->
+          <section *ngIf="!cargando && pestana === 'factores'" class="rp-panel">
+            <div class="rp-meta" *ngIf="metaFactores; else sinFactoresMeta">
+              <span><b>Periodo:</b> {{ metaFactores.periodo }}</span>
+              <span><b>Encuesta:</b> {{ metaFactores.detalle?.encuesta_label || 'Factores De Riesgo Psicosocial' }}</span>
+              <span><b>Departamento:</b> {{ metaFactores.departamento || 'Todos' }}</span>
+              <span><b>Puesto:</b> {{ metaFactores.puesto || 'Todos' }}</span>
+            </div>
+            <ng-template #sinFactoresMeta>
+              <div class="rp-empty rp-empty--soft">
+                <i class="fas fa-chart-pie"></i>
+                <h3>Sin reportes de factores de riesgo</h3>
+                <p>Importa un PDF de la encuesta de Factores de Riesgo Psicosocial para poblar estos indicadores.</p>
+                <button type="button" class="rr-btn rr-btn--primary" (click)="irPestana('importar')">Importar reporte</button>
+              </div>
+            </ng-template>
+
+            <ng-container *ngIf="metaFactores">
+              <div class="rp-kpi-row">
+                <article class="rp-kpi" [style.--kpi-accent]="colorNivel(resumenFactores.nivel_riesgo)">
+                  <div class="rp-kpi__value" [style.color]="colorNivel(resumenFactores.nivel_riesgo)">
+                    {{ resumenFactores.nivel_riesgo || '—' }}
+                  </div>
+                  <div class="rp-kpi__label">Nivel de riesgo</div>
+                </article>
+                <article class="rp-kpi" style="--kpi-accent:#db2777">
+                  <div class="rp-kpi__value">{{ resumenFactores.personal_evaluado ?? '—' }}</div>
+                  <div class="rp-kpi__label">Personal evaluado</div>
+                </article>
+                <article class="rp-kpi" style="--kpi-accent:#9d174d">
+                  <div class="rp-kpi__value">{{ resumenFactores.calificacion_promedio ?? '—' }}</div>
+                  <div class="rp-kpi__label">Calificación promedio</div>
+                </article>
+              </div>
+
+              <div class="rp-grid-2">
+                <div class="rp-card">
+                  <h3>Distribución de niveles (historial)</h3>
+                  <apx-chart *ngIf="chartNiveles"
+                    [series]="chartNiveles.series"
+                    [chart]="chartNiveles.chart"
+                    [colors]="chartNiveles.colors"
+                    [plotOptions]="chartNiveles.plotOptions"
+                    [dataLabels]="chartNiveles.dataLabels"
+                    [xaxis]="chartNiveles.xaxis"
+                    [yaxis]="chartNiveles.yaxis"
+                    [legend]="chartNiveles.legend"
+                    [tooltip]="chartNiveles.tooltip"
+                    [fill]="chartNiveles.fill"
+                    [stroke]="chartNiveles.stroke">
+                  </apx-chart>
+                  <p class="rp-hint" *ngIf="!chartNiveles">Aún no hay suficientes datos para graficar.</p>
+                </div>
+
+                <div class="rp-card">
+                  <h3>Resultado final (promedio)</h3>
+                  <div class="rp-result-grid">
+                    <div>
+                      <span class="rp-result-grid__label">Cantidad de personal evaluado</span>
+                      <strong>{{ resumenFactores.personal_evaluado ?? '—' }}</strong>
+                    </div>
+                    <div>
+                      <span class="rp-result-grid__label">Nivel de riesgo promedio</span>
+                      <strong>{{ resumenFactores.calificacion_promedio ?? '—' }}</strong>
+                    </div>
+                    <div>
+                      <span class="rp-result-grid__label">Calificación promedio</span>
+                      <strong class="rp-pill" [style.background]="colorNivel(resumenFactores.nivel_riesgo)">
+                        {{ resumenFactores.nivel_riesgo || '—' }}
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="rp-card">
+                <h3>Niveles de riesgo y acciones requeridas</h3>
+                <div class="table-responsive">
+                  <table class="rp-table">
+                    <thead>
+                      <tr>
+                        <th style="width:140px">Nivel de riesgo</th>
+                        <th>Necesidad de acción</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr *ngFor="let n of nivelesRef">
+                        <td>
+                          <span class="rp-level" [style.background]="n.color || colorNivel(n.etiqueta)">{{ n.etiqueta }}</span>
+                        </td>
+                        <td>{{ n.accion }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="rp-card">
+                <h3>Rangos para la calificación final</h3>
+                <div class="rp-ranges">
+                  <div class="rp-range" *ngFor="let r of rangosRef" [style.borderColor]="colorNivel(r.nivel)">
+                    <strong [style.color]="colorNivel(r.nivel)">{{ r.nivel }}</strong>
+                    <span *ngIf="r.max != null">{{ r.min }} – {{ r.max }}</span>
+                    <span *ngIf="r.max == null">Mayor de {{ r.min }}</span>
+                  </div>
+                </div>
+              </div>
+            </ng-container>
+          </section>
+
+          <!-- ===== ATS ===== -->
+          <section *ngIf="!cargando && pestana === 'ats'" class="rp-panel">
+            <div class="rp-meta" *ngIf="metaAts; else sinAtsMeta">
+              <span><b>Periodo:</b> {{ metaAts.periodo }}</span>
+              <span><b>Encuesta:</b> {{ metaAts.detalle?.encuesta_label || 'Acontecimientos Traumáticos severos' }}</span>
+              <span><b>Departamento:</b> {{ metaAts.departamento || 'Todos' }}</span>
+              <span><b>Puesto:</b> {{ metaAts.puesto || 'Todos' }}</span>
+            </div>
+            <ng-template #sinAtsMeta>
+              <div class="rp-empty rp-empty--soft">
+                <i class="fas fa-user-shield"></i>
+                <h3>Sin reportes de acontecimientos traumáticos</h3>
+                <p>Importa el PDF de Acontecimientos Traumáticos Severos para ver totales y atención clínica.</p>
+                <button type="button" class="rr-btn rr-btn--primary" (click)="irPestana('importar')">Importar reporte</button>
+              </div>
+            </ng-template>
+
+            <ng-container *ngIf="metaAts">
+              <div class="rp-kpi-row">
+                <article class="rp-kpi" style="--kpi-accent:#9d174d">
+                  <div class="rp-kpi__value">{{ resumenAts.total_evaluados ?? '—' }}</div>
+                  <div class="rp-kpi__label">Total evaluados</div>
+                </article>
+                <article class="rp-kpi" style="--kpi-accent:#db2777">
+                  <div class="rp-kpi__value">{{ resumenAts.requieren_atencion ?? '—' }}</div>
+                  <div class="rp-kpi__label">Requieren atención</div>
+                </article>
+                <article class="rp-kpi" style="--kpi-accent:#16a34a">
+                  <div class="rp-kpi__value">{{ resumenAts.sin_riesgo ?? '—' }}</div>
+                  <div class="rp-kpi__label">Sin riesgo</div>
+                </article>
+              </div>
+
+              <div class="rp-grid-2">
+                <div class="rp-card">
+                  <h3>Distribución de atención</h3>
+                  <apx-chart *ngIf="chartAts"
+                    [series]="chartAts.series"
+                    [chart]="chartAts.chart"
+                    [labels]="chartAts.labels"
+                    [colors]="chartAts.colors"
+                    [legend]="chartAts.legend"
+                    [dataLabels]="chartAts.dataLabels"
+                    [tooltip]="chartAts.tooltip"
+                    [plotOptions]="chartAts.plotOptions">
+                  </apx-chart>
+                </div>
+
+                <div class="rp-card">
+                  <h3>Aplicación del cuestionario</h3>
+                  <div class="table-responsive">
+                    <table class="rp-table">
+                      <thead>
+                        <tr>
+                          <th style="width:90px">Sección</th>
+                          <th>Rangos y evaluación</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr *ngFor="let r of reglasAts">
+                          <td><strong>{{ r.seccion }}</strong></td>
+                          <td>{{ r.texto }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              <div class="rp-card" *ngIf="personasAts.length">
+                <h3>Resultado final</h3>
+                <div class="table-responsive">
+                  <table class="rp-table rp-table--compact">
+                    <thead>
+                      <tr>
+                        <th>Nombre</th>
+                        <th>Puesto / Departamento</th>
+                        <th>I</th>
+                        <th>II</th>
+                        <th>III</th>
+                        <th>IV</th>
+                        <th>Requiere atención clínica</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr *ngFor="let p of personasAts">
+                        <td>{{ p.nombre }}</td>
+                        <td>{{ p.puesto_departamento }}</td>
+                        <td>{{ p.i }}</td>
+                        <td>{{ p.ii }}</td>
+                        <td>{{ p.iii }}</td>
+                        <td>{{ p.iv }}</td>
+                        <td>
+                          <span class="rp-pill" [class.is-yes]="p.requiere_atencion" [class.is-no]="!p.requiere_atencion">
+                            {{ p.requiere_atencion ? 'SI' : 'NO' }}
+                          </span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </ng-container>
+          </section>
+
+          <!-- ===== IMPORTAR ===== -->
+          <section *ngIf="!cargando && pestana === 'importar'" class="rp-panel">
+            <div class="rp-drop"
+                 [class.is-drop]="dropOver"
+                 (dragover)="onDragOver($event)"
+                 (dragleave)="onDragLeave($event)"
+                 (drop)="onDrop($event)">
+              <i class="fas fa-cloud-upload-alt"></i>
+              <h3>Importar reporte externo</h3>
+              <p>Preferente: PDF con texto seleccionable (Vorecol u otra plataforma NOM-035). También puedes subir imagen y capturar KPIs a mano.</p>
+              <button type="button" class="rr-btn rr-btn--primary" (click)="dispararImportacion()" [disabled]="importando">
+                <i class="fas" [ngClass]="importando ? 'fa-spinner fa-spin' : 'fa-file-pdf'"></i>
+                <span>{{ importando ? 'Leyendo…' : 'Seleccionar archivo' }}</span>
+              </button>
+              <small *ngIf="archivoPendiente">Archivo: {{ archivoPendiente.name }}</small>
+            </div>
+
+            <div class="rp-card" *ngIf="borrador">
+              <div class="rp-preview-head">
+                <div>
+                  <h3>Revisar indicadores extraídos</h3>
+                  <p class="rp-hint mb-0">{{ previewMensaje }}</p>
+                </div>
+                <span class="rp-conf" [class.is-ok]="borrador.confianza === 'media'">
+                  Confianza: {{ borrador.confianza || 'baja' }}
+                </span>
+              </div>
+
+              <div class="rp-form-grid">
+                <label>
+                  Periodo
+                  <input type="text" class="form-control" [(ngModel)]="borrador.periodo">
+                </label>
+                <label>
+                  Tipo de encuesta
+                  <select class="form-control" [(ngModel)]="borrador.tipo_encuesta" (ngModelChange)="onTipoBorradorChange()">
+                    <option value="factores">Factores de riesgo psicosocial</option>
+                    <option value="ats">Acontecimientos traumáticos severos</option>
+                  </select>
+                </label>
+                <label>
+                  Departamento
+                  <input type="text" class="form-control" [(ngModel)]="borrador.departamento">
+                </label>
+                <label>
+                  Puesto
+                  <input type="text" class="form-control" [(ngModel)]="borrador.puesto">
+                </label>
+              </div>
+
+              <div class="rp-form-grid" *ngIf="borrador.tipo_encuesta === 'factores'">
+                <label>
+                  Nivel de riesgo
+                  <select class="form-control" [(ngModel)]="borrador.resumen.nivel_riesgo" (ngModelChange)="onNivelBorradorChange()">
+                    <option *ngFor="let n of nivelesOrden" [value]="n">{{ n }}</option>
+                  </select>
+                </label>
+                <label>
+                  Personal evaluado
+                  <input type="number" class="form-control" [(ngModel)]="borrador.resumen.personal_evaluado">
+                </label>
+                <label>
+                  Calificación promedio
+                  <input type="number" step="0.01" class="form-control" [(ngModel)]="borrador.resumen.calificacion_promedio">
+                </label>
+              </div>
+
+              <div class="rp-form-grid" *ngIf="borrador.tipo_encuesta === 'ats'">
+                <label>
+                  Total evaluados
+                  <input type="number" class="form-control" [(ngModel)]="borrador.resumen.total_evaluados">
+                </label>
+                <label>
+                  Requieren atención
+                  <input type="number" class="form-control" [(ngModel)]="borrador.resumen.requieren_atencion">
+                </label>
+                <label>
+                  Sin riesgo
+                  <input type="number" class="form-control" [(ngModel)]="borrador.resumen.sin_riesgo">
+                </label>
+              </div>
+
+              <label class="rp-notes">
+                Notas (opcional)
+                <textarea class="form-control" rows="2" [(ngModel)]="borrador.notas"></textarea>
+              </label>
+
+              <div class="rp-form-actions">
+                <button type="button" class="rr-btn rr-btn--ghost" (click)="cancelarImportacion()" [disabled]="guardando">Cancelar</button>
+                <button type="button" class="rr-btn rr-btn--primary" (click)="guardarImportacion()" [disabled]="guardando">
+                  <i class="fas" [ngClass]="guardando ? 'fa-spinner fa-spin' : 'fa-save'"></i>
+                  <span>{{ guardando ? 'Guardando…' : 'Guardar indicadores' }}</span>
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <!-- ===== HISTORIAL ===== -->
+          <section *ngIf="!cargando && pestana === 'historial'" class="rp-panel">
+            <div class="rp-empty rp-empty--soft" *ngIf="!registros.length">
+              <i class="fas fa-folder-open"></i>
+              <h3>Sin historial</h3>
+              <p>Los reportes importados aparecerán aquí.</p>
+            </div>
+
+            <div class="rp-card" *ngIf="registros.length">
+              <h3>Reportes importados</h3>
+              <div class="table-responsive">
+                <table class="rp-table">
+                  <thead>
+                    <tr>
+                      <th>Periodo</th>
+                      <th>Tipo</th>
+                      <th>Resumen</th>
+                      <th>Archivo</th>
+                      <th>Fecha</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let r of registros">
+                      <td>
+                        <strong>{{ r.periodo }}</strong>
+                        <div class="rp-muted">{{ r.departamento }} · {{ r.puesto }}</div>
+                      </td>
+                      <td>{{ etiquetaTipo(r.tipo_encuesta) }}</td>
+                      <td>
+                        <ng-container *ngIf="r.tipo_encuesta === 'ats'; else resFact">
+                          Eval. {{ r.resumen?.total_evaluados ?? '—' }} · Atención {{ r.resumen?.requieren_atencion ?? '—' }}
+                        </ng-container>
+                        <ng-template #resFact>
+                          <span class="rp-pill" [style.background]="colorNivel(r.resumen?.nivel_riesgo)">
+                            {{ r.resumen?.nivel_riesgo || '—' }}
+                          </span>
+                          · {{ r.resumen?.calificacion_promedio ?? '—' }}
+                          · {{ r.resumen?.personal_evaluado ?? '—' }} pers.
+                        </ng-template>
+                      </td>
+                      <td>{{ r.archivo_nombre || '—' }}</td>
+                      <td>{{ r.creado_en | date:'dd/MM/yyyy HH:mm' }}</td>
+                      <td class="text-right">
+                        <button type="button" class="rp-icon-btn" title="Eliminar" (click)="eliminarRegistro(r)">
+                          <i class="fas fa-trash-alt"></i>
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

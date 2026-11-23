@@ -58,6 +58,7 @@
         <div class="ges-emp-grid ges-emp-grid--board" *ngIf="!empresaSeleccionada">
           <article class="ges-emp-card ges-emp-card--board ges-enter"
                    *ngFor="let emp of empresasFiltradas; let i = index; trackBy: trackByEmpresaId"
+                   [class.is-off]="!!emp.desactivada"
                    [style.animation-delay]="retrasoEntrada(i)"
                    (click)="seleccionarEmpresaTablero(emp)">
             <div class="ges-emp-card__top">
@@ -67,7 +68,8 @@
               </span>
               <div class="ges-emp-card__brand-text">
                 <h3>{{ emp.empresa_nombre }}</h3>
-                <small title="Último cambio en gestión de normativas">
+                <small *ngIf="emp.desactivada" class="ges-emp-card__off-tag">Desactivada</small>
+                <small *ngIf="!emp.desactivada" title="Último cambio en gestión de normativas">
                   <i class="far fa-calendar-alt" aria-hidden="true"></i>
                   {{ fechaGestionEmpresa(emp) }}
                 </small>
@@ -100,6 +102,7 @@
           <div class="ges-emp-grid ges-emp-grid--board" *ngIf="empresasAntesFila.length">
             <article class="ges-emp-card ges-emp-card--board is-dimmed ges-enter"
                      *ngFor="let emp of empresasAntesFila; trackBy: trackByEmpresaId"
+                     [class.is-off]="!!emp.desactivada"
                      (click)="seleccionarEmpresaTablero(emp)">
               <div class="ges-emp-card__top">
                 <span class="ges-emp-card__logo ges-emp-card__logo--lg" [class.has-logo]="!!logoEmpresa(emp.empresa_id)">
@@ -108,7 +111,8 @@
                 </span>
                 <div class="ges-emp-card__brand-text">
                   <h3>{{ emp.empresa_nombre }}</h3>
-                  <small><i class="far fa-calendar-alt"></i> {{ fechaGestionEmpresa(emp) }}</small>
+                  <small *ngIf="emp.desactivada" class="ges-emp-card__off-tag">Desactivada</small>
+                  <small *ngIf="!emp.desactivada"><i class="far fa-calendar-alt"></i> {{ fechaGestionEmpresa(emp) }}</small>
                 </div>
                 <div class="ges-ring ges-ring--md" [ngStyle]="anilloStyle(emp.avance)"><span>{{ emp.avance }}%</span></div>
               </div>
@@ -122,6 +126,7 @@
           <div class="ges-emp-grid ges-emp-grid--peers" *ngIf="peersFilaSeleccion.length">
             <article class="ges-emp-card ges-emp-card--board is-dimmed"
                      *ngFor="let emp of peersFilaSeleccion; trackBy: trackByEmpresaId"
+                     [class.is-off]="!!emp.desactivada"
                      (click)="seleccionarEmpresaTablero(emp)">
               <div class="ges-emp-card__top">
                 <span class="ges-emp-card__logo" [class.has-logo]="!!logoEmpresa(emp.empresa_id)">
@@ -130,7 +135,8 @@
                 </span>
                 <div class="ges-emp-card__brand-text">
                   <h3>{{ emp.empresa_nombre }}</h3>
-                  <small><i class="far fa-calendar-alt"></i> {{ fechaGestionEmpresa(emp) }}</small>
+                  <small *ngIf="emp.desactivada" class="ges-emp-card__off-tag">Desactivada</small>
+                  <small *ngIf="!emp.desactivada"><i class="far fa-calendar-alt"></i> {{ fechaGestionEmpresa(emp) }}</small>
                 </div>
                 <div class="ges-ring ges-ring--sm" [ngStyle]="anilloStyle(emp.avance)"><span>{{ emp.avance }}%</span></div>
               </div>
@@ -138,7 +144,8 @@
           </div>
 
           <section class="ges-emp-expand ges-enter">
-            <article class="ges-emp-card ges-emp-card--board ges-emp-card--featured">
+            <article class="ges-emp-card ges-emp-card--board ges-emp-card--featured"
+                     [class.is-off]="!!sel.desactivada || empresaTableroDesactivada">
               <div class="ges-emp-card__top">
                 <span class="ges-emp-card__logo ges-emp-card__logo--lg" [class.has-logo]="!!logoEmpresa(sel.empresa_id)">
                   <img *ngIf="logoEmpresa(sel.empresa_id) as logo" [src]="logo" [alt]="sel.empresa_nombre">
@@ -146,7 +153,8 @@
                 </span>
                 <div class="ges-emp-card__brand-text">
                   <h3>{{ sel.empresa_nombre }}</h3>
-                  <small title="Último cambio en gestión">
+                  <small *ngIf="sel.desactivada || empresaTableroDesactivada" class="ges-emp-card__off-tag">Desactivada</small>
+                  <small *ngIf="!sel.desactivada && !empresaTableroDesactivada" title="Último cambio en gestión">
                     <i class="far fa-calendar-alt"></i> {{ fechaGestionEmpresa(sel) }}
                   </small>
                 </div>
@@ -200,8 +208,9 @@
                       <button type="button"
                               class="ges-norma-chip"
                               *ngFor="let item of normativasPanel; trackBy: trackByAsignacionId"
-                              [title]="item.codigo"
+                              [title]="item.desactivada ? (item.codigo + ' · Desactivada') : item.codigo"
                               [class.is-active]="panelModo === 'normativa' && normativaFoco?.id === item.id"
+                              [class.is-off]="!!item.desactivada"
                               (click)="seleccionarNormativaFoco(item)">
                         {{ codigoCorto(item.codigo) }}
                       </button>
@@ -323,15 +332,41 @@
                 </ng-container>
               </div>
 
-              <!-- Derecha: cerrar + gráfico + CTA gestionar -->
+              <!-- Derecha: admin + cerrar + gráfico + CTA gestionar -->
               <aside class="ges-expand-aside">
-                <button type="button"
-                        class="ges-expand-aside__close"
-                        (click)="seleccionarEmpresaTablero(sel); $event.stopPropagation()"
-                        aria-label="Cerrar detalle">
-                  <i class="fas fa-times" aria-hidden="true"></i>
-                  <span>Cerrar</span>
-                </button>
+                <div class="ges-expand-aside__actions">
+                  <button *ngIf="puedeDesactivarGestion && !empresaTableroDesactivada"
+                          type="button"
+                          class="ges-expand-aside__action ges-expand-aside__action--off"
+                          (click)="desactivarGestionTablero($event)"
+                          [attr.aria-label]="panelModo === 'normativa' ? 'Desactivar normativa' : 'Desactivar gestión'">
+                    <i class="fas fa-eye-slash" aria-hidden="true"></i>
+                    <span>Desactivar</span>
+                  </button>
+                  <button *ngIf="puedeAdministrarGestionDesactivada && empresaTableroDesactivada"
+                          type="button"
+                          class="ges-expand-aside__action ges-expand-aside__action--on"
+                          (click)="reactivarGestionTablero($event)"
+                          [attr.aria-label]="panelModo === 'normativa' ? 'Reactivar normativa' : 'Reactivar gestión'">
+                    <i class="fas fa-undo" aria-hidden="true"></i>
+                    <span>Reactivar</span>
+                  </button>
+                  <button *ngIf="puedeAdministrarGestionDesactivada"
+                          type="button"
+                          class="ges-expand-aside__action ges-expand-aside__action--del"
+                          (click)="eliminarGestionTablero($event)"
+                          [attr.aria-label]="panelModo === 'normativa' ? 'Eliminar normativa' : 'Eliminar gestión'">
+                    <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                    <span>Eliminar</span>
+                  </button>
+                  <button type="button"
+                          class="ges-expand-aside__close"
+                          (click)="seleccionarEmpresaTablero(sel); $event.stopPropagation()"
+                          aria-label="Cerrar detalle">
+                    <i class="fas fa-times" aria-hidden="true"></i>
+                    <span>Cerrar</span>
+                  </button>
+                </div>
                 <div class="ges-expand-aside__chart">
                   <div class="ges-meter-card ges-meter-card--fly" *ngFor="let k of [tableroRingAnim]">
                     <div class="ges-meter-card__head">
@@ -351,13 +386,16 @@
                   </div>
                 </div>
 
-                <button *ngIf="panelModo === 'general'"
+                <p class="ges-expand-aside__off-note" *ngIf="empresaTableroDesactivada">
+                  Desactivada · solo visible para superadministrador
+                </p>
+                <button *ngIf="panelModo === 'general' && !empresaTableroDesactivada"
                         type="button"
                         class="btn ges-btn ges-btn--aside"
                         (click)="abrirEmpresa(sel, $event)">
                   Gestionar normativas <i class="fas fa-arrow-right"></i>
                 </button>
-                <button *ngIf="panelModo === 'normativa'"
+                <button *ngIf="panelModo === 'normativa' && !empresaTableroDesactivada"
                         type="button"
                         class="btn ges-btn ges-btn--aside"
                         (click)="abrirNormativaFoco()">
@@ -370,6 +408,7 @@
           <div class="ges-emp-grid ges-emp-grid--board" *ngIf="empresasDespuesFila.length">
             <article class="ges-emp-card ges-emp-card--board is-dimmed ges-enter"
                      *ngFor="let emp of empresasDespuesFila; trackBy: trackByEmpresaId"
+                     [class.is-off]="!!emp.desactivada"
                      (click)="seleccionarEmpresaTablero(emp)">
               <div class="ges-emp-card__top">
                 <span class="ges-emp-card__logo ges-emp-card__logo--lg" [class.has-logo]="!!logoEmpresa(emp.empresa_id)">
@@ -378,7 +417,8 @@
                 </span>
                 <div class="ges-emp-card__brand-text">
                   <h3>{{ emp.empresa_nombre }}</h3>
-                  <small><i class="far fa-calendar-alt"></i> {{ fechaGestionEmpresa(emp) }}</small>
+                  <small *ngIf="emp.desactivada" class="ges-emp-card__off-tag">Desactivada</small>
+                  <small *ngIf="!emp.desactivada"><i class="far fa-calendar-alt"></i> {{ fechaGestionEmpresa(emp) }}</small>
                 </div>
                 <div class="ges-ring ges-ring--md" [ngStyle]="anilloStyle(emp.avance)"><span>{{ emp.avance }}%</span></div>
               </div>

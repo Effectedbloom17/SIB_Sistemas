@@ -1855,7 +1855,7 @@
                                       </label>
                                       <label *ngIf="esAdmin" class="paso8-ws-toggle paso8-ws-toggle--liberar" for="switchLiberarConstancias"
                                         [class.paso8-ws-toggle--on]="liberarConstanciasPaso8"
-                                        title="Generar sin importar calificaciones">
+                                        title="Generar sin importar calificaciones y elegir tipo de documento">
                                         <input type="checkbox" id="switchLiberarConstancias"
                                           [ngModel]="liberarConstanciasPaso8"
                                           (ngModelChange)="toggleLiberarConstanciasPaso8()" style="display:none">
@@ -1865,6 +1865,36 @@
                                         <span class="paso8-ws-toggle__label">Liberar</span>
                                         <span class="paso8-ws-toggle__dot"></span>
                                       </label>
+                                      <div *ngIf="esAdmin && liberarConstanciasPaso8" class="paso8-ws-liberar-docs" role="group"
+                                        aria-label="Documentos a generar con Liberar">
+                                        <p class="paso8-ws-liberar-docs__hint">Documentos a generar</p>
+                                        <div class="paso8-ws-liberar-docs__row">
+                                          <label class="paso8-ws-toggle paso8-ws-toggle--sub" for="switchLiberarConstanciasDoc"
+                                            [class.paso8-ws-toggle--on]="liberarGenerarConstanciasPaso8"
+                                            title="Incluir constancias">
+                                            <input type="checkbox" id="switchLiberarConstanciasDoc"
+                                              [ngModel]="liberarGenerarConstanciasPaso8"
+                                              (ngModelChange)="toggleLiberarTipoDocumentoPaso8('constancia')" style="display:none">
+                                            <span class="paso8-ws-toggle__icon">
+                                              <i class="fas fa-award"></i>
+                                            </span>
+                                            <span class="paso8-ws-toggle__label">Constancias</span>
+                                            <span class="paso8-ws-toggle__dot"></span>
+                                          </label>
+                                          <label class="paso8-ws-toggle paso8-ws-toggle--sub" for="switchLiberarDc3Doc"
+                                            [class.paso8-ws-toggle--on]="liberarGenerarDc3Paso8"
+                                            title="Incluir DC-3">
+                                            <input type="checkbox" id="switchLiberarDc3Doc"
+                                              [ngModel]="liberarGenerarDc3Paso8"
+                                              (ngModelChange)="toggleLiberarTipoDocumentoPaso8('dc3')" style="display:none">
+                                            <span class="paso8-ws-toggle__icon">
+                                              <i class="fas fa-file-signature"></i>
+                                            </span>
+                                            <span class="paso8-ws-toggle__label">DC-3</span>
+                                            <span class="paso8-ws-toggle__dot"></span>
+                                          </label>
+                                        </div>
+                                      </div>
                                     </div>
                                   </div>
 

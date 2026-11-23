@@ -55,6 +55,23 @@ function esAdminSeguridad(usuario) {
         || roles.includes('superadmin');
 }
 
+/** Solo superadministrador (root) puede reactivar o borrar en definitivo. */
+function esRootSeguridad(usuario) {
+    return rolesUsuario(usuario).includes('root');
+}
+
+function assertAdminSeguridad(usuario, mensaje) {
+    if (!esAdminSeguridad(usuario)) {
+        throw httpError(403, mensaje || 'Solo administradores pueden realizar esta acción.');
+    }
+}
+
+function assertRootSeguridad(usuario, mensaje) {
+    if (!esRootSeguridad(usuario)) {
+        throw httpError(403, mensaje || 'Solo el superadministrador puede realizar esta acción.');
+    }
+}
+
 function idUsuarioSeguridad(usuario) {
     return entero(usuario?.id || usuario?.usuario_id);
 }
@@ -286,6 +303,12 @@ async function crearTablas(pool) {
     await addColumnIfNotExists(pool, 'seg_asignacion_punto', 'indicador_avance', 'TINYINT UNSIGNED NULL');
     await addColumnIfNotExists(pool, 'seg_asignacion_punto', 'observaciones', 'TEXT NULL');
     await addColumnIfNotExists(pool, 'seg_asignacion', 'anio_ciclo', 'SMALLINT UNSIGNED NULL');
+    await addColumnIfNotExists(
+        pool,
+        'seg_asignacion',
+        'desactivada',
+        'TINYINT(1) NOT NULL DEFAULT 0'
+    );
 
     await pool.query(`
         CREATE TABLE IF NOT EXISTS seg_asignacion_historial (
@@ -1284,7 +1307,7 @@ async function publicar(pool, poolMain, body, usuario) {
                 asignacionId = existentes[0].id;
                 await conn.query(
                     `UPDATE seg_asignacion
-                     SET empresa_nombre = ?, estado = 'activa', publicado_por = ?,
+                     SET empresa_nombre = ?, estado = 'activa', desactivada = 0, publicado_por = ?,
                          publicado_en = NOW(), anio_ciclo = ?
                      WHERE id = ?`,
                     [empresaNombre, ctx.nombre, anio, asignacionId]
@@ -1393,7 +1416,8 @@ function mapAsignacionLista(row) {
         imagen_portada: row.imagen_portada || null,
         publicado_por: row.publicado_por,
         publicado_en: aIso(row.publicado_en),
-        updated_at: aIso(row.updated_at)
+        updated_at: aIso(row.updated_at),
+        desactivada: Number(row.desactivada) === 1
     };
 }
 
@@ -1411,6 +1435,7 @@ function agruparEmpresas(asignaciones) {
                 normativas: 0,
                 normativas_cerradas: 0,
                 normativas_abiertas: 0,
+                normativas_desactivadas: 0,
                 ultima_gestion: null,
                 categoriasMap: new Map()
             };
@@ -1420,6 +1445,7 @@ function agruparEmpresas(asignaciones) {
         emp.puntos_con_evidencia += item.puntos_con_evidencia;
         emp.documentos += item.documentos;
         emp.normativas += 1;
+        if (item.desactivada) emp.normativas_desactivadas += 1;
         if (Number(item.avance) >= 100) emp.normativas_cerradas += 1;
         else emp.normativas_abiertas += 1;
         const fechaItem = item.updated_at || item.publicado_en || null;
@@ -1453,6 +1479,8 @@ function agruparEmpresas(asignaciones) {
                     avance: pct(c.puntos_con_evidencia, c.puntos_asignados)
                 }))
                 .sort((a, b) => a.categoria_id.localeCompare(b.categoria_id, 'es'));
+            const desactivada = emp.normativas > 0
+                && emp.normativas_desactivadas === emp.normativas;
             return {
                 empresa_id: emp.empresa_id,
                 empresa_nombre: emp.empresa_nombre,
@@ -1464,13 +1492,17 @@ function agruparEmpresas(asignaciones) {
                 normativas_abiertas: emp.normativas_abiertas,
                 ultima_gestion: emp.ultima_gestion,
                 avance: pct(emp.puntos_con_evidencia, emp.puntos_asignados),
+                desactivada,
                 categorias
             };
         })
-        .sort((a, b) => a.empresa_nombre.localeCompare(b.empresa_nombre, 'es'));
+        .sort((a, b) => {
+            if (a.desactivada !== b.desactivada) return a.desactivada ? 1 : -1;
+            return a.empresa_nombre.localeCompare(b.empresa_nombre, 'es');
+        });
 }
 
-async function listarGestion(pool, empresaId, usuario = null) {
+async function listarGestion(pool, empresaId, usuario = null, opciones = {}) {
     await asegurarTablas(pool);
     const params = [];
     let filtro = '';
@@ -1487,9 +1519,13 @@ async function listarGestion(pool, empresaId, usuario = null) {
         )`;
         params.push(alcance.empleadoId);
     }
+    const incluirDesactivadas = !!opciones.incluirDesactivadas && esRootSeguridad(usuario);
+    if (!incluirDesactivadas) {
+        filtro += ' AND COALESCE(a.desactivada, 0) = 0';
+    }
     const [rows] = await pool.query(
         `SELECT a.id, a.empresa_id, a.empresa_nombre, a.normativa_id, a.publicado_por,
-                a.publicado_en, a.updated_at,
+                a.publicado_en, a.updated_at, COALESCE(a.desactivada, 0) AS desactivada,
                 n.codigo, n.titulo, n.categoria_id, n.autoridad, n.total_requisitos, n.imagen_portada,
                 (SELECT COUNT(*) FROM seg_asignacion_punto p WHERE p.asignacion_id = a.id) AS puntos_asignados,
                 (SELECT COUNT(*) FROM seg_asignacion_documento d WHERE d.asignacion_id = a.id) AS documentos,
@@ -1498,7 +1534,7 @@ async function listarGestion(pool, empresaId, usuario = null) {
          FROM seg_asignacion a
          JOIN seg_normativa n ON n.id = a.normativa_id
          WHERE a.estado = 'activa' ${filtro}
-         ORDER BY a.empresa_nombre ASC, n.numero ASC, n.codigo ASC`,
+         ORDER BY COALESCE(a.desactivada, 0) ASC, a.empresa_nombre ASC, n.numero ASC, n.codigo ASC`,
         params
     );
     if (!rows.length) return [];
@@ -1526,14 +1562,18 @@ async function listarGestion(pool, empresaId, usuario = null) {
 }
 
 async function listarEmpresasGestion(pool, usuario = null) {
-    const asignaciones = await listarGestion(pool, null, usuario);
+    const asignaciones = await listarGestion(pool, null, usuario, {
+        incluirDesactivadas: esRootSeguridad(usuario)
+    });
     return agruparEmpresas(asignaciones);
 }
 
 async function obtenerEmpresaGestion(pool, empresaId, categoriaId, usuario = null) {
     const id = entero(empresaId);
     if (!id) throw httpError(400, 'Empresa inválida.');
-    const asignaciones = await listarGestion(pool, id, usuario);
+    const asignaciones = await listarGestion(pool, id, usuario, {
+        incluirDesactivadas: esRootSeguridad(usuario)
+    });
     if (!asignaciones.length) {
         throw httpError(404, esAdminSeguridad(usuario)
             ? 'No hay normativas asignadas para esta empresa.'
@@ -1577,7 +1617,7 @@ async function obtenerGestion(pool, asignacionId, usuario = null) {
     if (usuario) await assertAccesoAsignacion(pool, id, usuario);
     const [rows] = await pool.query(
         `SELECT a.id, a.empresa_id, a.empresa_nombre, a.normativa_id, a.publicado_por,
-                a.publicado_en, a.updated_at,
+                a.publicado_en, a.updated_at, COALESCE(a.desactivada, 0) AS desactivada,
                 n.codigo, n.titulo, n.categoria_id, n.autoridad, n.total_requisitos, n.imagen_portada,
                 (SELECT COUNT(*) FROM seg_asignacion_punto p WHERE p.asignacion_id = a.id) AS puntos_asignados,
                 (SELECT COUNT(*) FROM seg_asignacion_documento d WHERE d.asignacion_id = a.id) AS documentos,
@@ -1590,6 +1630,9 @@ async function obtenerGestion(pool, asignacionId, usuario = null) {
         [id]
     );
     if (!rows.length) throw httpError(404, 'La asignación no está disponible.');
+    if (Number(rows[0].desactivada) === 1 && !esRootSeguridad(usuario)) {
+        throw httpError(404, 'La asignación no está disponible.');
+    }
 
     const normativaId = rows[0].normativa_id;
     const imagenesMap = await listarImagenesPunto(pool, normativaId);
@@ -1756,7 +1799,7 @@ async function guardarDocumento(pool, asignacionId, file, requisitoId, usuario, 
     if (usuario) await assertAccesoAsignacion(pool, id, usuario);
 
     const [asigs] = await pool.query(
-        `SELECT a.id, a.empresa_nombre, n.codigo
+        `SELECT a.id, a.empresa_nombre, n.codigo, COALESCE(a.desactivada, 0) AS desactivada
          FROM seg_asignacion a
          JOIN seg_normativa n ON n.id = a.normativa_id
          WHERE a.id = ? AND a.estado = 'activa'
@@ -1764,6 +1807,9 @@ async function guardarDocumento(pool, asignacionId, file, requisitoId, usuario, 
         [id]
     );
     if (!asigs.length) throw httpError(404, 'La asignación no está disponible.');
+    if (Number(asigs[0].desactivada) === 1) {
+        throw httpError(409, 'La normativa está desactivada. No se pueden cargar evidencias.');
+    }
 
     const reqId = requisitoId ? entero(requisitoId) : null;
     if (requisitoId && !reqId) throw httpError(400, 'Punto inválido.');
@@ -1919,6 +1965,148 @@ async function archivarAsignacion(pool, asignacionId) {
     if (!res.affectedRows) throw httpError(404, 'La asignación no está disponible.');
 }
 
+/**
+ * Soft-delete de gestión: oculta sin borrar evidencias ni puntos.
+ * Si se indica asignacionId, solo esa normativa; si no, todas las de la empresa.
+ */
+async function desactivarGestionEmpresa(pool, empresaId, usuario, asignacionId = null) {
+    await asegurarTablas(pool);
+    assertAdminSeguridad(usuario, 'Solo administradores pueden desactivar normativas asignadas.');
+    const empId = entero(empresaId);
+    if (!empId) throw httpError(400, 'Empresa inválida.');
+
+    const asigId = entero(asignacionId);
+    const params = [empId];
+    let filtroAsig = '';
+    if (asigId) {
+        filtroAsig = ' AND id = ?';
+        params.push(asigId);
+    }
+
+    const [res] = await pool.query(
+        `UPDATE seg_asignacion
+         SET desactivada = 1
+         WHERE empresa_id = ? AND estado = 'activa' AND COALESCE(desactivada, 0) = 0${filtroAsig}`,
+        params
+    );
+    if (!res.affectedRows) {
+        throw httpError(404, asigId
+            ? 'La normativa no está activa en la gestión de esta empresa.'
+            : 'No hay normativas activas para desactivar en esta empresa.');
+    }
+    return {
+        empresa_id: empId,
+        asignacion_id: asigId || null,
+        desactivadas: Number(res.affectedRows) || 0
+    };
+}
+
+/** Reactiva gestión desactivada (solo root). */
+async function reactivarGestionEmpresa(pool, empresaId, usuario, asignacionId = null) {
+    await asegurarTablas(pool);
+    assertRootSeguridad(usuario, 'Solo el superadministrador puede reactivar normativas asignadas.');
+    const empId = entero(empresaId);
+    if (!empId) throw httpError(400, 'Empresa inválida.');
+
+    const asigId = entero(asignacionId);
+    const params = [empId];
+    let filtroAsig = '';
+    if (asigId) {
+        filtroAsig = ' AND id = ?';
+        params.push(asigId);
+    }
+
+    const [res] = await pool.query(
+        `UPDATE seg_asignacion
+         SET desactivada = 0
+         WHERE empresa_id = ? AND estado = 'activa' AND COALESCE(desactivada, 0) = 1${filtroAsig}`,
+        params
+    );
+    if (!res.affectedRows) {
+        throw httpError(404, asigId
+            ? 'La normativa no está desactivada en esta empresa.'
+            : 'No hay normativas desactivadas para reactivar en esta empresa.');
+    }
+    return {
+        empresa_id: empId,
+        asignacion_id: asigId || null,
+        reactivadas: Number(res.affectedRows) || 0
+    };
+}
+
+async function eliminarDocumentosDeAsignaciones(pool, asignacionIds) {
+    if (!asignacionIds.length) return;
+    const [docs] = await pool.query(
+        `SELECT id, ruta_relativa, drive_file_id
+         FROM seg_asignacion_documento
+         WHERE asignacion_id IN (?)`,
+        [asignacionIds]
+    );
+    if (docs.length) {
+        await pool.query(
+            'DELETE FROM seg_asignacion_documento WHERE asignacion_id IN (?)',
+            [asignacionIds]
+        );
+    }
+    for (const doc of docs) {
+        if (doc.ruta_relativa) {
+            const absoluta = rutaAbsoluta(doc.ruta_relativa);
+            await fs.promises.unlink(absoluta).catch(() => {});
+        }
+        if (doc.drive_file_id) {
+            try {
+                await driveService.eliminarArchivo(doc.drive_file_id);
+            } catch (err) {
+                console.warn('[seguridad] No se eliminó el archivo de Drive:', err?.message || err);
+            }
+        }
+    }
+}
+
+/**
+ * Borrado definitivo de la gestión (evidencias, puntos, responsables).
+ * Solo root. Si asignacionId, solo esa normativa; si no, toda la empresa.
+ */
+async function eliminarGestionEmpresaDefinitiva(pool, empresaId, usuario, asignacionId = null) {
+    await asegurarTablas(pool);
+    assertRootSeguridad(usuario, 'Solo el superadministrador puede eliminar definitivamente la gestión.');
+    const empId = entero(empresaId);
+    if (!empId) throw httpError(400, 'Empresa inválida.');
+
+    const asigId = entero(asignacionId);
+    const params = [empId];
+    let filtroAsig = '';
+    if (asigId) {
+        filtroAsig = ' AND id = ?';
+        params.push(asigId);
+    }
+
+    // Incluye activas y archivadas: el borrado definitivo limpia todo rastro de gestión.
+    const [rows] = await pool.query(
+        `SELECT id FROM seg_asignacion
+         WHERE empresa_id = ?${filtroAsig}`,
+        params
+    );
+    if (!rows.length) {
+        throw httpError(404, asigId
+            ? 'La normativa asignada no existe en esta empresa.'
+            : 'No hay normativas en gestión para eliminar en esta empresa.');
+    }
+
+    const ids = rows.map((r) => r.id);
+    await eliminarDocumentosDeAsignaciones(pool, ids);
+    await pool.query('DELETE FROM seg_asignacion WHERE id IN (?)', [ids]);
+    if (!asigId) {
+        await pool.query('DELETE FROM seg_asignacion_borrador WHERE empresa_id = ?', [empId]);
+    }
+
+    return {
+        empresa_id: empId,
+        asignacion_id: asigId || null,
+        eliminadas: ids.length
+    };
+}
+
 async function actualizarPuntoGestion(pool, asignacionId, requisitoId, datos = {}, usuario = null) {
     await asegurarTablas(pool);
     const asigId = entero(asignacionId);
@@ -1927,10 +2115,14 @@ async function actualizarPuntoGestion(pool, asignacionId, requisitoId, datos = {
     if (usuario) await assertAccesoAsignacion(pool, asigId, usuario);
 
     const [asig] = await pool.query(
-        `SELECT id, normativa_id FROM seg_asignacion WHERE id = ? AND estado = 'activa' LIMIT 1`,
+        `SELECT id, normativa_id, COALESCE(desactivada, 0) AS desactivada
+         FROM seg_asignacion WHERE id = ? AND estado = 'activa' LIMIT 1`,
         [asigId]
     );
     if (!asig.length) throw httpError(404, 'La normativa no está en gestión activa.');
+    if (Number(asig[0].desactivada) === 1) {
+        throw httpError(409, 'La normativa está desactivada. Reactívela para editarla.');
+    }
 
     const [pto] = await pool.query(
         `SELECT id FROM seg_asignacion_punto
@@ -2046,6 +2238,9 @@ module.exports = {
     leerDocumento,
     eliminarDocumento,
     archivarAsignacion,
+    desactivarGestionEmpresa,
+    reactivarGestionEmpresa,
+    eliminarGestionEmpresaDefinitiva,
     actualizarPuntoGestion,
     listarHistorialEmpresa,
     obtenerHistorialDetalle,

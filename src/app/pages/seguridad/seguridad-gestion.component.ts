@@ -6,7 +6,7 @@ import {
 } from '@angular/core';
 import { DomSanitizer, SafeHtml, SafeResourceUrl } from '@angular/platform-browser';
 import { ActivatedRoute, Router } from '@angular/router';
-import { Subject, forkJoin, of } from 'rxjs';
+import { Subject, firstValueFrom, forkJoin, of } from 'rxjs';
 import { catchError, takeUntil } from 'rxjs/operators';
 import Swal from 'sweetalert2';
 import { environment } from 'src/environments/environment';
@@ -56,6 +56,8 @@ interface EmpresaResumen {
   normativas: number;
   normativas_cerradas?: number;
   normativas_abiertas?: number;
+  /** Soft-delete: oculta a no-root; el superadmin puede reactivar o borrar. */
+  desactivada?: boolean;
   /** Última publicación o cambio en la gestión de normativas de la empresa. */
   ultima_gestion?: string | null;
   categorias: CategoriaAvance[];
@@ -77,6 +79,7 @@ interface AsignacionResumen {
   imagen_portada?: string | null;
   responsables: Responsable[];
   categoria?: CategoriaAvance;
+  desactivada?: boolean;
 }
 
 interface AccionesPunto {
@@ -311,6 +314,24 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
     return this.auth.esAdministradorOSuperior();
   }
 
+  /** Admin o root: desactivar sin borrar datos. */
+  get puedeDesactivarGestion(): boolean {
+    return this.auth.esAdministradorOSuperior();
+  }
+
+  /** Solo superadministrador (root): reactivar o eliminar definitivo. */
+  get puedeAdministrarGestionDesactivada(): boolean {
+    return this.auth.esRoot();
+  }
+
+  get empresaTableroDesactivada(): boolean {
+    if (!this.empresaSeleccionada) return false;
+    if (this.panelModo === 'normativa' && this.normativaFoco) {
+      return !!this.normativaFoco.desactivada;
+    }
+    return !!this.empresaSeleccionada.desactivada;
+  }
+
   ngOnInit(): void {
     this.route.paramMap.pipe(takeUntil(this.destroy$)).subscribe(() => this.sincronizarRuta());
     this.route.queryParamMap.pipe(takeUntil(this.destroy$)).subscribe(() => {
@@ -363,6 +384,169 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
     if (this.vista === 'empresas') {
       this.detalle = null;
       this.cargandoDetalle = false;
+    }
+  }
+
+  /** Alcance del botón: normativa en foco o toda la empresa. */
+  private alcanceAdminTablero(): { empresaId: number; asignacionId: number | null; etiqueta: string } | null {
+    const emp = this.empresaSeleccionada;
+    if (!emp) return null;
+    if (this.panelModo === 'normativa' && this.normativaFoco) {
+      return {
+        empresaId: emp.empresa_id,
+        asignacionId: this.normativaFoco.id,
+        etiqueta: this.normativaFoco.codigo || 'esta normativa'
+      };
+    }
+    return {
+      empresaId: emp.empresa_id,
+      asignacionId: null,
+      etiqueta: emp.empresa_nombre || 'esta empresa'
+    };
+  }
+
+  async desactivarGestionTablero(event?: Event): Promise<void> {
+    event?.stopPropagation();
+    if (!this.puedeDesactivarGestion || this.empresaTableroDesactivada) return;
+    const alcance = this.alcanceAdminTablero();
+    if (!alcance) return;
+
+    const esNorma = !!alcance.asignacionId;
+    const conf = await Swal.fire({
+      icon: 'warning',
+      title: esNorma ? '¿Desactivar normativa?' : '¿Desactivar gestión?',
+      html: esNorma
+        ? `Se ocultará <strong>${alcance.etiqueta}</strong> de la gestión.<br><small>No se borra información; el superadministrador puede reactivarla.</small>`
+        : `Se ocultarán las normativas asignadas de <strong>${alcance.etiqueta}</strong>.<br><small>No se borra información; el superadministrador puede reactivarlas.</small>`,
+      showCancelButton: true,
+      confirmButtonText: 'Sí, desactivar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#b45309',
+      reverseButtons: true
+    });
+    if (!conf.isConfirmed) return;
+
+    try {
+      await firstValueFrom(this.backend.desactivarGestionSeguridadEmpresa(
+        alcance.empresaId,
+        alcance.asignacionId
+      ));
+      await Swal.fire({
+        icon: 'success',
+        title: 'Desactivada',
+        text: esNorma
+          ? 'La normativa quedó oculta y la información se conserva.'
+          : 'La gestión quedó oculta y la información se conserva.',
+        timer: 2200,
+        showConfirmButton: false
+      });
+      if (this.puedeAdministrarGestionDesactivada) {
+        this.cargarEmpresas();
+        this.cargarAsignacionesTablero(alcance.empresaId);
+      } else {
+        this.cerrarTableroEmpresa();
+        this.cargarEmpresas();
+      }
+    } catch (err: any) {
+      Swal.fire({
+        icon: 'error',
+        title: 'No se pudo desactivar',
+        text: err?.error?.message || err?.message || 'Intente de nuevo.'
+      });
+    }
+  }
+
+  async reactivarGestionTablero(event?: Event): Promise<void> {
+    event?.stopPropagation();
+    if (!this.puedeAdministrarGestionDesactivada || !this.empresaTableroDesactivada) return;
+    const alcance = this.alcanceAdminTablero();
+    if (!alcance) return;
+
+    const esNorma = !!alcance.asignacionId;
+    const conf = await Swal.fire({
+      icon: 'question',
+      title: esNorma ? '¿Reactivar normativa?' : '¿Reactivar gestión?',
+      html: `Se volverá a mostrar <strong>${alcance.etiqueta}</strong> en la gestión de normativas.`,
+      showCancelButton: true,
+      confirmButtonText: 'Sí, reactivar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#15803d',
+      reverseButtons: true
+    });
+    if (!conf.isConfirmed) return;
+
+    try {
+      await firstValueFrom(this.backend.reactivarGestionSeguridadEmpresa(
+        alcance.empresaId,
+        alcance.asignacionId
+      ));
+      await Swal.fire({
+        icon: 'success',
+        title: 'Reactivada',
+        text: 'La gestión volvió a estar disponible.',
+        timer: 2000,
+        showConfirmButton: false
+      });
+      this.cargarEmpresas();
+      this.cargarAsignacionesTablero(alcance.empresaId);
+    } catch (err: any) {
+      Swal.fire({
+        icon: 'error',
+        title: 'No se pudo reactivar',
+        text: err?.error?.message || err?.message || 'Intente de nuevo.'
+      });
+    }
+  }
+
+  async eliminarGestionTablero(event?: Event): Promise<void> {
+    event?.stopPropagation();
+    if (!this.puedeAdministrarGestionDesactivada) return;
+    const alcance = this.alcanceAdminTablero();
+    if (!alcance) return;
+
+    const esNorma = !!alcance.asignacionId;
+    const conf = await Swal.fire({
+      icon: 'error',
+      title: 'Eliminar definitivamente',
+      html: esNorma
+        ? `Se borrará <strong>${alcance.etiqueta}</strong> con sus evidencias y puntos.<br><small>Esta acción no se puede deshacer.</small>`
+        : `Se borrará toda la gestión de normativas de <strong>${alcance.etiqueta}</strong> (evidencias, puntos y archivos).<br><small>Esta acción no se puede deshacer.</small>`,
+      showCancelButton: true,
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#991b1b',
+      reverseButtons: true,
+      input: 'text',
+      inputPlaceholder: 'Escriba ELIMINAR para confirmar',
+      inputValidator: (value) => {
+        if (String(value || '').trim().toUpperCase() !== 'ELIMINAR') {
+          return 'Escriba ELIMINAR para confirmar el borrado.';
+        }
+        return null;
+      }
+    });
+    if (!conf.isConfirmed) return;
+
+    try {
+      await firstValueFrom(this.backend.eliminarGestionSeguridadEmpresa(
+        alcance.empresaId,
+        alcance.asignacionId
+      ));
+      await Swal.fire({
+        icon: 'success',
+        title: 'Eliminada',
+        text: 'La información se eliminó definitivamente.',
+        timer: 2200,
+        showConfirmButton: false
+      });
+      this.cerrarTableroEmpresa();
+      this.cargarEmpresas();
+    } catch (err: any) {
+      Swal.fire({
+        icon: 'error',
+        title: 'No se pudo eliminar',
+        text: err?.error?.message || err?.message || 'Intente de nuevo.'
+      });
     }
   }
 
@@ -957,8 +1141,19 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
               logo: this.logosEmpresa.get(empresaId) || this.empresaSeleccionada!.logo || null
             };
           }
+          if (this.normativaFoco) {
+            const actualizada = this.asignacionesTablero.find((a) => a.id === this.normativaFoco!.id);
+            if (actualizada) this.normativaFoco = actualizada;
+            else {
+              this.normativaFoco = null;
+              this.panelModo = 'general';
+            }
+          }
           this.cargandoTablero = false;
-          this.cargarResumenResponsablesTablero(empresaId, this.asignacionesTablero);
+          this.cargarResumenResponsablesTablero(
+            empresaId,
+            this.asignacionesTablero.filter((a) => !a.desactivada)
+          );
         },
         error: () => {
           if (this.empresaSeleccionada?.empresa_id !== empresaId) return;
@@ -1938,10 +2133,11 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
   }
 
   get totalesEmpresas(): { empresas: number; normativas: number; avance: number } {
-    const empresas = this.empresas.length;
-    const normativas = this.empresas.reduce((s, e) => s + e.normativas, 0);
-    const ptsA = this.empresas.reduce((s, e) => s + e.puntos_asignados, 0);
-    const ptsE = this.empresas.reduce((s, e) => s + e.puntos_con_evidencia, 0);
+    const activas = this.empresas.filter((e) => !e.desactivada);
+    const empresas = activas.length;
+    const normativas = activas.reduce((s, e) => s + e.normativas, 0);
+    const ptsA = activas.reduce((s, e) => s + e.puntos_asignados, 0);
+    const ptsE = activas.reduce((s, e) => s + e.puntos_con_evidencia, 0);
     const avance = ptsA ? Math.round((ptsE / ptsA) * 100) : 0;
     return { empresas, normativas, avance };
   }

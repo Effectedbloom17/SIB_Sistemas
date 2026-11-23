@@ -9,29 +9,10 @@
   padding-bottom: 0.35rem;
 }
 
-.seg-btn-back {
-  position: absolute;
-  top: 0;
-  left: 0.75rem;
-  background: rgba(255, 255, 255, 0.14);
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  color: #fff;
-  border-radius: 8px;
-  font-size: 0.76rem;
-  font-weight: 600;
-  padding: 0.3rem 0.7rem;
-  z-index: 2;
-
-  &:hover {
-    background: rgba(255, 255, 255, 0.24);
-    color: #fff;
-  }
-}
-
 .seg-hero-detalle {
   max-width: 880px;
   margin: 0 auto;
-  padding: 1.75rem 0.5rem 0.25rem;
+  padding: 0.85rem 0.5rem 0.25rem;
 
   &__badges {
     display: flex;
@@ -227,6 +208,11 @@
 
 .seg-stat-strip--detalle {
   align-items: center;
+
+  .seg-btn-catalogo {
+    flex-shrink: 0;
+    margin-right: 0.15rem;
+  }
 
   .seg-stat-strip__actions {
     margin-left: auto;
@@ -1497,11 +1483,6 @@
     padding-right: 0.45rem;
   }
 
-  .seg-btn-back {
-    position: static;
-    margin: 0 0 0.5rem 0.15rem;
-  }
-
   .seg-hero-detalle {
     padding: 0.15rem 0.35rem 0;
     text-align: left;
@@ -1530,6 +1511,11 @@
     flex-wrap: wrap;
     gap: 0.35rem;
     padding: 0.65rem 0.6rem;
+
+    .seg-btn-catalogo {
+      flex: 0 0 auto;
+      margin-right: 0;
+    }
   }
 
   .seg-stat-chip {

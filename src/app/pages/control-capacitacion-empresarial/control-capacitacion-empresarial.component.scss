@@ -413,6 +413,11 @@ select.filter-select {
   color: #9c6500;
 }
 
+.estatus--pendiente-acuse {
+  background: #d0e2f3;
+  color: #1f4e79;
+}
+
 .estatus--no-realizadas {
   background: #f4cccc;
   color: #c00000;
@@ -509,6 +514,45 @@ select.filter-select {
 .control-download-history-modal__value--curso {
   font-size: 0.9rem;
   font-weight: 700;
+}
+
+.control-download-history-modal__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0 1.2rem 1.2rem;
+  border-top: 1px solid #eef2f7;
+  padding-top: 1rem;
+}
+
+.control-download-history-modal__action-btn {
+  align-self: flex-start;
+  border-radius: 8px;
+  border: 1px solid #1f4e79;
+  background: #fff;
+  color: #1f4e79;
+  font-weight: 600;
+  padding: 0.4rem 0.85rem;
+
+  &:hover:not(:disabled) {
+    background: #f0f6fb;
+    color: #1f4e79;
+  }
+
+  &:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+}
+
+.control-download-history-modal__action-btn--revert {
+  border-color: #9c6500;
+  color: #9c6500;
+
+  &:hover:not(:disabled) {
+    background: #fff8ef;
+    color: #9c6500;
+  }
 }
 
 @keyframes controlHistoryBackdropIn {

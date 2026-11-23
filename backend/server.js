@@ -62,6 +62,7 @@ const http = require('http');
 const rrhhResidentesService = require('./rrhhResidentesService');
 const rrhhColaboradoresService = require('./rrhhColaboradoresService');
 const rrhhRegistrosService = require('./rrhhRegistrosService');
+const rrhhRiesgosPsicosocialesService = require('./rrhhRiesgosPsicosocialesService');
 const pcCentroOperaciones = require('./pcCentroOperaciones');
 const pcHistorialCicloService = require('./pcHistorialCicloService');
 const pcRecorridoService = require('./pcRecorridoService');
@@ -1034,6 +1035,23 @@ const uploadRrhhRegistros = multer({
         ].includes(ext);
         if (okMime || okExt) return cb(null, true);
         return cb(new Error('Solo se permiten PDF, imágenes, Word, Excel o PowerPoint'));
+    }
+});
+
+const uploadRrhhNom035 = multer({
+    storage: storageMemory,
+    limits: { fileSize: 20 * 1024 * 1024 },
+    fileFilter: function (req, file, cb) {
+        const mime = String(file.mimetype || '').toLowerCase();
+        const ext = path.extname(String(file.originalname || '')).toLowerCase();
+        const okMime = [
+            'application/pdf',
+            'image/jpeg', 'image/jpg', 'image/pjpeg', 'image/png', 'image/webp', 'image/gif',
+            'application/octet-stream'
+        ].includes(mime);
+        const okExt = ['.pdf', '.jpg', '.jpeg', '.png', '.webp', '.gif'].includes(ext);
+        if (okMime || okExt) return cb(null, true);
+        return cb(new Error('Solo se permiten PDF o imágenes (JPG, PNG, WEBP, GIF)'));
     }
 });
 
@@ -3078,6 +3096,9 @@ const requireAdminOrMantenimiento = requireRole('root', 'administrador', 'manten
 
 /** Acceso a Recursos Humanos (datos sensibles): root | administrador | rrhh */
 const requireAdminOrRrhh = requireRole('root', 'administrador', 'rrhh');
+
+/** Riesgos Psicosociales (NOM-035): de momento solo superadministrador (root). */
+const requireRootRrhhNom035 = requireRole('root');
 
 /** Registros RH (FORMATOS RH): solo root + whitelist username (RozanaRG / mafer295). */
 function requireRegistrosRh(req, res, next) {
@@ -10047,6 +10068,7 @@ let cursoProgramadoColaboradorasColumnChecked = false;
 let empresaPuestoExprCache = null;
 let usuarioCorreosPersonalesColumnChecked = false;
 let cursoProgramadoHistorialDescargasColumnChecked = false;
+let cursoProgramadoPendienteAcuseColumnChecked = false;
 let usuarioOrganigramaColumnChecked = false;
 async function asegurarColumnaOrganigramaUsuario(db) {
     if (usuarioOrganigramaColumnChecked) return;
@@ -11110,6 +11132,31 @@ async function asegurarColumnasHistorialDescargasCursoProgramado(db) {
     );
 
     cursoProgramadoHistorialDescargasColumnChecked = true;
+}
+
+async function asegurarColumnasPendienteAcuseCursoProgramado(db) {
+    if (cursoProgramadoPendienteAcuseColumnChecked) return;
+
+    await addColumnIfNotExists(
+        db,
+        'curso_programado',
+        'entregado_pendiente_acuse',
+        'TINYINT(1) NOT NULL DEFAULT 0 AFTER ultima_descarga_constancias_fecha'
+    );
+    await addColumnIfNotExists(
+        db,
+        'curso_programado',
+        'entregado_pendiente_acuse_por',
+        'VARCHAR(180) NULL AFTER entregado_pendiente_acuse'
+    );
+    await addColumnIfNotExists(
+        db,
+        'curso_programado',
+        'entregado_pendiente_acuse_fecha',
+        'DATETIME NULL AFTER entregado_pendiente_acuse_por'
+    );
+
+    cursoProgramadoPendienteAcuseColumnChecked = true;
 }
 
 /**
@@ -16417,6 +16464,156 @@ app.get('/api/cursos-programados/:programadoId/historial-descarga-constancias-dc
         });
     }
 });
+
+app.post(
+    '/api/cursos-programados/:programadoId/marcar-entregado-pendiente-acuse',
+    requireAdminOrControlDocumental,
+    async (req, res) => {
+        try {
+            const programadoId = Number(req.params.programadoId || 0);
+            if (!programadoId) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'programado_id inválido'
+                });
+            }
+
+            await asegurarColumnasHistorialDescargasCursoProgramado(pool);
+            await asegurarColumnasPendienteAcuseCursoProgramado(pool);
+
+            const [rows] = await pool.query(`
+                SELECT
+                    cp.programado_id,
+                    COALESCE(cp.entregado_pendiente_acuse, 0) AS entregado_pendiente_acuse,
+                    COALESCE(participantes.total_participantes, 0) AS total_participantes,
+                    COALESCE(acreditaciones.total_acreditaciones, 0) AS total_acreditaciones,
+                    COALESCE(dcp_spf03.tiene_entrega_documentos, 0) AS tiene_entrega_documentos,
+                    COALESCE(dcp_acc.tiene_documentos_acreditacion, 0) AS tiene_documentos_acreditacion
+                FROM curso_programado cp
+                LEFT JOIN (
+                    SELECT programado_id, COUNT(*) AS total_participantes
+                    FROM inscripcion_curso
+                    WHERE activo = 1
+                    GROUP BY programado_id
+                ) participantes ON participantes.programado_id = cp.programado_id
+                LEFT JOIN (
+                    SELECT programado_id,
+                        SUM(CASE WHEN activo = 1 AND certificado_generado = 1 THEN 1 ELSE 0 END) AS total_acreditaciones
+                    FROM inscripcion_curso
+                    GROUP BY programado_id
+                ) acreditaciones ON acreditaciones.programado_id = cp.programado_id
+                LEFT JOIN (
+                    ${SQL_SUBQUERY_ANEXO_SPF03}
+                ) dcp_spf03 ON dcp_spf03.programado_id = cp.programado_id
+                LEFT JOIN (
+                    SELECT programado_id,
+                        MAX(CASE
+                            WHEN descripcion LIKE 'constancia_inscripcion_%'
+                              OR descripcion LIKE 'dc3_inscripcion_%'
+                              OR descripcion LIKE 'constancias_lote%'
+                              OR descripcion LIKE 'dc3_lote%'
+                            THEN 1 ELSE 0
+                        END) AS tiene_documentos_acreditacion
+                    FROM documento_curso_programado
+                    GROUP BY programado_id
+                ) dcp_acc ON dcp_acc.programado_id = cp.programado_id
+                WHERE cp.programado_id = ?
+                LIMIT 1
+            `, [programadoId]);
+
+            if (!rows?.length) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Curso programado no encontrado'
+                });
+            }
+
+            const row = rows[0];
+            const participantes = Number(row.total_participantes || 0);
+            const acreditacionesBd = Number(row.total_acreditaciones || 0);
+            const tieneDocumentosAcreditacion = Boolean(Number(row.tiene_documentos_acreditacion || 0));
+            const acreditaciones = (acreditacionesBd >= participantes && participantes > 0)
+                ? acreditacionesBd
+                : (tieneDocumentosAcreditacion && participantes > 0 ? participantes : acreditacionesBd);
+            const tieneEntregaDocumentos = Boolean(Number(row.tiene_entrega_documentos || 0));
+            const pendienteAcuseActual = Boolean(Number(row.entregado_pendiente_acuse || 0));
+            const estatusActual = estatusAcreditacionesControl(
+                participantes,
+                acreditaciones,
+                tieneEntregaDocumentos,
+                pendienteAcuseActual
+            );
+
+            const bodyActivo = req.body?.activo;
+            const activar = bodyActivo === undefined || bodyActivo === null
+                ? !pendienteAcuseActual
+                : !(bodyActivo === false || bodyActivo === 0 || bodyActivo === '0' || bodyActivo === 'false');
+
+            if (activar) {
+                if (estatusActual !== 'Generadas') {
+                    return res.status(400).json({
+                        success: false,
+                        message: `Solo se puede marcar pendiente de acuse cuando el estatus es Generadas. Estatus actual: ${estatusActual}.`
+                    });
+                }
+            } else if (estatusActual !== ESTATUS_CONTROL_ENTREGADO_PENDIENTE_ACUSE) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Solo se puede revertir cuando el estatus es "${ESTATUS_CONTROL_ENTREGADO_PENDIENTE_ACUSE}". Estatus actual: ${estatusActual}.`
+                });
+            }
+
+            const nombreUsuario = obtenerNombreUsuarioAccion(req);
+            const fechaMexico = obtenerFechaHoraMexicoMySQL(new Date());
+
+            const [result] = await pool.query(
+                activar
+                    ? `UPDATE curso_programado
+                       SET entregado_pendiente_acuse = 1,
+                           entregado_pendiente_acuse_por = ?,
+                           entregado_pendiente_acuse_fecha = ?
+                       WHERE programado_id = ?`
+                    : `UPDATE curso_programado
+                       SET entregado_pendiente_acuse = 0,
+                           entregado_pendiente_acuse_por = NULL,
+                           entregado_pendiente_acuse_fecha = NULL
+                       WHERE programado_id = ?`,
+                activar ? [nombreUsuario, fechaMexico, programadoId] : [programadoId]
+            );
+
+            if (!result?.affectedRows) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Curso programado no encontrado'
+                });
+            }
+
+            const nuevoEstatus = activar
+                ? ESTATUS_CONTROL_ENTREGADO_PENDIENTE_ACUSE
+                : estatusAcreditacionesControl(participantes, acreditaciones, tieneEntregaDocumentos, false);
+
+            return res.json({
+                success: true,
+                message: activar
+                    ? `Estatus actualizado a "${ESTATUS_CONTROL_ENTREGADO_PENDIENTE_ACUSE}".`
+                    : `Estatus revertido a "${nuevoEstatus}".`,
+                data: {
+                    programado_id: programadoId,
+                    estatus_acreditaciones: nuevoEstatus,
+                    entregado_pendiente_acuse: activar,
+                    entregado_pendiente_acuse_por: activar ? nombreUsuario : null,
+                    entregado_pendiente_acuse_fecha: activar ? fechaMexico : null
+                }
+            });
+        } catch (error) {
+            console.error('[ERROR] marcar-entregado-pendiente-acuse:', error);
+            return res.status(500).json({
+                success: false,
+                message: error.message || 'No se pudo actualizar el estatus a pendiente de acuse.'
+            });
+        }
+    }
+);
 
 app.get('/api/cursos-programados/:programadoId/dc3-combinados-pdf', async (req, res) => {
     try {
@@ -22385,11 +22582,14 @@ function copiarEstructuraHojaTemplate(origen, destino, maxRows = 80, maxCols = C
     destino.views = deepClone(origen.views) || [];
 }
 
-function estatusAcreditacionesControl(participantes, acreditaciones, tieneEntregaDocumentos) {
+const ESTATUS_CONTROL_ENTREGADO_PENDIENTE_ACUSE = 'Entregado, pendiente de acuse';
+
+function estatusAcreditacionesControl(participantes, acreditaciones, tieneEntregaDocumentos, pendienteAcuse = false) {
     // SP-F-03 firmado implica entrega documental: prevalece sobre estatus históricos incompletos en BD.
     if (tieneEntregaDocumentos) return 'Entregadas';
     const completos = participantes > 0 && acreditaciones >= participantes;
     if (!completos) return 'No realizadas';
+    if (pendienteAcuse) return ESTATUS_CONTROL_ENTREGADO_PENDIENTE_ACUSE;
     return 'Generadas';
 }
 
@@ -22563,7 +22763,8 @@ function poblarHojaControl(worksheet, year, registros, overrides = new Map()) {
             ? acreditacionesBd
             : (tieneDocumentosAcreditacion && participantes > 0 ? participantes : acreditacionesBd);
         const tieneEntregaDocumentos = Boolean(Number(item.tiene_entrega_documentos || 0));
-        const estatus = estatusAcreditacionesControl(participantes, acreditaciones, tieneEntregaDocumentos);
+        const pendienteAcuse = Boolean(Number(item.entregado_pendiente_acuse || 0));
+        const estatus = estatusAcreditacionesControl(participantes, acreditaciones, tieneEntregaDocumentos, pendienteAcuse);
 
         // Valores calculados automáticamente
         const calcHorario = formatHorarioControl(item.hora_inicio, item.hora_fin);
@@ -22642,6 +22843,15 @@ function poblarHojaControl(worksheet, year, registros, overrides = new Map()) {
                 color: { argb: 'FF0B7A34' },
                 bold: false
             };
+        } else if (estatus === ESTATUS_CONTROL_ENTREGADO_PENDIENTE_ACUSE) {
+            estatusCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD0E2F3' } };
+            estatusCell.font = {
+                ...(estatusCell.font || {}),
+                name: 'Calibri',
+                size: 10,
+                color: { argb: 'FF1F4E79' },
+                bold: false
+            };
         } else if (estatus === 'Generadas') {
             estatusCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFCE5CD' } };
             estatusCell.font = {
@@ -22706,7 +22916,8 @@ function mapearRegistroControlCapacitacion(item, numero = 1) {
         ? acreditacionesBd
         : (tieneDocumentosAcreditacion && participantes > 0 ? participantes : acreditacionesBd);
     const tieneEntregaDocumentos = Boolean(Number(item.tiene_entrega_documentos || 0));
-    const estatus = estatusAcreditacionesControl(participantes, acreditaciones, tieneEntregaDocumentos);
+    const pendienteAcuse = Boolean(Number(item.entregado_pendiente_acuse || 0));
+    const estatus = estatusAcreditacionesControl(participantes, acreditaciones, tieneEntregaDocumentos, pendienteAcuse);
 
     return {
         no: numero,
@@ -22731,12 +22942,16 @@ function mapearRegistroControlCapacitacion(item, numero = 1) {
         email_representante: item.email_representante || '',
         observaciones: item.observaciones || '',
         ultima_descarga_constancias_por: item.ultima_descarga_constancias_por || null,
-        ultima_descarga_constancias_fecha: serializarFechaHoraMexicoMySQL(item.ultima_descarga_constancias_fecha)
+        ultima_descarga_constancias_fecha: serializarFechaHoraMexicoMySQL(item.ultima_descarga_constancias_fecha),
+        entregado_pendiente_acuse: pendienteAcuse,
+        entregado_pendiente_acuse_por: item.entregado_pendiente_acuse_por || null,
+        entregado_pendiente_acuse_fecha: serializarFechaHoraMexicoMySQL(item.entregado_pendiente_acuse_fecha)
     };
 }
 
 async function obtenerDatosControlCapacitacion() {
     await asegurarColumnasHistorialDescargasCursoProgramado(pool);
+    await asegurarColumnasPendienteAcuseCursoProgramado(pool);
 
     const [rows] = await pool.query(`
         SELECT
@@ -22751,6 +22966,9 @@ async function obtenerDatosControlCapacitacion() {
             cp.notas AS observaciones,
             cp.ultima_descarga_constancias_por,
             DATE_FORMAT(cp.ultima_descarga_constancias_fecha, '%Y-%m-%d %H:%i:%s') AS ultima_descarga_constancias_fecha,
+            COALESCE(cp.entregado_pendiente_acuse, 0) AS entregado_pendiente_acuse,
+            cp.entregado_pendiente_acuse_por,
+            DATE_FORMAT(cp.entregado_pendiente_acuse_fecha, '%Y-%m-%d %H:%i:%s') AS entregado_pendiente_acuse_fecha,
             COALESCE(NULLIF(TRIM(c.nombre_curso), ''), CONCAT('Curso ID ', cp.curso_id)) AS nombre_curso,
             c.horas AS curso_horas,
             e.nombre_empresa,
@@ -22808,6 +23026,9 @@ async function obtenerDatosControlCapacitacion() {
             cp.notas,
             cp.ultima_descarga_constancias_por,
             cp.ultima_descarga_constancias_fecha,
+            cp.entregado_pendiente_acuse,
+            cp.entregado_pendiente_acuse_por,
+            cp.entregado_pendiente_acuse_fecha,
             c.nombre_curso,
             c.horas,
             e.nombre_empresa,
@@ -23107,6 +23328,7 @@ async function obtenerMetricasOperativasDashboard(options = {}) {
     const hasCursoFilter = cursoId > 0;
 
     await asegurarColumnasHistorialDescargasCursoProgramado(pool);
+    await asegurarColumnasPendienteAcuseCursoProgramado(pool);
 
     const filterClauses = ['cp.estatus != ?', 'YEAR(COALESCE(cp.fecha_inicio, cp.fecha_fin, cp.created_at)) = ?'];
     const filterParams = ['cancelado', anio];
@@ -23129,6 +23351,7 @@ async function obtenerMetricasOperativasDashboard(options = {}) {
             cp.created_at,
             MONTH(COALESCE(cp.fecha_inicio, cp.fecha_fin, cp.created_at)) AS mes_num,
             cp.ultima_descarga_constancias_fecha,
+            COALESCE(cp.entregado_pendiente_acuse, 0) AS entregado_pendiente_acuse,
             COALESCE(participantes.total_participantes, 0) AS total_participantes,
             COALESCE(acreditaciones.total_acreditaciones, 0) AS total_acreditaciones,
             COALESCE(dcp_spf03.tiene_entrega_documentos, 0) AS tiene_entrega_documentos,
@@ -23205,7 +23428,8 @@ async function obtenerMetricasOperativasDashboard(options = {}) {
             ? acreditacionesBd
             : (tieneDocumentosAcreditacion && participantes > 0 ? participantes : acreditacionesBd);
         const tieneEntregaDocumentos = Boolean(Number(row.tiene_entrega_documentos || 0));
-        const estatusConstancia = estatusAcreditacionesControl(participantes, acreditaciones, tieneEntregaDocumentos);
+        const pendienteAcuse = Boolean(Number(row.entregado_pendiente_acuse || 0));
+        const estatusConstancia = estatusAcreditacionesControl(participantes, acreditaciones, tieneEntregaDocumentos, pendienteAcuse);
         const descargada = Boolean(row.ultima_descarga_constancias_fecha);
 
         if (estatus === 'programado') {
@@ -26095,6 +26319,14 @@ chatSocketIo = initChatSocket(server, {
         console.warn('  [WARN] RRHH_residentes:', e.message);
     }
 
+    // Recursos Humanos — riesgos psicosociales (NOM-035)
+    try {
+        await rrhhRiesgosPsicosocialesService.asegurarTabla(pool);
+        logDebug('  Tabla RRHH_riesgos_psicosociales: OK');
+    } catch (e) {
+        console.warn('  [WARN] RRHH_riesgos_psicosociales:', e.message);
+    }
+
     // Novedades siempre activas
     try {
         notasVersionService.setActivo(true);
@@ -26821,6 +27053,69 @@ app.get('/api/seguridad/asignacion/empresas/:empresaId', authMiddleware, denyEmp
         res.json({ success: true, ...detalle });
     } catch (error) {
         responderErrorSeguridadAsignacion(res, error, 'Error al abrir la empresa en gestión');
+    }
+});
+
+app.post('/api/seguridad/asignacion/empresas/:empresaId/desactivar', authMiddleware, denyEmpresa, async (req, res) => {
+    try {
+        await poolNormativasReady;
+        const resultado = await seguridadAsignacionService.desactivarGestionEmpresa(
+            poolNormativas,
+            req.params.empresaId,
+            req.user,
+            req.body?.asignacion_id
+        );
+        res.json({
+            success: true,
+            message: resultado.asignacion_id
+                ? 'Normativa desactivada. La información se conserva.'
+                : 'Gestión de normativas desactivada. La información se conserva.',
+            ...resultado
+        });
+    } catch (error) {
+        responderErrorSeguridadAsignacion(res, error, 'Error al desactivar la gestión');
+    }
+});
+
+app.post('/api/seguridad/asignacion/empresas/:empresaId/reactivar', authMiddleware, denyEmpresa, requireRole('root'), async (req, res) => {
+    try {
+        await poolNormativasReady;
+        const resultado = await seguridadAsignacionService.reactivarGestionEmpresa(
+            poolNormativas,
+            req.params.empresaId,
+            req.user,
+            req.body?.asignacion_id
+        );
+        res.json({
+            success: true,
+            message: resultado.asignacion_id
+                ? 'Normativa reactivada.'
+                : 'Gestión de normativas reactivada.',
+            ...resultado
+        });
+    } catch (error) {
+        responderErrorSeguridadAsignacion(res, error, 'Error al reactivar la gestión');
+    }
+});
+
+app.delete('/api/seguridad/asignacion/empresas/:empresaId/gestion', authMiddleware, denyEmpresa, requireRole('root'), async (req, res) => {
+    try {
+        await poolNormativasReady;
+        const resultado = await seguridadAsignacionService.eliminarGestionEmpresaDefinitiva(
+            poolNormativas,
+            req.params.empresaId,
+            req.user,
+            req.body?.asignacion_id ?? req.query?.asignacion_id
+        );
+        res.json({
+            success: true,
+            message: resultado.asignacion_id
+                ? 'Normativa eliminada definitivamente.'
+                : 'Gestión de normativas eliminada definitivamente.',
+            ...resultado
+        });
+    } catch (error) {
+        responderErrorSeguridadAsignacion(res, error, 'Error al eliminar la gestión');
     }
 });
 
@@ -39113,6 +39408,137 @@ app.get('/api/rrhh/registros/archivo/:fileId', requireRegistrosRh, async (req, r
         }, { descargar: String(req.query.download || '') === '1' });
     } catch (error) {
         responderErrorRrhhColaboradores(res, error, 'No se pudo abrir el archivo');
+    }
+});
+
+// =====================================================
+// Recursos Humanos — Riesgos Psicosociales (NOM-035)
+// =====================================================
+
+app.get('/api/rrhh/riesgos-psicosociales/dashboard', requireRootRrhhNom035, async (req, res) => {
+    try {
+        const registros = await rrhhRiesgosPsicosocialesService.listar(pool);
+        const dashboard = rrhhRiesgosPsicosocialesService.dashboardDesdeRegistros(registros);
+        return res.json({ success: true, ...dashboard, registros });
+    } catch (error) {
+        console.error('[RRHH NOM-035] dashboard:', error);
+        return res.status(500).json({ success: false, message: error.message || 'Error al cargar dashboard' });
+    }
+});
+
+app.get('/api/rrhh/riesgos-psicosociales/catalogo', requireRootRrhhNom035, async (_req, res) => {
+    return res.json({ success: true, ...rrhhRiesgosPsicosocialesService.catalogoReferencia() });
+});
+
+app.get('/api/rrhh/riesgos-psicosociales', requireRootRrhhNom035, async (req, res) => {
+    try {
+        const registros = await rrhhRiesgosPsicosocialesService.listar(pool, { tipo: req.query.tipo });
+        return res.json({ success: true, data: registros });
+    } catch (error) {
+        console.error('[RRHH NOM-035] listar:', error);
+        return res.status(500).json({ success: false, message: error.message || 'Error al listar' });
+    }
+});
+
+app.get('/api/rrhh/riesgos-psicosociales/:id', requireRootRrhhNom035, async (req, res) => {
+    try {
+        const item = await rrhhRiesgosPsicosocialesService.obtener(pool, req.params.id);
+        if (!item) {
+            return res.status(404).json({ success: false, message: 'Registro no encontrado' });
+        }
+        return res.json({ success: true, data: item });
+    } catch (error) {
+        console.error('[RRHH NOM-035] obtener:', error);
+        return res.status(500).json({ success: false, message: error.message || 'Error al obtener' });
+    }
+});
+
+app.post('/api/rrhh/riesgos-psicosociales/previsualizar', requireRootRrhhNom035, uploadRrhhNom035.single('file'), async (req, res) => {
+    try {
+        if (!req.file && !req.body?.texto) {
+            return res.status(400).json({ success: false, message: 'Sube un PDF/imagen o envía texto extraído' });
+        }
+        const preview = await rrhhRiesgosPsicosocialesService.previsualizarImportacion({
+            buffer: req.file?.buffer,
+            mimetype: req.file?.mimetype,
+            originalname: req.file?.originalname,
+            texto: req.body?.texto
+        });
+        return res.json({ success: true, ...preview });
+    } catch (error) {
+        const status = error.status || 500;
+        console.error('[RRHH NOM-035] previsualizar:', error);
+        return res.status(status).json({ success: false, message: error.message || 'No se pudo interpretar el archivo' });
+    }
+});
+
+app.post('/api/rrhh/riesgos-psicosociales', requireRootRrhhNom035, uploadRrhhNom035.single('file'), async (req, res) => {
+    try {
+        let payload = {};
+        if (req.body?.payload) {
+            try {
+                payload = typeof req.body.payload === 'string' ? JSON.parse(req.body.payload) : req.body.payload;
+            } catch {
+                return res.status(400).json({ success: false, message: 'Payload JSON inválido' });
+            }
+        } else {
+            payload = {
+                periodo: req.body?.periodo,
+                tipo_encuesta: req.body?.tipo_encuesta,
+                departamento: req.body?.departamento,
+                puesto: req.body?.puesto,
+                notas: req.body?.notas,
+                texto_extraido: req.body?.texto_extraido,
+                resumen: req.body?.resumen ? (typeof req.body.resumen === 'string' ? JSON.parse(req.body.resumen) : req.body.resumen) : undefined,
+                detalle: req.body?.detalle ? (typeof req.body.detalle === 'string' ? JSON.parse(req.body.detalle) : req.body.detalle) : undefined
+            };
+        }
+        const usuario = req.user?.username || req.user?.usuario || req.user?.nombre || '';
+        const creado = await rrhhRiesgosPsicosocialesService.crear(pool, payload, {
+            usuario,
+            archivo: req.file || null
+        });
+        return res.status(201).json({ success: true, data: creado });
+    } catch (error) {
+        console.error('[RRHH NOM-035] crear:', error);
+        return res.status(error.status || 500).json({ success: false, message: error.message || 'Error al guardar' });
+    }
+});
+
+app.put('/api/rrhh/riesgos-psicosociales/:id', requireRootRrhhNom035, async (req, res) => {
+    try {
+        const actualizado = await rrhhRiesgosPsicosocialesService.actualizar(pool, req.params.id, req.body || {});
+        return res.json({ success: true, data: actualizado });
+    } catch (error) {
+        console.error('[RRHH NOM-035] actualizar:', error);
+        return res.status(error.status || 500).json({ success: false, message: error.message || 'Error al actualizar' });
+    }
+});
+
+app.delete('/api/rrhh/riesgos-psicosociales/:id', requireRootRrhhNom035, async (req, res) => {
+    try {
+        const result = await rrhhRiesgosPsicosocialesService.eliminar(pool, req.params.id);
+        if (!result.deleted) {
+            return res.status(404).json({ success: false, message: 'Registro no encontrado' });
+        }
+        return res.json({ success: true });
+    } catch (error) {
+        console.error('[RRHH NOM-035] eliminar:', error);
+        return res.status(500).json({ success: false, message: error.message || 'Error al eliminar' });
+    }
+});
+
+app.get('/api/rrhh/riesgos-psicosociales/:id/archivo', requireRootRrhhNom035, async (req, res) => {
+    try {
+        const archivo = await rrhhRiesgosPsicosocialesService.obtenerArchivo(pool, req.params.id);
+        return enviarArchivoRrhhColaborador(res, {
+            buffer: archivo.buffer,
+            contentType: archivo.mimeType,
+            filename: archivo.nombre
+        }, { descargar: String(req.query.download || '') === '1' });
+    } catch (error) {
+        console.error('[RRHH NOM-035] archivo:', error);
+        return res.status(error.status || 500).json({ success: false, message: error.message || 'Archivo no disponible' });
     }
 });
 

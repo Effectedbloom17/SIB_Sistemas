@@ -18,8 +18,8 @@
   <div class="row justify-content-center">
     <div class="col-xl-11">
 
-      <!-- 6 indicadores en un solo nivel -->
-      <div class="mt-kpi-bar mt-kpi-bar--six mb-4" aria-label="Indicadores de mantenimiento">
+      <!-- Indicadores en un solo nivel -->
+      <div class="mt-kpi-bar mt-kpi-bar--five mb-4" aria-label="Indicadores de mantenimiento">
         <div
           class="mt-kpi-cell"
           *ngFor="let card of kpiCards; let i = index"
@@ -69,20 +69,20 @@
           <div class="mt-panorama__head">
             <div>
               <span class="mt-section-label">Panorama {{ meta.anio }}</span>
-              <h3 class="mt-panorama__title mb-0">Evolución de mantenimientos programados</h3>
+              <h3 class="mt-panorama__title mb-0">Evolución de mantenimientos</h3>
             </div>
             <div class="mt-panorama__pills">
-              <span class="mt-pill mt-pill--slate" title="Semanas marcadas P en el año">
+              <span class="mt-pill mt-pill--slate" title="Programas de infraestructura con actividad en el año (1 por activo/mes)">
                 <i class="fas fa-calendar-check" aria-hidden="true"></i>
-                Semanas <strong>{{ totalProgramados }}</strong>
+                Programas <strong>{{ totalProgramasAnio }}</strong>
               </span>
-              <span class="mt-pill mt-pill--green" title="Semanas programadas de tipo interno">
-                <i class="fas fa-building" aria-hidden="true"></i>
-                Internos <strong>{{ totalProgramadosInt }}</strong>
+              <span class="mt-pill mt-pill--amber" title="Programas del mes con semanas en P">
+                <i class="fas fa-clock" aria-hidden="true"></i>
+                Programados <strong>{{ totalProgramasPAnio }}</strong>
               </span>
-              <span class="mt-pill mt-pill--amber" title="Semanas programadas de tipo externo">
-                <i class="fas fa-handshake" aria-hidden="true"></i>
-                Externos <strong>{{ totalProgramadosExt }}</strong>
+              <span class="mt-pill mt-pill--green" title="Programas del mes realizados (solo verde)">
+                <i class="fas fa-check" aria-hidden="true"></i>
+                Realizados <strong>{{ totalProgramasRealAnio }}</strong>
               </span>
               <span class="mt-pill mt-pill--muted" title="Activos en el programa">
                 <i class="fas fa-server" aria-hidden="true"></i>
@@ -97,37 +97,37 @@
           <div
             class="mt-bars"
             role="img"
-            [attr.aria-label]="'Semanas programadas por mes en ' + meta.anio + ': ' + totalProgramadosInt + ' internas y ' + totalProgramadosExt + ' externas'"
+            [attr.aria-label]="'Programas por mes en ' + meta.anio + ': ' + totalProgramasPAnio + ' programados y ' + totalProgramasRealAnio + ' realizados'"
           >
             <div class="mt-bars__col" *ngFor="let mes of meses; let mi = index">
               <div class="mt-bars__track">
                 <div
                   class="mt-bars__stack"
-                  [class.is-empty]="!programadosPorMes[mi]"
+                  [class.is-empty]="!marcadosPorMes[mi]"
                   [style.height.%]="alturaBarraMes(mi)"
                   [attr.title]="tituloBarraMes(mi)"
                 >
                   <div
-                    class="mt-bars__seg mt-bars__seg--int"
-                    *ngIf="programadosIntPorMes[mi]"
-                    [style.flex-grow]="programadosIntPorMes[mi]"
+                    class="mt-bars__seg mt-bars__seg--prog"
+                    *ngIf="programadosPPorMes[mi]"
+                    [style.flex-grow]="programadosPPorMes[mi]"
                   ></div>
                   <div
-                    class="mt-bars__seg mt-bars__seg--ext"
-                    *ngIf="programadosExtPorMes[mi]"
-                    [style.flex-grow]="programadosExtPorMes[mi]"
+                    class="mt-bars__seg mt-bars__seg--real"
+                    *ngIf="realizadosPorMes[mi]"
+                    [style.flex-grow]="realizadosPorMes[mi]"
                   ></div>
                 </div>
               </div>
-              <span class="mt-bars__count" [class.is-zero]="!programadosPorMes[mi]">
-                {{ programadosPorMes[mi] }}
+              <span class="mt-bars__count" [class.is-zero]="!marcadosPorMes[mi]">
+                {{ marcadosPorMes[mi] }}
               </span>
               <span class="mt-bars__label">{{ mes | slice:0:3 }}</span>
             </div>
           </div>
           <div class="mt-bars__legend" aria-hidden="true">
-            <span class="mt-bars__legend-item mt-bars__legend-item--int">Interno</span>
-            <span class="mt-bars__legend-item mt-bars__legend-item--ext">Externo</span>
+            <span class="mt-bars__legend-item mt-bars__legend-item--prog">Programado</span>
+            <span class="mt-bars__legend-item mt-bars__legend-item--real">Realizado</span>
           </div>
         </div>
       </section>
@@ -191,24 +191,26 @@
                 </label>
               </div>
 
-              <div class="mt-drive-toolbar">
+              <div class="mt-drive-toolbar mt-drive-toolbar--stack">
                 <span class="mt-status" *ngIf="mensajeEstado" role="status">{{ mensajeEstado }}</span>
-                <button type="button" class="btn btn-sm mt-btn-save-info"
-                  (click)="guardarInformacionDrive()" [disabled]="guardandoDrive">
-                  <i class="fas mr-1" [ngClass]="guardandoDrive ? 'fa-spinner fa-spin' : 'fa-save'"></i>
-                  Guardar información
-                </button>
-                <button type="button" class="btn btn-sm mt-btn-pdf"
-                  (click)="exportarPdf()" [disabled]="exportandoPdf"
-                  title="Exportar el programa en PDF, hoja carta horizontal">
-                  <i class="fas mr-1" [ngClass]="exportandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'"></i>
-                  Exportar PDF
-                </button>
-                <button type="button" class="btn btn-sm mt-btn-drive"
-                  (click)="abrirEditorIntegrado()" [disabled]="guardandoDrive">
-                  <i class="fas fa-pen mr-1"></i>
-                  Abrir editor integrado
-                </button>
+                <div class="mt-drive-toolbar__actions">
+                  <button type="button" class="btn btn-sm mt-btn-save-info"
+                    (click)="guardarInformacionDrive()" [disabled]="guardandoDrive">
+                    <i class="fas mr-1" [ngClass]="guardandoDrive ? 'fa-spinner fa-spin' : 'fa-save'"></i>
+                    Guardar información
+                  </button>
+                  <button type="button" class="btn btn-sm mt-btn-pdf"
+                    (click)="exportarPdf()" [disabled]="exportandoPdf"
+                    title="Exportar el programa en PDF, hoja carta horizontal">
+                    <i class="fas mr-1" [ngClass]="exportandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'"></i>
+                    Exportar PDF
+                  </button>
+                  <button type="button" class="btn btn-sm mt-btn-drive"
+                    (click)="abrirEditorIntegrado()" [disabled]="guardandoDrive">
+                    <i class="fas fa-pen mr-1"></i>
+                    Abrir editor integrado
+                  </button>
+                </div>
               </div>
 
               <div class="mt-programa-guia">

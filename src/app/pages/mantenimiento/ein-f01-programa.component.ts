@@ -72,12 +72,20 @@ export class EinF01ProgramaComponent implements OnInit, AfterViewInit, AfterView
   excelWebViewLink = '';
   editorDriveUrlSafe: SafeResourceUrl | '' = '';
   kpiCards: MtKpiCard[] = [];
-  programadosPorMes: number[] = Array(12).fill(0);
-  programadosIntPorMes: number[] = Array(12).fill(0);
-  programadosExtPorMes: number[] = Array(12).fill(0);
-  maxProgramadosMes = 1;
-  totalProgramadosInt = 0;
-  totalProgramadosExt = 0;
+  /**
+   * Programas de infraestructura con actividad por mes (máx. 1 por fila/mes,
+   * sin importar cuántas semanas estén marcadas).
+   */
+  marcadosPorMes: number[] = Array(12).fill(0);
+  /** Programas del mes solo con P (pendientes). */
+  programadosPPorMes: number[] = Array(12).fill(0);
+  /** Programas del mes realizados (solo verde). */
+  realizadosPorMes: number[] = Array(12).fill(0);
+  maxMarcadosMes = 1;
+  /** Totales anuales del panorama (suma de programas por mes). */
+  totalProgramasAnio = 0;
+  totalProgramasPAnio = 0;
+  totalProgramasRealAnio = 0;
   private autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
   private resizeTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingDriveSave = false;
@@ -381,6 +389,23 @@ export class EinF01ProgramaComponent implements OnInit, AfterViewInit, AfterView
     );
   }
 
+  /** Semanas en verde (realizadas); no incluyen las marcadas solo con P. */
+  get totalRealizados(): number {
+    return this.filas.reduce(
+      (acc, f) => acc + Object.values(f.programado).filter(v => v === 'reservado').length,
+      0
+    );
+  }
+
+  /** Semanas marcadas en el programa (realizadas + programadas P). */
+  get totalMarcados(): number {
+    return this.filas.reduce(
+      (acc, f) =>
+        acc + Object.values(f.programado).filter(v => v === 'reservado' || v === 'P').length,
+      0
+    );
+  }
+
   get totalInternos(): number {
     return this.filas.filter(f => f.tipo === 'Int').length;
   }
@@ -389,16 +414,16 @@ export class EinF01ProgramaComponent implements OnInit, AfterViewInit, AfterView
     return this.filas.filter(f => f.tipo === 'Ext').length;
   }
 
-  get activosSinPrograma(): number {
-    return this.filas.filter(f => !Object.values(f.programado).some(v => v === 'P')).length;
-  }
-
+  /**
+   * Cobertura = realizados (verde) / total marcado (verde + P).
+   * Las celdas con "P" están solo programadas y no suman al numerador.
+   */
   get coberturaPct(): number {
-    if (!this.filas.length) {
+    const total = this.totalMarcados;
+    if (!total) {
       return 0;
     }
-    const conProg = this.filas.length - this.activosSinPrograma;
-    return Math.round((conProg / this.filas.length) * 100);
+    return Math.round((this.totalRealizados / total) * 100);
   }
 
   toggleSeccion(id: MtSeccionId): void {
@@ -564,22 +589,22 @@ export class EinF01ProgramaComponent implements OnInit, AfterViewInit, AfterView
   }
 
   alturaBarraMes(mes: number): number {
-    const n = this.programadosPorMes[mes] || 0;
-    if (!n || !this.maxProgramadosMes) {
+    const n = this.marcadosPorMes[mes] || 0;
+    if (!n || !this.maxMarcadosMes) {
       return 0;
     }
-    return Math.max(6, Math.round((n / this.maxProgramadosMes) * 100));
+    return Math.max(6, Math.round((n / this.maxMarcadosMes) * 100));
   }
 
   tituloBarraMes(mes: number): string {
-    const total = this.programadosPorMes[mes] || 0;
-    const intN = this.programadosIntPorMes[mes] || 0;
-    const extN = this.programadosExtPorMes[mes] || 0;
+    const total = this.marcadosPorMes[mes] || 0;
+    const prog = this.programadosPPorMes[mes] || 0;
+    const real = this.realizadosPorMes[mes] || 0;
     const nombre = this.meses[mes] || '';
     if (!total) {
-      return `${nombre}: sin programaciones`;
+      return `${nombre}: sin programas`;
     }
-    return `${nombre}: ${total} · Int ${intN} · Ext ${extN}`;
+    return `${nombre}: ${total} programa${total === 1 ? '' : 's'} · Programados ${prog} · Realizados ${real}`;
   }
 
   private despuesDeCambio(): void {
@@ -679,42 +704,64 @@ export class EinF01ProgramaComponent implements OnInit, AfterViewInit, AfterView
 
   private recalcularIndicadores(): void {
     const porMes = Array(12).fill(0);
-    const porMesInt = Array(12).fill(0);
-    const porMesExt = Array(12).fill(0);
+    const porMesP = Array(12).fill(0);
+    const porMesReal = Array(12).fill(0);
+
+    // 1 programa por infraestructura/mes, aunque tenga varias semanas marcadas.
     for (const fila of this.filas) {
-      const esExt = fila.tipo === 'Ext';
+      const porMesEstado: Array<{ tieneP: boolean; tieneReal: boolean }> = Array.from(
+        { length: 12 },
+        () => ({ tieneP: false, tieneReal: false })
+      );
       for (const [key, estado] of Object.entries(fila.programado)) {
-        if (estado !== 'P') {
+        if (estado !== 'P' && estado !== 'reservado') {
           continue;
         }
         const m = Number(key.split('-')[0]?.replace('m', ''));
-        if (m >= 0 && m < 12) {
-          porMes[m] += 1;
-          if (esExt) {
-            porMesExt[m] += 1;
-          } else {
-            porMesInt[m] += 1;
-          }
+        if (m < 0 || m >= 12) {
+          continue;
+        }
+        if (estado === 'P') {
+          porMesEstado[m].tieneP = true;
+        } else {
+          porMesEstado[m].tieneReal = true;
+        }
+      }
+      for (let m = 0; m < 12; m++) {
+        const { tieneP, tieneReal } = porMesEstado[m];
+        if (!tieneP && !tieneReal) {
+          continue;
+        }
+        porMes[m] += 1;
+        // Si aún queda alguna semana en P, el programa del mes cuenta como programado.
+        if (tieneP) {
+          porMesP[m] += 1;
+        } else {
+          porMesReal[m] += 1;
         }
       }
     }
-    this.programadosPorMes = porMes;
-    this.programadosIntPorMes = porMesInt;
-    this.programadosExtPorMes = porMesExt;
-    this.totalProgramadosInt = porMesInt.reduce((a, b) => a + b, 0);
-    this.totalProgramadosExt = porMesExt.reduce((a, b) => a + b, 0);
-    this.maxProgramadosMes = Math.max(1, ...porMes);
+
+    this.marcadosPorMes = porMes;
+    this.programadosPPorMes = porMesP;
+    this.realizadosPorMes = porMesReal;
+    this.maxMarcadosMes = Math.max(1, ...porMes);
+    this.totalProgramasAnio = porMes.reduce((a, b) => a + b, 0);
+    this.totalProgramasPAnio = porMesP.reduce((a, b) => a + b, 0);
+    this.totalProgramasRealAnio = porMesReal.reduce((a, b) => a + b, 0);
 
     const cobertura = this.coberturaPct;
-    const sinProg = this.activosSinPrograma;
-    const maxIdx = porMes.indexOf(Math.max(...porMes));
-    const maxVal = porMes[maxIdx] || 0;
+    const realizados = this.totalRealizados;
+    const marcados = this.totalMarcados;
+    const soloP = this.totalProgramados;
 
     this.kpiCards = [
       {
         titulo: 'Cobertura del programa',
         valor: `${cobertura}%`,
-        subtitulo: `${this.filas.length - sinProg} de ${this.filas.length} con agenda`,
+        subtitulo: marcados
+          ? `${realizados} de ${marcados} realizados · ${soloP} en P`
+          : 'Sin semanas marcadas',
         icono: 'fa-check-double',
         color: '#334155',
         gradiente: 'linear-gradient(135deg, #1e293b 0%, #64748b 100%)',
@@ -752,19 +799,6 @@ export class EinF01ProgramaComponent implements OnInit, AfterViewInit, AfterView
         icono: 'fa-handshake',
         color: '#ca8a04',
         gradiente: 'linear-gradient(135deg, #a16207 0%, #facc15 100%)'
-      },
-      {
-        titulo: sinProg > 0 ? 'Sin programar' : 'Mes con más carga',
-        valor: sinProg > 0 ? String(sinProg) : (maxVal > 0 ? this.meses[maxIdx].slice(0, 3) : '—'),
-        subtitulo: sinProg > 0
-          ? 'Activos sin semana P'
-          : (maxVal > 0 ? `${maxVal} programaciones` : 'Sin carga'),
-        icono: sinProg > 0 ? 'fa-exclamation-circle' : 'fa-chart-bar',
-        color: sinProg > 0 ? '#dc2626' : '#0369a1',
-        gradiente: sinProg > 0
-          ? 'linear-gradient(135deg, #b91c1c 0%, #f87171 100%)'
-          : 'linear-gradient(135deg, #0c4a6e 0%, #38bdf8 100%)',
-        estado: sinProg === 0 ? 'verde' : sinProg <= 3 ? 'amarillo' : 'rojo'
       }
     ];
   }
@@ -822,17 +856,13 @@ export class EinF01ProgramaComponent implements OnInit, AfterViewInit, AfterView
     }
   }
 
-  private persistir(avisar = true): void {
+  private persistir(_avisar = true): void {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ meta: this.meta, filas: this.filas }));
       this.guardadoLocal = true;
-      if (avisar) {
-        this.flash('Cambios guardados en este navegador.');
-      }
+      // Sin aviso "Cambios guardados en este navegador": el guardado local es silencioso.
     } catch {
-      if (avisar) {
-        this.flash('No se pudo guardar localmente.');
-      }
+      this.flash('No se pudo guardar localmente.');
     }
   }
 
