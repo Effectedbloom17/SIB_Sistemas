@@ -104,6 +104,7 @@ Ejemplo: **Cursos de hoy** + **Próximos cursos**.
   `overflow: visible`.
 - Navbar en móvil: iconos más chicos (~36px; ~32px bajo 480px), `flex-shrink: 0`
   y un poco de aire entre lupa y avatar para que no se monten ni se corten.
+  La búsqueda sigue en la barra y crece solo hasta donde caben los iconos.
 
 ---
 
@@ -706,7 +707,7 @@ Cada vez que el usuario pida o acepte un patrón nuevo:
 3. Si aplica a “todas las pantallas futuras”, redactarlo como regla general, no solo como caso de una ruta.
 4. Si es una plantilla de formato del SGC, anotarla en el apartado **12**, no en el listado general.
 
-Última actualización: SGC-F-01, las secciones se abren y se cierran con animación suave.
+Última actualización: el resto de los formatos del capítulo 7 en el teléfono.
 
 ---
 
@@ -717,10 +718,12 @@ Apartado vivo de las plantillas (`/sistema-gestion-calidad/capitulo-…/plantill
 Cada formato hereda lo que ya vale en el resto de la guía. Escritorio no se toca. En el teléfono:
 
 - Hero con aire.
+- Encabezado del formato, en todos: arriba el fondo es blanco. El logo queda a la izquierda, siempre del mismo tamaño, y frente a él Código, Revisión y Fecha de rev. en dos columnas alineadas, con las palabras completas. Debajo, el nombre va sobre el verde del SGC, con el texto en blanco y el mismo tamaño.
 - Botones relacionados en la misma fila.
 - Hasta 3 indicadores por fila cuando el texto cabe.
 - Tabla densa: la misma tabla, con scroll lateral. Cada columna tiene ancho real. Lo corto (código, fecha, versión, área) queda en una línea. El texto largo baja de renglón dentro de su columna, en los espacios, sin partir palabras y sin irse al infinito.
 - Nada fuera de la celda. El toque sobre la tabla también deja bajar la página (`touch-action: pan-x pan-y`).
+- Botones compactos que en escritorio muestran el nombre al pasar el cursor: en el teléfono el primer toque despliega el nombre, con una animación suave, y el segundo toque hace la acción. Un toque fuera lo cierra. En escritorio sigue siendo al pasar el cursor.
 
 Lo que cambie en un formato concreto se anota debajo, y solo ahí. Las notas nuevas se suman cuando salgan.
 
@@ -744,5 +747,38 @@ En tablet y teléfono (hasta 1199px).
 - La fila mide el texto. El nombre baja de renglón dentro de su columna.
 - La fila de títulos (Área, Tipo, Código, Versión, Fecha rev., Nombre, Responsable) se queda fija al desplazar la lista.
 - El hero deja aire arriba, debajo de la barra, para que el icono y «Vista en sistema» no queden pegados.
-- En el encabezado del formato, el logo queda a la izquierda y, frente a él, Código, Revisión y Fecha de rev. El título sigue debajo.
+- El encabezado sigue la regla común: franja blanca con logo y datos, y el nombre sobre el verde del SGC.
 - Cada sección (Procedimientos, Formatos, …) lleva una flecha. Empieza contraída; al tocarla la tabla se abre con una animación suave y al tocarla de nuevo se cierra igual. Si hay búsqueda o filtro, las secciones con resultados se abren.
+
+### 12.4 SGC-F-02 Solicitud de cambios (`/sistema-gestion-calidad/capitulo-7/plantilla/sgc-f-02`)
+
+- El hero deja aire arriba, debajo de la barra.
+- El encabezado sigue la regla común: franja blanca con logo y datos, y el nombre sobre el verde del SGC.
+- Guardar información y Abrir editor integrado van en la misma fila. El icono y «Solicitudes por persona» van juntos. La búsqueda y Nueva solicitud van en la misma fila.
+- La descripción larga se oculta. Fecha y puesto van juntos; nombre y área, a lo ancho.
+- La tabla de documentos se desplaza de lado y la fila de títulos se queda fija.
+- Sin zona de arrastre: Subir archivos es un botón corto, claro, no a lo ancho. Los archivos van de 2 en 2, con el nombre en dos líneas y las acciones en icono.
+
+### 12.5 SGC-F-03 Lista de distribución (`/sistema-gestion-calidad/capitulo-7/plantilla/sgc-f-03`)
+
+- El hero deja aire arriba, debajo de la barra.
+- El encabezado sigue la regla común: franja blanca con logo y datos, y el nombre sobre el verde del SGC.
+- Guardar información y Abrir editor integrado van en la misma fila. El botón de PDF sigue compacto: el primer toque muestra «Descargar PDF» y el segundo descarga.
+- La búsqueda y el conteo de registros van en la misma fila.
+- La tabla se desplaza de lado. Las dos filas de títulos se quedan fijas. Cada columna tiene ancho real; el nombre baja de renglón dentro de la suya.
+
+### 12.6 AF-F-02 Contrato (`/sistema-gestion-calidad/capitulo-7/plantilla/af-f-02`)
+
+- El hero deja aire arriba, debajo de la barra.
+- El encabezado sigue la regla común: franja blanca con logo y datos, y el nombre sobre el verde del SGC.
+- En el archivero, la búsqueda y Nuevo contrato van en la misma fila. Los contratos van de 2 en 2.
+- En el contrato: Volver al archivero a lo ancho; Guardar y Descargar PDF en la misma fila. Empresa a lo ancho; fecha de revisión y revisión juntas. Los textos largos a lo ancho y los datos cortos de 2 en 2.
+
+### 12.7 Resto del capítulo 7
+
+ATH-F-02, ATH-F-03, ATH-F-06, ATH-F-07, ATH-F-08, ATH-F-11, ATH-F-13, ATH-F-14, SGC-F-17, SGC-F-19, SGC-F-20 y SGC-F-27 de medición. SGC-F-01, SGC-F-02, SGC-F-03 y AF-F-02 ya tienen su nota.
+
+- El hero deja aire arriba. El encabezado sigue la regla común.
+- Guardar y Descargar van en la misma fila.
+- En los archiveros, la búsqueda y el botón de alta van juntos. Si también hay Importar, la búsqueda queda arriba y los dos botones en la fila de abajo. Las tarjetas van de 2 en 2, también en evaluaciones (ATH-F-11) y en verificaciones (SGC-F-27). La descripción larga se oculta. En SGC-F-27 el título queda arriba y la búsqueda con «Nueva verificación» en la fila de abajo. El nombre del instrumento baja de renglón dentro de la tarjeta.
+- Las tablas se desplazan de lado, con la fila de títulos fija y ancho real por columna. El saldo de vacaciones (ATH-F-14) hace lo mismo dentro de su propia cuadrícula.

@@ -15,11 +15,6 @@ import {
   ApexYAxis
 } from 'ng-apexcharts';
 import { BackendServices } from 'src/app/services/backend.services';
-import {
-  cargarSolicitudesLocal,
-  guardarSolicitudesLocal,
-  sincronizarCasosDesdeForms
-} from './ein-f02-solicitud.catalog';
 
 /** Google Form público EIN-F-02 (respuesta). */
 export const EIN_F02_FORMS_VIEW_URL =
@@ -135,49 +130,116 @@ export class SolicitudMantenimientoFormsComponent implements OnInit {
     this.cargarEstadisticas(true);
   }
 
-  cargarEstadisticas(sincronizar = false): void {
+  get fuenteEtiqueta(): string {
+    if (this.fuente === 'google_forms') {
+      return 'Google Forms (en vivo)';
+    }
+    if (this.fuente === 'sin_auth') {
+      return 'Sin autenticación Forms';
+    }
+    if (this.fuente === 'error') {
+      return 'Error al leer Forms';
+    }
+    if (this.fuente === 'sin_servicio') {
+      return 'Servicio Forms no disponible';
+    }
+    return this.fuente || 'Sin fuente';
+  }
+
+  get fuenteOk(): boolean {
+    return this.fuente === 'google_forms';
+  }
+
+  cargarEstadisticas(_sincronizar = false): void {
     this.cargandoStats = true;
     this.backend.obtenerEstadisticasFormsMantenimientoF02().subscribe({
       next: (res) => {
         this.cargandoStats = false;
-        this.total = Number(res?.total) || 0;
-        this.esteMes = Number(res?.esteMes) || 0;
-        this.mensaje = res?.mensaje || '';
-        this.fuente = res?.fuente || '';
-        this.recientes = Array.isArray(res?.recientes) ? res.recientes : [];
-
-        this.porInfraestructura = this.prepararFilas(res?.porInfraestructura || [], this.total);
-        this.porPrioridad = this.prepararFilas(res?.porPrioridad || [], this.total);
-        this.porUbicacion = this.prepararFilas(res?.porUbicacion || [], this.total);
-        this.tiposInfra = this.porInfraestructura.length;
-        this.construirGraficas();
-
-        if (sincronizar && Array.isArray(res?.casos)) {
-          this.aplicarSyncLocal(res.casos);
-        }
+        this.aplicarRespuestaForms(res);
       },
       error: () => {
         this.cargandoStats = false;
+        this.fuente = 'error';
         this.mensaje = 'No se pudieron cargar las respuestas del formulario.';
       }
     });
   }
 
+  /** Solo refresca indicadores desde Forms; ya no empuja formatos a bitácora/reportes. */
   sincronizarAhora(): void {
     this.sincronizando = true;
+    this.mensajeSync = '';
     this.backend.obtenerEstadisticasFormsMantenimientoF02().subscribe({
       next: (res) => {
         this.sincronizando = false;
-        this.cargarEstadisticas(false);
-        if (Array.isArray(res?.casos)) {
-          this.aplicarSyncLocal(res.casos);
-        }
+        this.aplicarRespuestaForms(res);
+        this.mensajeSync = this.fuenteOk
+          ? `Indicadores actualizados desde Forms (${this.total} respuesta(s)).`
+          : (this.mensaje || 'No se pudo confirmar la fuente de Forms.');
+        setTimeout(() => {
+          if (this.mensajeSync.startsWith('Indicadores')) {
+            this.mensajeSync = '';
+          }
+        }, 4000);
       },
       error: () => {
         this.sincronizando = false;
-        this.mensajeSync = 'No se pudo sincronizar con Forms.';
+        this.fuente = 'error';
+        this.mensajeSync = 'No se pudieron leer las respuestas de Forms.';
       }
     });
+  }
+
+  private aplicarRespuestaForms(res: any): void {
+    this.total = Number(res?.total) || 0;
+    this.esteMes = Number(res?.esteMes) || 0;
+    this.mensaje = res?.mensaje || '';
+    this.fuente = res?.fuente || '';
+    this.recientes = Array.isArray(res?.recientes) ? res.recientes : [];
+
+    let porInfra = Array.isArray(res?.porInfraestructura) ? res.porInfraestructura : [];
+    let porPrio = Array.isArray(res?.porPrioridad) ? res.porPrioridad : [];
+    let porUbic = Array.isArray(res?.porUbicacion) ? res.porUbicacion : [];
+
+    // Si el backend no clasificó campos, derivar de los casos crudos de Forms.
+    const casos = Array.isArray(res?.casos) ? res.casos : [];
+    if (casos.length) {
+      if (!porInfra.length) {
+        porInfra = this.contarCampoCasos(casos, 'tipoInfraestructura');
+      }
+      if (!porPrio.length) {
+        porPrio = this.contarCampoCasos(casos, 'prioridad');
+      }
+      if (!porUbic.length) {
+        porUbic = this.contarCampoCasos(casos, 'ubicacion');
+      }
+      if (!this.total) {
+        this.total = casos.length;
+      }
+    }
+
+    this.porInfraestructura = this.prepararFilas(porInfra, this.total);
+    this.porPrioridad = this.prepararFilas(porPrio, this.total);
+    this.porUbicacion = this.prepararFilas(porUbic, this.total);
+    this.tiposInfra = this.porInfraestructura.length;
+    this.construirGraficas();
+  }
+
+  private contarCampoCasos(
+    casos: any[],
+    campo: 'tipoInfraestructura' | 'prioridad' | 'ubicacion'
+  ): Array<{ etiqueta: string; cantidad: number }> {
+    const map = new Map<string, number>();
+    for (const c of casos) {
+      const etiqueta = String(c?.[campo] || '').trim();
+      if (!etiqueta) {
+        continue;
+      }
+      map.set(etiqueta, (map.get(etiqueta) || 0) + 1);
+    }
+    return Array.from(map.entries())
+      .map(([etiqueta, cantidad]) => ({ etiqueta, cantidad }))
+      .sort((a, b) => b.cantidad - a.cantidad);
   }
 
   trackByStat(_: number, item: StatFila): string {
@@ -410,23 +472,6 @@ export class SolicitudMantenimientoFormsComponent implements OnInit {
       return filas.sort((a, b) => a.etiqueta.localeCompare(b.etiqueta, 'es'));
     }
     return filas.sort((a, b) => b.cantidad - a.cantidad || a.etiqueta.localeCompare(b.etiqueta, 'es'));
-  }
-
-  private aplicarSyncLocal(casos: any[]): void {
-    const existentes = cargarSolicitudesLocal();
-    const { lista, nuevos } = sincronizarCasosDesdeForms(existentes, casos);
-    guardarSolicitudesLocal(lista);
-    this.backend.guardarSolicitudesMantenimiento(lista).subscribe({
-      error: () => { /* el archivero reintentará al abrirse */ }
-    });
-    this.mensajeSync = nuevos
-      ? `Se incorporaron ${nuevos} respuesta(s) a bitácora y reportes.`
-      : 'Bitácora y reportes ya estaban al día con Forms.';
-    setTimeout(() => {
-      if (this.mensajeSync.startsWith('Se incorporaron') || this.mensajeSync.startsWith('Bitácora')) {
-        this.mensajeSync = '';
-      }
-    }, 4000);
   }
 
   copiarLink(): void {

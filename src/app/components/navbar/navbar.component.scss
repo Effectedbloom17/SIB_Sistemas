@@ -2374,7 +2374,7 @@
     .global-search.is-expanded &,
     .global-search.has-query &,
     &:focus-within {
-      width: min(220px, calc(100vw - 9rem));
+      width: min(200px, calc(100vw - 282px));
     }
   }
 

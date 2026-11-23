@@ -633,6 +633,29 @@
   }
 }
 
+.mt-forms-stats__fuente {
+  margin: 0.35rem 0 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #475569;
+
+  &.is-ok {
+    background: #dcfce7;
+    color: #166534;
+  }
+
+  &.is-bad {
+    background: #fee2e2;
+    color: #b91c1c;
+  }
+}
+
 .mt-forms-stats__sub {
   margin: 0.35rem 0 0;
   font-size: 0.8rem;

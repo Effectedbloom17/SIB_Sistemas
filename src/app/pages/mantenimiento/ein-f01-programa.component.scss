@@ -338,6 +338,15 @@
   i { font-size: 0.7rem; }
   strong { font-weight: 800; }
 
+  &__split {
+    margin-left: 0.15rem;
+    padding-left: 0.45rem;
+    border-left: 1px solid #cbd5e1;
+    font-size: 0.64rem;
+    font-weight: 600;
+    color: var(--mt-muted);
+  }
+
   &--slate {
     background: #f1f5f9;
     i { color: #475569; }
@@ -354,6 +363,12 @@
     border-color: #fde68a;
     i { color: #ca8a04; }
   }
+
+  &--muted {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+    i { color: #64748b; }
+  }
 }
 
 .mt-bars {
@@ -361,7 +376,7 @@
   grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 0.35rem;
   align-items: end;
-  min-height: 120px;
+  min-height: 128px;
   padding: 0.5rem 0.15rem 0;
 }
 
@@ -375,13 +390,42 @@
 
 .mt-bars__track {
   width: 100%;
-  max-width: 28px;
-  height: 88px;
+  max-width: 32px;
+  height: 100px;
   border-radius: 8px 8px 4px 4px;
   background: #f1f5f9;
   display: flex;
   align-items: flex-end;
   overflow: hidden;
+}
+
+.mt-bars__stack {
+  width: 100%;
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-start;
+  border-radius: 8px 8px 4px 4px;
+  overflow: hidden;
+  transition: height 0.35s ease;
+  min-height: 0;
+
+  &.is-empty {
+    height: 0 !important;
+  }
+}
+
+.mt-bars__seg {
+  width: 100%;
+  flex-basis: 0;
+  min-height: 3px;
+
+  &--int {
+    background: linear-gradient(180deg, #4ade80 0%, #16a34a 100%);
+  }
+
+  &--ext {
+    background: linear-gradient(180deg, #facc15 0%, #ca8a04 100%);
+  }
 }
 
 .mt-bars__fill {
@@ -397,6 +441,10 @@
   font-weight: 700;
   color: var(--mt-slate-dark);
   font-variant-numeric: tabular-nums;
+
+  &.is-zero {
+    color: var(--mt-slate-soft);
+  }
 }
 
 .mt-bars__label {
@@ -405,6 +453,40 @@
   text-transform: uppercase;
   color: var(--mt-muted);
   letter-spacing: 0.02em;
+}
+
+.mt-bars__legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 0.65rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+.mt-bars__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--mt-muted);
+
+  &::before {
+    content: '';
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 2px;
+  }
+
+  &--int::before {
+    background: #16a34a;
+  }
+
+  &--ext::before {
+    background: #ca8a04;
+  }
 }
 
 /* ── Shell / formato ── */

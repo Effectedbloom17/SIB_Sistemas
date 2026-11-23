@@ -20959,6 +20959,26 @@ app.patch(
     }
 );
 
+app.patch(
+    '/api/mantenimiento/solicitudes/:id/activar',
+    authMiddleware,
+    denyEmpresa,
+    requireRole('root'),
+    async (req, res) => {
+        try {
+            const id = decodeURIComponent(String(req.params.id || '').trim());
+            const solicitud = await mantenimientoService.activarSolicitudCatalogo(pool, id);
+            res.json({ success: true, solicitud });
+        } catch (error) {
+            console.error('[mantenimiento] activar solicitud:', error);
+            res.status(error.status || 500).json({
+                success: false,
+                message: error.message || 'No se pudo reactivar la solicitud'
+            });
+        }
+    }
+);
+
 app.post(
     '/api/mantenimiento/solicitudes/:folio/evidencias',
     authMiddleware,
@@ -21163,12 +21183,38 @@ app.post(
                 tipoMantenimiento: body.tipoMantenimiento || 'Correctivo',
                 fechaSolicitud: body.fechaSolicitud,
                 fechaRealizado: body.fechaRealizado,
-                responsable: body.responsable || '',
+                responsable: body.responsable || body.responsableMantenimiento || '',
                 nombreSolicitante: body.nombreSolicitante,
                 nombreArchivo: body.nombreArchivo,
                 reporteDriveFileId: body.reporteDriveFileId || body.documentId
             });
-            res.json({ success: true, reporte });
+            let solicitud = null;
+            try {
+                solicitud = await mantenimientoService.aplicarCamposReporteF04AlCatalogo(
+                    pool,
+                    folio,
+                    {
+                        descripcionMantenimientoRealizado:
+                            body.descripcionMantenimiento || body.descripcionMantenimientoRealizado,
+                        descripcionProblema: body.descripcionProblema,
+                        tipoInfraestructura: body.tipoInfraestructura,
+                        tipoMantenimiento: body.tipoMantenimiento || 'Correctivo',
+                        fechaSolicitud: body.fechaSolicitud,
+                        fechaRealizado: body.fechaRealizado,
+                        responsableMantenimiento:
+                            body.responsable || body.responsableMantenimiento || '',
+                        nombreSolicitante: body.nombreSolicitante,
+                        evidencias: body.evidencias || []
+                    },
+                    reporte
+                );
+            } catch (catalogErr) {
+                console.warn(
+                    '[mantenimiento] No se pudo persistir F-04 en catálogo:',
+                    catalogErr?.message || catalogErr
+                );
+            }
+            res.json({ success: true, reporte, solicitud });
         } catch (error) {
             console.error('[mantenimiento] reporte F04:', error);
             res.status(500).json({

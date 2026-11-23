@@ -48,47 +48,63 @@ function normalizarTexto(value = '') {
 }
 
 function clasificarCampo(tituloNorm) {
-  if (tituloNorm.includes('infraestructura') || tituloNorm.includes('tipo de infraestructura')) {
+  const t = String(tituloNorm || '');
+  if (
+    t.includes('infraestructura') ||
+    t.includes('tipo de infraestructura') ||
+    t.includes('tipo infraestructura') ||
+    (t.includes('tipo') && t.includes('activo'))
+  ) {
     return 'tipoInfraestructura';
   }
-  if (tituloNorm.includes('prioridad') || tituloNorm.includes('urgencia')) {
+  if (t.includes('prioridad') || t.includes('urgencia') || t.includes('nivel de prioridad')) {
     return 'prioridad';
   }
   if (
-    (tituloNorm.includes('nombre') &&
-      (tituloNorm.includes('solicitante') || tituloNorm.includes('reporta') || tituloNorm.includes('quien'))) ||
-    tituloNorm === 'nombre'
+    (t.includes('nombre') &&
+      (t.includes('solicitante') || t.includes('reporta') || t.includes('quien') || t.includes('empleado'))) ||
+    t === 'nombre' ||
+    t.includes('nombre completo')
   ) {
     return 'nombreSolicitante';
   }
-  if (tituloNorm.includes('puesto') || tituloNorm.includes('cargo')) {
+  if (t.includes('puesto') || t.includes('cargo')) {
     return 'puesto';
   }
-  if (tituloNorm.includes('area') || tituloNorm.includes('área') || tituloNorm.includes('departamento')) {
+  if (t.includes('area') || t.includes('departamento') || t.includes('seccion') || t.includes('sección')) {
     return 'area';
   }
-  if (tituloNorm.includes('ubicacion') || tituloNorm.includes('ubicación') || tituloNorm.includes('lugar')) {
+  if (
+    t.includes('ubicacion') ||
+    t.includes('lugar') ||
+    t.includes('sitio') ||
+    t.includes('donde') ||
+    t.includes('localizacion') ||
+    t.includes('localización')
+  ) {
     return 'ubicacion';
   }
   if (
-    tituloNorm.includes('descripcion') ||
-    tituloNorm.includes('descripción') ||
-    tituloNorm.includes('problema') ||
-    tituloNorm.includes('detalle del reporte') ||
-    tituloNorm.includes('que reporta')
+    t.includes('descripcion') ||
+    t.includes('problema') ||
+    t.includes('detalle del reporte') ||
+    t.includes('que reporta') ||
+    t.includes('falla') ||
+    t.includes('hallazgo') ||
+    t.includes('reporte de')
   ) {
     return 'descripcionProblema';
   }
-  if (tituloNorm.includes('observacion') || tituloNorm.includes('comentario') || tituloNorm.includes('nota')) {
+  if (t.includes('observacion') || t.includes('comentario') || t.includes('nota')) {
     return 'observaciones';
   }
-  if (tituloNorm.includes('fecha') && !tituloNorm.includes('rev')) {
+  if (t.includes('fecha') && !t.includes('rev')) {
     return 'fechaSolicitud';
   }
-  if (tituloNorm.includes('correo') || tituloNorm.includes('email')) {
+  if (t.includes('correo') || t.includes('email')) {
     return 'correo';
   }
-  if (tituloNorm.includes('telefono') || tituloNorm.includes('teléfono') || tituloNorm.includes('celular')) {
+  if (t.includes('telefono') || t.includes('celular') || t.includes('whatsapp')) {
     return 'telefono';
   }
   return null;
@@ -551,12 +567,190 @@ function normalizarSolicitudDb(raw, meta = {}) {
   };
 }
 
+function scoreRiquezaSolicitudDb(s) {
+  if (!s || typeof s !== 'object') return 0;
+  let n = 0;
+  if (String(s.descripcionMantenimientoRealizado || '').trim()) n += 4;
+  if (String(s.responsableMantenimiento || '').trim()) n += 3;
+  if (String(s.fechaRealizado || '').trim()) n += 2;
+  if (String(s.descripcionProblema || '').trim()) n += 2;
+  if (s.reporteDriveFileId) n += 3;
+  if (s.pdfFirmado && s.pdfFirmado.driveFileId) n += 3;
+  if (Array.isArray(s.evidencias) && s.evidencias.length) n += Math.min(s.evidencias.length, 5);
+  if (String(s.observacionesBitacora || '').trim()) n += 1;
+  if (String(s.tipoInfraestructura || '').trim()) n += 1;
+  if (String(s.tipoMantenimiento || '').trim()) n += 1;
+  return n;
+}
+
+function fusionarCamposSolicitudDb(primario, secundario) {
+  const a = { ...(primario || {}) };
+  const b = secundario || {};
+  const tomar = (key) => {
+    const va = a[key];
+    const vb = b[key];
+    const vacio = va == null || va === '' || (Array.isArray(va) && !va.length);
+    if (vacio && vb != null && vb !== '' && !(Array.isArray(vb) && !vb.length)) {
+      a[key] = vb;
+    }
+  };
+  [
+    'nombreSolicitante', 'puesto', 'area', 'descripcionProblema',
+    'descripcionMantenimientoRealizado', 'observacionesAdministrador',
+    'tipoMantenimiento', 'fechaRealizado', 'responsableMantenimiento',
+    'reporteDriveFileId', 'reporteWebViewLink', 'tipoInfraestructura',
+    'idSerie', 'internoExterno', 'observacionesBitacora',
+    'bitacoraDriveFileId', 'bitacoraWebViewLink', 'ubicacion', 'prioridad',
+    'formsResponseId', 'folio', 'fechaSolicitud'
+  ].forEach(tomar);
+  if (!(a.pdfFirmado && a.pdfFirmado.driveFileId) && b.pdfFirmado && b.pdfFirmado.driveFileId) {
+    a.pdfFirmado = { ...b.pdfFirmado };
+  }
+  const evMap = new Map();
+  for (const ev of [...(b.evidencias || []), ...(a.evidencias || [])]) {
+    const key = String((ev && (ev.driveFileId || ev.url || ev.webViewLink)) || '').trim();
+    if (key) evMap.set(key, ev);
+  }
+  a.evidencias = Array.from(evMap.values());
+  // Respetar activo del primario: un cascarón no revive ocultos intencionales
+  // ni un cascarón oculto esconde un reporte lleno activo.
+  a.activo = a.activo !== false;
+  const tsA = String(a.actualizadoEn || '');
+  const tsB = String(b.actualizadoEn || '');
+  a.actualizadoEn = tsA >= tsB ? tsA : tsB;
+  return a;
+}
+
+function preferirSolicitudDb(a, b) {
+  const ta = Date.parse(String(a.actualizadoEn || '')) || 0;
+  const tb = Date.parse(String(b.actualizadoEn || '')) || 0;
+  const sa = scoreRiquezaSolicitudDb(a);
+  const sb = scoreRiquezaSolicitudDb(b);
+  let primario;
+  if (Math.abs(ta - tb) > 2000) {
+    primario = ta >= tb ? a : b;
+  } else if (sa !== sb) {
+    primario = sa > sb ? a : b;
+  } else {
+    primario = ta >= tb ? a : b;
+  }
+  const secundario = primario === a ? b : a;
+  return fusionarCamposSolicitudDb(primario, secundario);
+}
+
+/**
+ * Une por id y por formsResponseId. Un Forms = un reporte.
+ * Evita que la bitácora/archivero listen 26 filas por 13 respuestas.
+ */
+function consolidarSolicitudesEnMemoria(lista) {
+  const byId = new Map();
+  for (const raw of lista || []) {
+    const s = normalizarSolicitudDb(raw);
+    if (!s?.id) continue;
+    const prev = byId.get(s.id);
+    byId.set(s.id, prev ? preferirSolicitudDb(prev, s) : s);
+  }
+  const byForms = new Map();
+  const sinForms = [];
+  for (const s of byId.values()) {
+    const rid = String(s.formsResponseId || '').trim();
+    if (!rid) {
+      sinForms.push(s);
+      continue;
+    }
+    const prev = byForms.get(rid);
+    byForms.set(rid, prev ? preferirSolicitudDb(prev, s) : s);
+  }
+  return [...byForms.values(), ...sinForms].sort((a, b) =>
+    String(b.actualizadoEn || '').localeCompare(String(a.actualizadoEn || ''))
+  );
+}
+
+/**
+ * Persiste consolidación: ganador queda activo (si corresponde) y perdedores se ocultan.
+ */
+async function consolidarDuplicadosCatalogo(pool) {
+  await asegurarEsquemaSolicitudes(pool);
+  const [rows] = await pool.query(
+    `SELECT id, folio, forms_response_id, activo, datos_json, creado_en, actualizado_en
+     FROM mantenimiento_solicitud`
+  );
+  const todas = [];
+  for (const row of rows || []) {
+    const parsed = normalizarSolicitudDb(parseDatosJson(row.datos_json), row);
+    if (parsed) todas.push(parsed);
+  }
+  const consolidadas = consolidarSolicitudesEnMemoria(todas);
+  const keptIds = new Set(consolidadas.map((s) => s.id));
+  const formsKept = new Map(
+    consolidadas
+      .filter((s) => String(s.formsResponseId || '').trim())
+      .map((s) => [String(s.formsResponseId).trim(), s.id])
+  );
+
+  // No reactivar ganadores ocultos: "Ocultar formato" debe persistir aunque
+  // existan cascarones duplicados activos del mismo Forms.
+
+  let ganadores = 0;
+  let ocultos = 0;
+  for (const sol of consolidadas) {
+    const activo = sol.activo === false ? 0 : 1;
+    const folio = String(sol.folio || '').trim() || sol.id;
+    const formsId = sol.formsResponseId ? String(sol.formsResponseId).trim() : null;
+    const payload = JSON.stringify({ ...sol, activo: activo === 1 });
+    await pool.query(
+      `UPDATE mantenimiento_solicitud
+       SET folio = ?, forms_response_id = ?, activo = ?, datos_json = ?, actualizado_en = NOW()
+       WHERE id = ?`,
+      [folio, formsId, activo, payload, sol.id]
+    );
+    ganadores += 1;
+  }
+
+  for (const raw of todas) {
+    const rid = String(raw.formsResponseId || '').trim();
+    if (!rid || keptIds.has(raw.id)) continue;
+    if (formsKept.get(rid) === raw.id) continue;
+    if (!formsKept.has(rid)) continue;
+    // Desliga el cascarón del forms_response_id para no volver a duplicar en bitácora.
+    const datos = {
+      ...raw,
+      activo: false,
+      formsResponseId: undefined,
+      _duplicadoDe: formsKept.get(rid),
+      actualizadoEn: new Date().toISOString()
+    };
+    await pool.query(
+      `UPDATE mantenimiento_solicitud
+       SET activo = 0, forms_response_id = NULL, datos_json = ?, actualizado_en = NOW()
+       WHERE id = ?`,
+      [JSON.stringify(datos), raw.id]
+    );
+    ocultos += 1;
+  }
+
+  return {
+    total: todas.length,
+    unicos: consolidadas.length,
+    ganadores,
+    ocultos,
+    activos: consolidadas.filter((s) => s.activo !== false).length
+  };
+}
+
 /**
  * Lista solicitudes compartidas (archivero EIN-F-04 / bitácora F-03).
- * Por defecto solo activas.
+ * Por defecto solo activas. Consolida duplicados de Forms al leer.
  */
-async function listarSolicitudesCatalogo(pool, { incluirInactivos = false } = {}) {
+async function listarSolicitudesCatalogo(pool, { incluirInactivos = false, consolidar = true } = {}) {
   await asegurarEsquemaSolicitudes(pool);
+  if (consolidar) {
+    try {
+      await consolidarDuplicadosCatalogo(pool);
+    } catch (err) {
+      console.warn('[mantenimiento] consolidarDuplicadosCatalogo:', err?.message || err);
+    }
+  }
   const sql = incluirInactivos
     ? `SELECT id, folio, forms_response_id, activo, datos_json, creado_en, actualizado_en
        FROM mantenimiento_solicitud
@@ -573,13 +767,13 @@ async function listarSolicitudesCatalogo(pool, { incluirInactivos = false } = {}
       solicitudes.push(parsed);
     }
   }
-  return solicitudes;
+  return consolidarSolicitudesEnMemoria(solicitudes);
 }
 
-/** Upsert por id. Conserva desactivados si llegan con activo=false. */
+/** Upsert por id. Conserva desactivados si llegan con activo=false. Consolida Forms al final. */
 async function guardarSolicitudesCatalogo(pool, lista) {
   await asegurarEsquemaSolicitudes(pool);
-  const items = Array.isArray(lista) ? lista : [];
+  const items = consolidarSolicitudesEnMemoria(Array.isArray(lista) ? lista : []);
   let guardados = 0;
   for (const raw of items) {
     const sol = normalizarSolicitudDb(raw);
@@ -604,10 +798,16 @@ async function guardarSolicitudesCatalogo(pool, lista) {
     );
     guardados += 1;
   }
+  // Ocultar cascarones que el cliente ya no manda pero siguen activos como duplicado Forms.
+  try {
+    await consolidarDuplicadosCatalogo(pool);
+  } catch (err) {
+    console.warn('[mantenimiento] consolidar tras guardar:', err?.message || err);
+  }
   return { guardados };
 }
 
-async function desactivarSolicitudCatalogo(pool, id) {
+async function setActivoSolicitudCatalogo(pool, id, activo) {
   await asegurarEsquemaSolicitudes(pool);
   const key = String(id || '').trim();
   if (!key) {
@@ -626,20 +826,118 @@ async function desactivarSolicitudCatalogo(pool, id) {
     err.status = 404;
     throw err;
   }
+  const visible = activo !== false && activo !== 0 && activo !== '0';
   const datos = normalizarSolicitudDb(parseDatosJson(row.datos_json), row) || {
     id: key,
     folio: row.folio,
-    activo: false
+    activo: visible
   };
-  datos.activo = false;
+  datos.activo = visible;
   datos.actualizadoEn = new Date().toISOString();
   await pool.query(
     `UPDATE mantenimiento_solicitud
-     SET activo = 0, datos_json = ?, actualizado_en = NOW()
+     SET activo = ?, datos_json = ?, actualizado_en = NOW()
      WHERE id = ?`,
-    [JSON.stringify(datos), key]
+    [visible ? 1 : 0, JSON.stringify(datos), key]
   );
   return datos;
+}
+
+async function desactivarSolicitudCatalogo(pool, id) {
+  return setActivoSolicitudCatalogo(pool, id, false);
+}
+
+async function activarSolicitudCatalogo(pool, id) {
+  return setActivoSolicitudCatalogo(pool, id, true);
+}
+
+/**
+ * Persiste en mantenimiento_solicitud los campos del EIN-F-04 al generar el Word.
+ * Evita que Drive diga “ok” y el catálogo quede sin la gestión capturada.
+ */
+async function aplicarCamposReporteF04AlCatalogo(pool, folio, campos = {}, reporte = null) {
+  await asegurarEsquemaSolicitudes(pool);
+  const folioKey = String(folio || '').trim();
+  if (!folioKey || !pool) {
+    return null;
+  }
+  const [rows] = await pool.query(
+    `SELECT id, folio, forms_response_id, activo, datos_json, creado_en, actualizado_en
+     FROM mantenimiento_solicitud
+     WHERE folio = ? OR id = ?
+     ORDER BY actualizado_en DESC
+     LIMIT 8`,
+    [folioKey, folioKey]
+  );
+  if (!rows || !rows.length) {
+    return null;
+  }
+
+  const candidatas = [];
+  for (const row of rows) {
+    const parsed = normalizarSolicitudDb(parseDatosJson(row.datos_json), row);
+    if (parsed) {
+      candidatas.push(parsed);
+    }
+  }
+  if (!candidatas.length) {
+    return null;
+  }
+  candidatas.sort((a, b) => {
+    const sa = scoreRiquezaSolicitudDb(a);
+    const sb = scoreRiquezaSolicitudDb(b);
+    if (sa !== sb) return sb - sa;
+    return String(b.actualizadoEn || '').localeCompare(String(a.actualizadoEn || ''));
+  });
+  const target = candidatas[0];
+  const setIfDefined = (key, value) => {
+    if (value === undefined || value === null) return;
+    if (typeof value === 'string' && !value.trim() && String(target[key] || '').trim()) {
+      return;
+    }
+    target[key] = value;
+  };
+
+  setIfDefined(
+    'descripcionMantenimientoRealizado',
+    campos.descripcionMantenimientoRealizado || campos.descripcionMantenimiento
+  );
+  setIfDefined('descripcionProblema', campos.descripcionProblema);
+  setIfDefined('tipoInfraestructura', campos.tipoInfraestructura);
+  setIfDefined('tipoMantenimiento', campos.tipoMantenimiento);
+  setIfDefined('fechaSolicitud', campos.fechaSolicitud);
+  setIfDefined('fechaRealizado', campos.fechaRealizado);
+  setIfDefined(
+    'responsableMantenimiento',
+    campos.responsableMantenimiento || campos.responsable
+  );
+  setIfDefined('nombreSolicitante', campos.nombreSolicitante);
+  if (Array.isArray(campos.evidencias) && campos.evidencias.length) {
+    const prev = Array.isArray(target.evidencias) ? target.evidencias : [];
+    const map = new Map();
+    for (const ev of [...prev, ...campos.evidencias]) {
+      const key = String(ev?.driveFileId || ev?.url || ev?.webViewLink || '').trim();
+      if (key) map.set(key, ev);
+    }
+    target.evidencias = Array.from(map.values());
+  }
+  if (reporte?.driveFileId) {
+    target.reporteDriveFileId = reporte.driveFileId;
+  }
+  if (reporte?.webViewLink) {
+    target.reporteWebViewLink = reporte.webViewLink;
+  }
+  target.actualizadoEn = new Date().toISOString();
+  const activo = target.activo === false ? 0 : 1;
+  const formsId = target.formsResponseId ? String(target.formsResponseId).trim() : null;
+  const payload = JSON.stringify({ ...target, activo: activo === 1 });
+  await pool.query(
+    `UPDATE mantenimiento_solicitud
+     SET folio = ?, forms_response_id = ?, activo = ?, datos_json = ?, actualizado_en = NOW()
+     WHERE id = ?`,
+    [String(target.folio || folioKey).trim() || folioKey, formsId, activo, payload, target.id]
+  );
+  return target;
 }
 
 module.exports = {
@@ -660,5 +958,9 @@ module.exports = {
   rutaLogoBiznaga,
   listarSolicitudesCatalogo,
   guardarSolicitudesCatalogo,
-  desactivarSolicitudCatalogo
+  desactivarSolicitudCatalogo,
+  activarSolicitudCatalogo,
+  aplicarCamposReporteF04AlCatalogo,
+  consolidarDuplicadosCatalogo,
+  consolidarSolicitudesEnMemoria
 };

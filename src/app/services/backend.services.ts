@@ -637,6 +637,14 @@ export class BackendServices {
         );
     }
 
+    /** Reactiva un reporte oculto (activo = 1). Solo root. Soft-hide reversible. */
+    activarSolicitudMantenimiento(id: string): Observable<any> {
+        return this.httpClient.patch(
+            `${this.baseUrl}/mantenimiento/solicitudes/${encodeURIComponent(id)}/activar`,
+            {}
+        );
+    }
+
     /** Mantenimiento EIN-F-02: subir evidencias a Drive (con progreso) */
     subirEvidenciasMantenimiento(folio: string, archivos: File[]): Observable<HttpEvent<any>> {
         const formData = new FormData();
@@ -756,11 +764,14 @@ export class BackendServices {
     generarReporteMantenimientoF04(folio: string, payload: {
         descripcionMantenimientoRealizado?: string;
         descripcionMantenimiento?: string;
+        descripcionProblema?: string;
+        tipoInfraestructura?: string;
         evidencias?: Array<{ driveFileId?: string; url?: string; webViewLink?: string; nombre?: string }>;
         tipoMantenimiento?: string;
         fechaSolicitud?: string;
         fechaRealizado?: string;
         responsable?: string;
+        responsableMantenimiento?: string;
         nombreSolicitante?: string;
         nombreArchivo?: string;
         reporteDriveFileId?: string;

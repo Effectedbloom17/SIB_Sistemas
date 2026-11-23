@@ -166,6 +166,10 @@
 
               <h3 class="mt-forms-stats__title">Respuestas del formulario</h3>
 
+              <p class="mt-forms-stats__fuente" [class.is-ok]="fuenteOk" [class.is-bad]="!fuenteOk && !!fuente">
+                Fuente: {{ fuenteEtiqueta }}
+              </p>
+
               <p class="mt-forms-stats__sub" *ngIf="mensaje">{{ mensaje }}</p>
 
               <p class="mt-forms-stats__sub mt-forms-stats__sub--ok" *ngIf="mensajeSync">{{ mensajeSync }}</p>
@@ -174,19 +178,11 @@
 
             <div class="mt-forms-stats__actions">
 
-              <button type="button" class="mt-forms-btn" (click)="sincronizarAhora()" [disabled]="sincronizando || cargandoStats">
+              <button type="button" class="mt-forms-btn mt-forms-btn--primary" (click)="sincronizarAhora()" [disabled]="sincronizando || cargandoStats">
 
-                <i class="fas" [class.fa-spinner]="sincronizando" [class.fa-spin]="sincronizando" [class.fa-cloud-download-alt]="!sincronizando"></i>
+                <i class="fas" [class.fa-spinner]="sincronizando || cargandoStats" [class.fa-spin]="sincronizando || cargandoStats" [class.fa-sync-alt]="!(sincronizando || cargandoStats)"></i>
 
-                {{ sincronizando ? 'Sincronizando…' : 'Sincronizar a bitácora' }}
-
-              </button>
-
-              <button type="button" class="mt-forms-btn mt-forms-btn--primary" (click)="cargarEstadisticas(true)" [disabled]="cargandoStats">
-
-                <i class="fas" [class.fa-spinner]="cargandoStats" [class.fa-spin]="cargandoStats" [class.fa-sync-alt]="!cargandoStats"></i>
-
-                {{ cargandoStats ? 'Actualizando…' : 'Actualizar' }}
+                {{ (sincronizando || cargandoStats) ? 'Actualizando…' : 'Actualizar indicadores' }}
 
               </button>
 
