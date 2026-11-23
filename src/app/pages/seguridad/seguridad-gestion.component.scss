@@ -1551,22 +1551,33 @@ $surface2: linear-gradient(165deg, #fff 0%, #f8fafc 45%, #fef2f2 100%);
   background: rgba(255, 255, 255, 0.72);
   border: 1px solid $line;
 
-  &__close {
+  &__actions {
     align-self: flex-end;
+    display: inline-flex;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 0.3rem;
+  }
+
+  &__action,
+  &__close {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 0.28rem;
-    border: 1px solid rgba(185, 28, 28, 0.22);
+    gap: 0;
+    height: 1.85rem;
+    padding: 0 0.52rem;
+    overflow: hidden;
+    white-space: nowrap;
     border-radius: 999px;
-    padding: 0.28rem 0.62rem;
-    background: linear-gradient(145deg, #fff 0%, #fef2f2 100%);
-    color: #b91c1c;
     font-size: 0.68rem;
     font-weight: 800;
     letter-spacing: 0.02em;
-    box-shadow: 0 2px 8px rgba(185, 28, 28, 0.12);
+    vertical-align: middle;
     transition:
+      padding 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+      gap 0.28s cubic-bezier(0.22, 1, 0.36, 1),
       transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1),
       box-shadow 0.22s ease,
       background 0.22s ease,
@@ -1574,25 +1585,120 @@ $surface2: linear-gradient(165deg, #fff 0%, #f8fafc 45%, #fef2f2 100%);
       border-color 0.22s ease;
 
     i {
-      font-size: 0.62rem;
+      flex: 0 0 auto;
+      font-size: 0.72rem;
       line-height: 1;
+      width: 0.78rem;
+      text-align: center;
       transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
     }
 
-    &:hover {
+    span {
+      display: inline-block;
+      max-width: 0;
+      opacity: 0;
+      overflow: hidden;
+      transform: translateX(-6px);
+      transition:
+        max-width 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+        opacity 0.2s ease,
+        transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    &:hover,
+    &:focus-visible {
+      padding: 0 0.72rem 0 0.55rem;
+      gap: 0.34rem;
+      transform: translateY(-2px);
+
+      span {
+        max-width: 6.5rem;
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    &:active {
+      transform: translateY(0) scale(0.97);
+    }
+  }
+
+  &__action--off {
+    border: 1px solid rgba(100, 116, 139, 0.32);
+    background: linear-gradient(145deg, #fff 0%, #f1f5f9 100%);
+    color: #64748b;
+    box-shadow: 0 2px 8px rgba(100, 116, 139, 0.1);
+
+    &:hover,
+    &:focus-visible {
+      background: linear-gradient(135deg, #475569 0%, #64748b 100%);
+      border-color: transparent;
+      color: #fff;
+      box-shadow: 0 8px 18px rgba(71, 85, 105, 0.28);
+    }
+  }
+
+  &__action--on {
+    border: 1px solid rgba(21, 128, 61, 0.28);
+    background: linear-gradient(145deg, #fff 0%, #f0fdf4 100%);
+    color: #15803d;
+    box-shadow: 0 2px 8px rgba(21, 128, 61, 0.1);
+
+    &:hover,
+    &:focus-visible {
+      background: linear-gradient(135deg, #15803d 0%, #16a34a 100%);
+      border-color: transparent;
+      color: #fff;
+      box-shadow: 0 8px 18px rgba(21, 128, 61, 0.28);
+    }
+  }
+
+  &__action--del {
+    border: 1px solid rgba(127, 29, 29, 0.28);
+    background: linear-gradient(145deg, #fff 0%, #fef2f2 100%);
+    color: #7f1d1d;
+    box-shadow: 0 2px 8px rgba(127, 29, 29, 0.1);
+
+    &:hover,
+    &:focus-visible {
+      background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%);
+      border-color: transparent;
+      color: #fff;
+      box-shadow: 0 8px 18px rgba(127, 29, 29, 0.3);
+    }
+  }
+
+  &__close {
+    border: 1px solid rgba(185, 28, 28, 0.22);
+    background: linear-gradient(145deg, #fff 0%, #fef2f2 100%);
+    color: #b91c1c;
+    box-shadow: 0 2px 8px rgba(185, 28, 28, 0.12);
+
+    &:hover,
+    &:focus-visible {
       background: linear-gradient(135deg, #991b1b 0%, #dc2626 100%);
       border-color: transparent;
       color: #fff;
-      transform: translateY(-2px) scale(1.04);
       box-shadow: 0 8px 18px rgba(185, 28, 28, 0.32);
 
       i { transform: rotate(90deg) scale(1.08); }
     }
 
     &:active {
-      transform: translateY(0) scale(0.97);
       box-shadow: 0 3px 10px rgba(185, 28, 28, 0.22);
     }
+  }
+
+  &__off-note {
+    margin: 0;
+    text-align: center;
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #475569;
+    background: rgba(241, 245, 249, 0.95);
+    border: 1px solid rgba(148, 163, 184, 0.45);
+    border-radius: 10px;
+    padding: 0.4rem 0.55rem;
   }
 
   &__chart {
@@ -1741,6 +1847,29 @@ $surface2: linear-gradient(165deg, #fff 0%, #f8fafc 45%, #fef2f2 100%);
         transform: translateY(-2px);
       }
     }
+
+    &.is-off {
+      border-color: rgba(148, 163, 184, 0.55);
+      background:
+        radial-gradient(120px 80px at 100% 0%, rgba(148, 163, 184, 0.12), transparent 70%),
+        linear-gradient(165deg, #f8fafc 0%, #e2e8f0 100%);
+      opacity: 0.9;
+      filter: grayscale(0.35);
+
+      &:hover {
+        border-color: rgba(100, 116, 139, 0.55);
+        box-shadow: 0 14px 28px rgba(71, 85, 105, 0.12);
+        filter: grayscale(0.15);
+      }
+    }
+  }
+
+  &__off-tag {
+    display: inline-flex;
+    align-items: center;
+    color: #64748b !important;
+    font-weight: 800;
+    letter-spacing: 0.02em;
   }
 
   &--featured {
@@ -1753,6 +1882,12 @@ $surface2: linear-gradient(165deg, #fff 0%, #f8fafc 45%, #fef2f2 100%);
     &:hover {
       transform: none;
       border-color: rgba(185, 28, 28, 0.4);
+    }
+
+    &.is-off {
+      border-color: rgba(148, 163, 184, 0.65);
+      background: linear-gradient(160deg, #f8fafc 0%, #e2e8f0 100%);
+      filter: grayscale(0.25);
     }
   }
 
@@ -2323,6 +2458,21 @@ $surface2: linear-gradient(165deg, #fff 0%, #f8fafc 45%, #fef2f2 100%);
     border-color: transparent;
     color: #fff;
     box-shadow: 0 3px 10px rgba(185, 28, 28, 0.25);
+  }
+
+  &.is-off {
+    border-color: rgba(148, 163, 184, 0.55);
+    background: #f1f5f9;
+    color: #64748b;
+    opacity: 0.85;
+
+    &.is-active {
+      background: linear-gradient(135deg, #475569, #64748b);
+      border-color: transparent;
+      color: #fff;
+      box-shadow: 0 3px 10px rgba(71, 85, 105, 0.28);
+      opacity: 1;
+    }
   }
 }
 

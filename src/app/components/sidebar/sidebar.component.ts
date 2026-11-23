@@ -44,7 +44,7 @@ const MENU_GROUPS: { title?: string; paths: string[] }[] = [
     { title: 'Médicos', paths: ['/programacion-estudios', '/expedientes-medicos', '/audiometria', '/estadisticas-medicas'] },
     { title: 'SGC', paths: ['/sistema-gestion-calidad', '/sistema-gestion-calidad/procedimientos', '/sistema-gestion-calidad/instructivos', '/sistema-gestion-calidad/formatos', '/sistema-gestion-calidad/normativas', '/sistema-gestion-calidad/firmas', '/sistema-gestion-calidad/solicitud-documentos'] },
     { title: 'Seguridad', paths: ['/seguridad/normativas', '/seguridad/asignacion', '/seguridad/gestion'] },
-    { title: 'Recursos Humanos', paths: ['/recursos-humanos/residentes', '/recursos-humanos/colaboradores', '/recursos-humanos/registros'] },
+    { title: 'Recursos Humanos', paths: ['/recursos-humanos/residentes', '/recursos-humanos/colaboradores', '/recursos-humanos/registros', '/recursos-humanos/riesgos-psicosociales'] },
     { title: 'Ambiental', paths: ['/ambiental', '/control-tramites'] },
     { title: 'Control de Proyectos', paths: ['/control-proyectos', '/control-oficios', '/agenda'] },
     { title: 'Sensorización', paths: ['/sensores'] },
@@ -99,6 +99,8 @@ export const ROUTES: RouteInfo[] = [
     { path: '/recursos-humanos/colaboradores', title: 'Colaboradores', icon: '', iconFa: 'fa-id-badge', class: '' },
     // Debajo de Colaboradores · solo root + Rozana + mafer295 (filtro en filterMenuByRole)
     { path: '/recursos-humanos/registros', title: 'Registros RH', icon: '', iconFa: 'fa-archive', class: '' },
+    // NOM-035 · de momento solo superadministrador (root)
+    { path: '/recursos-humanos/riesgos-psicosociales', title: 'Riesgos\nPsicosociales', icon: '', iconFa: 'fa-brain', class: '', roles: ['root'] },
     { path: '/control-proyectos', title: 'Control de avance\nde proyectos', icon: '', iconFa: 'fa-project-diagram', class: '' }, // Todos los perfiles; empresa en consulta
     // De momento solo superadministrador (root); reabrir a iot cuando corresponda
     { path: '/sensores', title: 'Sensores', icon: '', iconFa: 'fa-tint', class: '', roles: ['root'] },
@@ -522,6 +524,11 @@ export class SidebarComponent implements OnInit, OnDestroy {
       // Registros RH: superadministrador (root) + Rozana + María Fernanda (mafer295)
       if (item.path === '/recursos-humanos/registros') {
         return this.authService.puedeVerRegistrosRh();
+      }
+
+      // Riesgos Psicosociales (NOM-035): solo superadministrador (root)
+      if (item.path === '/recursos-humanos/riesgos-psicosociales') {
+        return this.authService.puedeVerRiesgosPsicosociales();
       }
 
       // Colaboradores / organigrama: todos los perfiles internos excepto empresa

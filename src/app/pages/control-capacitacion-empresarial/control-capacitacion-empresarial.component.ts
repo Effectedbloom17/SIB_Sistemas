@@ -29,6 +29,9 @@ export interface RegistroControlCapacitacion {
   observaciones: string;
   ultima_descarga_constancias_por?: string | null;
   ultima_descarga_constancias_fecha?: string | null;
+  entregado_pendiente_acuse?: boolean;
+  entregado_pendiente_acuse_por?: string | null;
+  entregado_pendiente_acuse_fecha?: string | null;
 }
 
 @Component({
@@ -61,6 +64,7 @@ export class ControlCapacitacionEmpresarialComponent implements OnInit, OnDestro
   registrosFiltrados: RegistroControlCapacitacion[] = [];
   empresasUnicas: { id: number; nombre: string }[] = [];
   historialDescargasSeleccionado: RegistroControlCapacitacion | null = null;
+  marcandoPendienteAcuse = false;
 
   // Filtros
   textoBusqueda = '';
@@ -70,9 +74,12 @@ export class ControlCapacitacionEmpresarialComponent implements OnInit, OnDestro
   filtroEstatus = '';
   filtroDescarga = '';
 
+  readonly ESTATUS_PENDIENTE_ACUSE = 'Entregado, pendiente de acuse';
+
   readonly opcionesEstatus = [
     { value: '', label: 'Todos los estatus' },
     { value: 'Entregadas', label: 'Entregadas' },
+    { value: 'Entregado, pendiente de acuse', label: 'Entregado, pendiente de acuse' },
     { value: 'Generadas', label: 'Generadas' },
     { value: 'No realizadas', label: 'No realizadas' }
   ];
@@ -272,8 +279,36 @@ export class ControlCapacitacionEmpresarialComponent implements OnInit, OnDestro
   claseEstatus(estatus: string): string {
     const val = (estatus || '').toLowerCase();
     if (val === 'entregadas') return 'estatus--entregadas';
+    if (val === 'entregado, pendiente de acuse') return 'estatus--pendiente-acuse';
     if (val === 'generadas') return 'estatus--generadas';
     return 'estatus--no-realizadas';
+  }
+
+  estaPendienteAcuse(registro: RegistroControlCapacitacion | null): boolean {
+    return (registro?.estatus_acreditaciones || '') === this.ESTATUS_PENDIENTE_ACUSE;
+  }
+
+  tieneRegistroPendienteAcuse(registro: RegistroControlCapacitacion | null): boolean {
+    if (!registro) return false;
+    const por = String(registro.entregado_pendiente_acuse_por || '').trim();
+    const fecha = String(registro.entregado_pendiente_acuse_fecha || '').trim();
+    return !!(registro.entregado_pendiente_acuse || por || fecha || this.estaPendienteAcuse(registro));
+  }
+
+  puedeAlternarPendienteAcuse(registro: RegistroControlCapacitacion | null): boolean {
+    if (!registro || Number(registro.programado_id || 0) <= 0) return false;
+    const estatus = registro.estatus_acreditaciones || '';
+    return estatus === 'Generadas' || estatus === this.ESTATUS_PENDIENTE_ACUSE;
+  }
+
+  textoBotonPendienteAcuse(registro: RegistroControlCapacitacion | null): string {
+    if (this.marcandoPendienteAcuse) return 'Actualizando...';
+    return this.estaPendienteAcuse(registro) ? 'Revertir a Generadas' : 'Pendiente de acuse';
+  }
+
+  iconoPendienteAcuse(registro: RegistroControlCapacitacion | null): string {
+    if (this.marcandoPendienteAcuse) return 'fa-spinner fa-spin';
+    return this.estaPendienteAcuse(registro) ? 'fa-undo' : 'fa-file-signature';
   }
 
   // ——— Documento oficial (misma lógica que dashboard) ———
@@ -434,6 +469,64 @@ export class ControlCapacitacionEmpresarialComponent implements OnInit, OnDestro
 
   cerrarHistorialDescargas(): void {
     this.historialDescargasSeleccionado = null;
+    this.marcandoPendienteAcuse = false;
+  }
+
+  alternarPendienteAcuse(): void {
+    const registro = this.historialDescargasSeleccionado;
+    if (!registro || !this.puedeAlternarPendienteAcuse(registro) || this.marcandoPendienteAcuse) {
+      return;
+    }
+
+    const programadoId = Number(registro.programado_id);
+    const activar = !this.estaPendienteAcuse(registro);
+
+    this.marcandoPendienteAcuse = true;
+    this.backendService.marcarEntregadoPendienteAcuse(programadoId, activar)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(
+        (res: any) => {
+          const nuevoEstatus = res?.data?.estatus_acreditaciones
+            || (activar ? this.ESTATUS_PENDIENTE_ACUSE : 'Generadas');
+          const por = res?.data?.entregado_pendiente_acuse_por || null;
+          const fecha = res?.data?.entregado_pendiente_acuse_fecha || null;
+          const pendiente = !!res?.data?.entregado_pendiente_acuse;
+
+          this.registrosBD = this.registrosBD.map((row) => {
+            if (Number(row.programado_id) !== programadoId) return row;
+            return {
+              ...row,
+              estatus_acreditaciones: nuevoEstatus,
+              entregado_pendiente_acuse: pendiente,
+              entregado_pendiente_acuse_por: por,
+              entregado_pendiente_acuse_fecha: fecha
+            };
+          });
+          this.filtrarRegistros();
+
+          if (this.historialDescargasSeleccionado
+            && Number(this.historialDescargasSeleccionado.programado_id) === programadoId) {
+            this.historialDescargasSeleccionado = {
+              ...this.historialDescargasSeleccionado,
+              estatus_acreditaciones: nuevoEstatus,
+              entregado_pendiente_acuse: pendiente,
+              entregado_pendiente_acuse_por: por,
+              entregado_pendiente_acuse_fecha: fecha
+            };
+          }
+
+          this.marcandoPendienteAcuse = false;
+        },
+        (err) => {
+          this.marcandoPendienteAcuse = false;
+          Swal.fire({
+            title: 'Error',
+            text: err?.error?.message || 'No se pudo actualizar el estatus.',
+            icon: 'error',
+            confirmButtonColor: '#38512F'
+          });
+        }
+      );
   }
 
   formatearFechaDescarga(valor?: string | null): string {

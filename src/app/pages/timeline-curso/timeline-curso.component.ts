@@ -232,6 +232,9 @@ export class TimelineCursoComponent implements OnInit, OnDestroy {
   cursoGenerandoPaso8Nombre: string = '';
   cursosSeleccionadosPaso8Inicializado: boolean = false;
   liberarConstanciasPaso8: boolean = false;
+  /** Con Liberar activo: qué documentos generar (ambas por defecto). */
+  liberarGenerarConstanciasPaso8: boolean = true;
+  liberarGenerarDc3Paso8: boolean = true;
   usaEmpresasColaboradorasPaso8: boolean = false;
   tieneGrupoColaboradorasPaso8: boolean = false;
   empresasColaboradorasPaso8: EmpresaColaboradoraDoc[] = [];
@@ -534,6 +537,7 @@ export class TimelineCursoComponent implements OnInit, OnDestroy {
         this.cursosSeleccionadosPaso8Inicializado = true;
       }
       this.liberarConstanciasPaso8 = this.leerLiberarConstanciasStorage();
+      this.leerLiberarTiposStorage();
     } else if (this.listaCursosDisponibles.length === 0) {
       this.cargandoCursosDisponibles = true;
     } else {
@@ -712,10 +716,48 @@ export class TimelineCursoComponent implements OnInit, OnDestroy {
     return `paso8_liberar_${this.cursoId || 'global'}`;
   }
 
+  private storageKeyLiberarTiposPaso8(): string {
+    return `paso8_liberar_tipos_${this.cursoId || 'global'}`;
+  }
+
   toggleLiberarConstanciasPaso8(): void {
     this.liberarConstanciasPaso8 = !this.liberarConstanciasPaso8;
+    if (this.liberarConstanciasPaso8) {
+      // Al activar Liberar, ambas opciones quedan seleccionadas por defecto.
+      this.liberarGenerarConstanciasPaso8 = true;
+      this.liberarGenerarDc3Paso8 = true;
+    }
+    this.persistirLiberarPaso8();
+  }
+
+  toggleLiberarTipoDocumentoPaso8(tipo: 'constancia' | 'dc3'): void {
+    if (!this.liberarConstanciasPaso8) {
+      return;
+    }
+    if (tipo === 'constancia') {
+      if (this.liberarGenerarConstanciasPaso8 && !this.liberarGenerarDc3Paso8) {
+        return; // Debe quedar al menos una opción
+      }
+      this.liberarGenerarConstanciasPaso8 = !this.liberarGenerarConstanciasPaso8;
+    } else {
+      if (this.liberarGenerarDc3Paso8 && !this.liberarGenerarConstanciasPaso8) {
+        return; // Debe quedar al menos una opción
+      }
+      this.liberarGenerarDc3Paso8 = !this.liberarGenerarDc3Paso8;
+    }
+    this.persistirLiberarPaso8();
+  }
+
+  private persistirLiberarPaso8(): void {
     try {
       localStorage.setItem(this.storageKeyLiberarPaso8(), this.liberarConstanciasPaso8 ? '1' : '0');
+      localStorage.setItem(
+        this.storageKeyLiberarTiposPaso8(),
+        JSON.stringify({
+          constancias: this.liberarGenerarConstanciasPaso8,
+          dc3: this.liberarGenerarDc3Paso8
+        })
+      );
     } catch { /* storage no disponible */ }
   }
 
@@ -725,6 +767,45 @@ export class TimelineCursoComponent implements OnInit, OnDestroy {
     } catch {
       return false;
     }
+  }
+
+  private leerLiberarTiposStorage(): void {
+    try {
+      const raw = localStorage.getItem(this.storageKeyLiberarTiposPaso8());
+      if (!raw) {
+        this.liberarGenerarConstanciasPaso8 = true;
+        this.liberarGenerarDc3Paso8 = true;
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      const constancias = parsed?.constancias !== false;
+      const dc3 = parsed?.dc3 !== false;
+      // Si ambas quedaran en false (dato corrupto), restaurar ambas.
+      if (!constancias && !dc3) {
+        this.liberarGenerarConstanciasPaso8 = true;
+        this.liberarGenerarDc3Paso8 = true;
+        return;
+      }
+      this.liberarGenerarConstanciasPaso8 = constancias;
+      this.liberarGenerarDc3Paso8 = dc3;
+    } catch {
+      this.liberarGenerarConstanciasPaso8 = true;
+      this.liberarGenerarDc3Paso8 = true;
+    }
+  }
+
+  /** Tipo de documento a enviar al backend según Liberar + selección. */
+  obtenerTipoDocumentoPaso8(): 'constancia' | 'dc3' | 'ambos' {
+    if (!this.liberarConstanciasPaso8) {
+      return 'ambos';
+    }
+    if (this.liberarGenerarConstanciasPaso8 && this.liberarGenerarDc3Paso8) {
+      return 'ambos';
+    }
+    if (this.liberarGenerarDc3Paso8) {
+      return 'dc3';
+    }
+    return 'constancia';
   }
 
   cargarColaboradorasDocumentosPaso8(): void {
@@ -8620,21 +8701,59 @@ export class TimelineCursoComponent implements OnInit, OnDestroy {
         </div>`;
     }
 
-    const totalAsistentes = modoColaboradoras ? this.totalConstanciasPaso8 : asistentes.length;
-    const totalDc3 = modoColaboradoras ? this.totalDc3Paso8 : elegiblesDc3.length;
+    const tipoDocumento = this.obtenerTipoDocumentoPaso8();
+    const generarConstancias = tipoDocumento === 'constancia' || tipoDocumento === 'ambos';
+    const generarDc3 = tipoDocumento === 'dc3' || tipoDocumento === 'ambos';
+
+    if (this.liberarConstanciasPaso8 && !generarConstancias && !generarDc3) {
+      await Swal.fire({
+        title: 'Selecciona un documento',
+        text: 'Con Liberar activo debes elegir al menos Constancias o DC-3.',
+        icon: 'warning',
+        confirmButtonColor: '#38512F'
+      });
+      return false;
+    }
+
+    const totalAsistentesRaw = modoColaboradoras ? this.totalConstanciasPaso8 : asistentes.length;
+    const totalDc3Raw = modoColaboradoras ? this.totalDc3Paso8 : elegiblesDc3.length;
+    const totalAsistentes = generarConstancias ? totalAsistentesRaw : 0;
+    const totalDc3 = generarDc3 ? totalDc3Raw : 0;
     const etiquetaConstancia = totalAsistentes === 1 ? 'constancia' : 'constancias';
     const totalSinCalificacion = this.totalParticipantesSinCalificacionPaso8;
-    const avisoSinCalificacion = totalSinCalificacion > 0
+    const avisoSinCalificacion = generarConstancias && generarDc3 && totalSinCalificacion > 0
       ? `<p class="text-muted small mb-0">Hay ${totalSinCalificacion} participante(s) sin calificación. Solo se generará la constancia.</p>`
       : '';
+    const avisoLiberar = this.liberarConstanciasPaso8
+      ? `<p class="text-muted small mb-0" style="color:#c47c1a;">Modo Liberar: sin filtro de promedio ≥ 8.</p>`
+      : '';
+
+    let resumenDocsHtml = '';
+    if (generarConstancias && generarDc3) {
+      resumenDocsHtml = `<p>Se generarán <strong>${totalAsistentes} ${etiquetaConstancia}</strong> para los asistentes y <strong>${totalDc3} DC-3</strong>${this.liberarConstanciasPaso8 ? ' para todos los asistentes' : ' para quienes tengan promedio mayor o igual a 8'}.</p>`;
+    } else if (generarConstancias) {
+      resumenDocsHtml = `<p>Se generarán solo <strong>${totalAsistentes} ${etiquetaConstancia}</strong> (sin DC-3).</p>`;
+    } else {
+      resumenDocsHtml = `<p>Se generarán solo <strong>${totalDc3} DC-3</strong>${this.liberarConstanciasPaso8 ? ' para todos los asistentes' : ' para quienes tengan promedio mayor o igual a 8'} (sin constancias).</p>`;
+    }
+
+    const carpetasDrive = [
+      generarConstancias ? 'Constancias' : null,
+      generarDc3 ? 'DC-3' : null
+    ].filter(Boolean).join('</strong> y <strong>');
+
+    const tituloConfirm =
+      tipoDocumento === 'ambos' ? 'Generar constancias y DC-3'
+        : (tipoDocumento === 'dc3' ? 'Generar DC-3' : 'Generar constancias');
 
     const confirm = await Swal.fire({
-      title: 'Generar constancias y DC-3',
+      title: tituloConfirm,
       html: `
-        <p>Se generarán <strong>${totalAsistentes} ${etiquetaConstancia}</strong> para los asistentes y <strong>${totalDc3} DC-3</strong> para quienes tengan promedio mayor o igual a 8.</p>
+        ${resumenDocsHtml}
+        ${avisoLiberar}
         ${avisoSinCalificacion}
         ${detalleModoHtml}
-        <p class="text-muted small mb-1" style="margin-top:0.75rem;">Se guardarán en Drive en las carpetas <strong>Constancias</strong> y <strong>DC-3</strong>.</p>
+        <p class="text-muted small mb-1" style="margin-top:0.75rem;">Se guardarán en Drive en la(s) carpeta(s) <strong>${carpetasDrive}</strong>.</p>
       `,
       icon: 'question',
       showCancelButton: true,
@@ -8703,7 +8822,7 @@ export class TimelineCursoComponent implements OnInit, OnDestroy {
           },
           horas: this.obtenerHorasDocumentoPaso8(curso.id),
           usarHorasBase: this.usarHorasBasePaso8,
-          tipoDocumento: 'ambos',
+          tipoDocumento,
           aplicarFiltroDC3Promedio8: !this.liberarConstanciasPaso8,
           usarFirmaDigital: this.usarFirmaDigital,
           mostrarPuestosDc3: this.mostrarPuestosDc3,

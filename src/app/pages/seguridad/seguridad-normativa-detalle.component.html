@@ -1,8 +1,5 @@
 <div class="header header-bg-image seg-hero seg-hero--detalle pb-5 pt-4 pt-md-5 d-flex align-items-center position-relative overflow-hidden">
   <div class="container-fluid position-relative seg-hero__inner seg-hero__inner--detalle">
-    <button type="button" class="btn btn-sm seg-btn-back" (click)="volver()">
-      <i class="fas fa-arrow-left" aria-hidden="true"></i> Catálogo
-    </button>
     <div class="seg-hero-detalle text-center" *ngIf="normativa">
       <div class="seg-hero-detalle__badges justify-content-center">
         <span class="seg-hero-detalle__codigo">{{ normativa.codigo }}</span>
@@ -33,6 +30,9 @@
 <div class="container-fluid seg-main-wrap mt--5" *ngIf="normativa && !error">
   <div class="seg-panel">
     <div class="seg-stat-strip seg-stat-strip--detalle" *ngIf="resumen">
+      <button type="button" class="btn btn-sm seg-btn-edit seg-btn-catalogo" (click)="volver()">
+        <i class="fas fa-arrow-left" aria-hidden="true"></i> Catálogo
+      </button>
       <div class="seg-stat-chip">
         <span class="seg-stat-chip__val">{{ resumen.total || 0 }}</span>
         <span class="seg-stat-chip__lbl">Requisitos</span>

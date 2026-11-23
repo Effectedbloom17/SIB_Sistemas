@@ -10,6 +10,20 @@ $mt-slate-soft: rgba(30, 41, 59, 0.08);
   align-items: center;
   justify-content: flex-end;
   gap: 0.55rem;
+
+  &--stack {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.28rem;
+  }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.55rem;
+  }
 }
 
 .mt-toolbar--drive {
@@ -254,13 +268,24 @@ $mt-slate-soft: rgba(30, 41, 59, 0.08);
   }
 
   .mt-drive-toolbar {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.35rem;
+  }
+
+  .mt-drive-toolbar__actions {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     justify-content: stretch;
     gap: 0.45rem;
   }
 
-  .mt-drive-toolbar .mt-status,
+  .mt-drive-toolbar .mt-status {
+    text-align: right;
+    margin-right: 0;
+  }
+
   .mt-drive-toolbar .mt-btn-drive {
     grid-column: 1 / -1;
   }

@@ -235,6 +235,27 @@
         <span class="control-download-history-modal__label">Fecha y hora (México)</span>
         <span class="control-download-history-modal__value">{{ formatearFechaDescarga(historialDescargasSeleccionado?.ultima_descarga_constancias_fecha) }}</span>
       </div>
+      <div class="control-download-history-modal__row" *ngIf="tieneRegistroPendienteAcuse(historialDescargasSeleccionado)">
+        <span class="control-download-history-modal__label">Pendiente de acuse por</span>
+        <span class="control-download-history-modal__value">{{ historialDescargasSeleccionado?.entregado_pendiente_acuse_por || 'Sin registro' }}</span>
+      </div>
+      <div class="control-download-history-modal__row" *ngIf="tieneRegistroPendienteAcuse(historialDescargasSeleccionado)">
+        <span class="control-download-history-modal__label">Fecha pendiente de acuse</span>
+        <span class="control-download-history-modal__value">{{ formatearFechaDescarga(historialDescargasSeleccionado?.entregado_pendiente_acuse_fecha) }}</span>
+      </div>
+    </div>
+
+    <div class="control-download-history-modal__actions"
+         *ngIf="puedeAlternarPendienteAcuse(historialDescargasSeleccionado)">
+      <button
+        type="button"
+        class="btn btn-sm control-download-history-modal__action-btn"
+        [class.control-download-history-modal__action-btn--revert]="estaPendienteAcuse(historialDescargasSeleccionado)"
+        [disabled]="marcandoPendienteAcuse"
+        (click)="alternarPendienteAcuse()">
+        <i class="fas" [ngClass]="iconoPendienteAcuse(historialDescargasSeleccionado)"></i>
+        {{ textoBotonPendienteAcuse(historialDescargasSeleccionado) }}
+      </button>
     </div>
   </div>
 </div>
