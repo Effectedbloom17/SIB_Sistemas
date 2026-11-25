@@ -1047,11 +1047,13 @@ const uploadRrhhNom035 = multer({
         const okMime = [
             'application/pdf',
             'image/jpeg', 'image/jpg', 'image/pjpeg', 'image/png', 'image/webp', 'image/gif',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             'application/octet-stream'
         ].includes(mime);
-        const okExt = ['.pdf', '.jpg', '.jpeg', '.png', '.webp', '.gif'].includes(ext);
+        const okExt = ['.pdf', '.jpg', '.jpeg', '.png', '.webp', '.gif', '.xls', '.xlsx'].includes(ext);
         if (okMime || okExt) return cb(null, true);
-        return cb(new Error('Solo se permiten PDF o imágenes (JPG, PNG, WEBP, GIF)'));
+        return cb(new Error('Solo se permiten Excel (XLS/XLSX), PDF o imágenes'));
     }
 });
 
@@ -27160,6 +27162,37 @@ app.put('/api/seguridad/asignacion/:id/puntos/:requisitoId', authMiddleware, den
         res.json({ success: true, message: 'Punto actualizado.', ...detalle });
     } catch (error) {
         responderErrorSeguridadAsignacion(res, error, 'Error al actualizar el punto');
+    }
+});
+
+app.get('/api/seguridad/asignacion/:id/puntos/:requisitoId/ligues', authMiddleware, denyEmpresa, async (req, res) => {
+    try {
+        await poolNormativasReady;
+        const data = await seguridadAsignacionService.listarCandidatosLigue(
+            poolNormativas,
+            req.params.id,
+            req.params.requisitoId,
+            req.user
+        );
+        res.json({ success: true, ...data });
+    } catch (error) {
+        responderErrorSeguridadAsignacion(res, error, 'Error al listar puntos para ligar');
+    }
+});
+
+app.put('/api/seguridad/asignacion/:id/puntos/:requisitoId/ligues', authMiddleware, denyEmpresa, async (req, res) => {
+    try {
+        await poolNormativasReady;
+        const data = await seguridadAsignacionService.guardarLiguesPunto(
+            poolNormativas,
+            req.params.id,
+            req.params.requisitoId,
+            req.body?.destino_requisito_ids || req.body?.destinos || [],
+            req.user
+        );
+        res.json({ success: true, message: 'Ligues actualizados.', ...data });
+    } catch (error) {
+        responderErrorSeguridadAsignacion(res, error, 'Error al guardar ligues del punto');
     }
 });
 

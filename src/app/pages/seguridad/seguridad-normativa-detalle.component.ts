@@ -123,6 +123,7 @@ export class SeguridadNormativaDetalleComponent implements OnInit, OnDestroy {
   readonly periodicidades = ['ANUAL', 'SEMESTRAL', 'TRIMESTRAL', 'MENSUAL', 'UNICA', 'PERMANENTE'];
 
   @ViewChild('prosa') prosa?: ElementRef<HTMLElement>;
+  @ViewChild('inpPunto') inpPunto?: ElementRef<HTMLInputElement>;
 
   private readonly destroy$ = new Subject<void>();
 
@@ -537,12 +538,34 @@ export class SeguridadNormativaDetalleComponent implements OnInit, OnDestroy {
       });
   }
 
+  /** Etiqueta literal (5.10 ≠ 5.1). Nunca Number/parseFloat. */
+  onPuntoNormaChange(valor: string | null | undefined): void {
+    if (!this.editor) return;
+    this.editor.punto_norma = valor == null ? '' : String(valor);
+  }
+
+  onPuntoNormaInput(ev: Event): void {
+    if (!this.editor) return;
+    const v = (ev.target as HTMLInputElement | null)?.value;
+    if (v == null) return;
+    this.editor.punto_norma = String(v);
+  }
+
+  private leerPuntoNormaEditor(): string {
+    const desdeDom = this.inpPunto?.nativeElement?.value;
+    const desdeModelo = this.editor?.punto_norma;
+    return String(desdeDom != null && desdeDom !== '' ? desdeDom : (desdeModelo ?? ''))
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 32);
+  }
+
   abrirEditor(r: SegRequisito, event?: Event): void {
     event?.stopPropagation();
     if (!this.puedeAdministrar) return;
     this.editor = {
       id: r.id,
-      punto_norma: r.punto_norma || '',
+      punto_norma: r.punto_norma == null ? '' : String(r.punto_norma),
       descripcion: r.descripcion || '',
       tipo_evidencia: r.tipo_evidencia || '',
       periodicidad: r.periodicidad || '',
@@ -819,11 +842,15 @@ export class SeguridadNormativaDetalleComponent implements OnInit, OnDestroy {
     const ed = this.editor;
     const prosa = this.prosa?.nativeElement;
     if (prosa) this.sincronizarProsa(prosa);
-    if (!ed.punto_norma.trim() || !ed.descripcion.trim()) return;
+    // Preferir el valor del input (DOM): ahí sí queda el cero final (7.10).
+    const puntoNorma = this.leerPuntoNormaEditor();
+    ed.punto_norma = puntoNorma;
+    if (!puntoNorma || !ed.descripcion.trim()) return;
     this.guardandoPunto = true;
     const quitar = ed.quitarFormato && !ed.archivo;
     this.backend.actualizarSeguridadRequisito(this.normativa.id, ed.id, {
-      punto_norma: ed.punto_norma.trim(),
+      punto_norma: puntoNorma,
+      punto_norma_texto: puntoNorma,
       descripcion: ed.descripcion.trim(),
       descripcion_html: ed.descripcion_html,
       tipo_evidencia: ed.tipo_evidencia.trim() || null,

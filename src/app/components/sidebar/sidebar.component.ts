@@ -509,7 +509,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
         return !esEmpresa;
       }
 
-      // Seguridad · Normativas: todos los perfiles excepto empresa
+      // Seguridad · Normativas / Asignación / Gestión: todos los perfiles excepto empresa
       if (item.path === '/seguridad/normativas' || item.path.startsWith('/seguridad/')) {
         const esEmpresa = userRoles.some(role => role.toLowerCase() === 'empresa') || userRole === 'empresa';
         return !esEmpresa;
@@ -587,6 +587,15 @@ export class SidebarComponent implements OnInit, OnDestroy {
         return {
           ...item,
           title: puedeAsignar ? 'Asignación\nde PIPC' : 'Gestión\nde PIPC'
+        };
+      }
+      // DG/root asignan normativas; el resto solo selecciona puntos de las ya asignadas
+      if (item.path === '/seguridad/asignacion') {
+        const puedeAsignar = this.authService.puedeAsignarNormativasSeguridad();
+        return {
+          ...item,
+          title: puedeAsignar ? 'Asignación de\nnormativas' : 'Selección de\npuntos',
+          iconFa: puedeAsignar ? 'fa-tasks' : 'fa-list-ol'
         };
       }
       return item;

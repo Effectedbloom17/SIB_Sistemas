@@ -49,6 +49,7 @@ const COLUMNAS_EXTRA = [
     { name: 'referencia_normativa', sql: "VARCHAR(500) NOT NULL DEFAULT ''" },
     { name: 'fecha_inicio', sql: 'DATE NULL' },
     { name: 'fecha_compromiso', sql: 'DATE NULL' },
+    { name: 'duracion_estimada', sql: "VARCHAR(40) NOT NULL DEFAULT ''" },
     { name: 'entregables', sql: 'TEXT' },
     { name: 'observaciones', sql: 'TEXT' },
     { name: 'creado_por', sql: 'VARCHAR(255) NULL' },
@@ -60,6 +61,16 @@ const COLUMNAS_EXTRA = [
     /** IDs de usuario (trabajador) alineados a responsables; método infalible de ownership. */
     { name: 'responsable_usuario_ids', sql: 'TEXT NULL' }
 ];
+
+const DURACIONES_ESTIMADAS = ['Mensual', 'Trimestral', 'Cuatrimestral', 'Semestral'];
+
+function normalizarDuracionEstimada(valor) {
+    const crudo = String(valor || '').trim();
+    if (!crudo) return '';
+    const key = normalizar(crudo);
+    const hit = DURACIONES_ESTIMADAS.find((d) => normalizar(d) === key);
+    return hit || '';
+}
 
 /** Fecha/hora actual en zona America/Mexico_City para auditoría (YYYY-MM-DD HH:mm:ss). */
 function fechaHoraMexicoMySQL(fechaBase = new Date()) {
@@ -306,6 +317,7 @@ function mapRowToActividad(row) {
         responsableUsuarioIds: parseResponsableUsuarioIds(row.responsable_usuario_ids),
         fechaInicio: row.fecha_inicio ? formatearFechaIso(row.fecha_inicio) : '',
         fechaCompromiso: row.fecha_compromiso ? formatearFechaIso(row.fecha_compromiso) : '',
+        duracionEstimada: normalizarDuracionEstimada(row.duracion_estimada),
         entregables: String(row.entregables || '').trim(),
         observaciones: String(row.observaciones || '').trim(),
         prioridad: String(row.prioridad || '').trim(),
@@ -346,6 +358,7 @@ function sanitizarActividad(item) {
         responsableUsuarioIds: serializeResponsableUsuarioIds(idsEntrada),
         fechaInicio: formatearFechaIso(item?.fechaInicio) || null,
         fechaCompromiso: formatearFechaIso(item?.fechaCompromiso) || null,
+        duracionEstimada: normalizarDuracionEstimada(item?.duracionEstimada ?? item?.duracion_estimada),
         entregables: String(item?.entregables || '').trim(),
         observaciones: String(item?.observaciones || '').trim(),
         prioridad: normalizarPrioridad(item?.prioridad),
@@ -467,6 +480,7 @@ const CAMPOS_HISTORIAL = [
     { key: 'responsable', col: 'responsable', etiqueta: 'Responsable' },
     { key: 'fechaInicio', col: 'fecha_inicio', etiqueta: 'Fecha de inicio' },
     { key: 'fechaCompromiso', col: 'fecha_compromiso', etiqueta: 'Vencimiento' },
+    { key: 'duracionEstimada', col: 'duracion_estimada', etiqueta: 'Duración estimada' },
     { key: 'entregables', col: 'entregables', etiqueta: 'Entregables' },
     { key: 'observaciones', col: 'observaciones', etiqueta: 'Observaciones' },
     { key: 'prioridad', col: 'prioridad', etiqueta: 'Prioridad' },
@@ -499,6 +513,7 @@ function snapshotActividadParaHistorial(actividad) {
             : parseResponsableUsuarioIds(actividad.responsableUsuarioIds),
         fechaInicio: actividad.fechaInicio || '',
         fechaCompromiso: actividad.fechaCompromiso || '',
+        duracionEstimada: actividad.duracionEstimada || '',
         entregables: actividad.entregables || '',
         observaciones: actividad.observaciones || '',
         prioridad: actividad.prioridad || '',
@@ -957,6 +972,7 @@ async function asegurarTablaControlProyectos(pool) {
             responsable TEXT NOT NULL,
             fecha_inicio DATE NULL,
             fecha_compromiso DATE NULL,
+            duracion_estimada VARCHAR(40) NOT NULL DEFAULT '',
             entregables TEXT,
             prioridad VARCHAR(80) NOT NULL DEFAULT '',
             estatus VARCHAR(80) NOT NULL DEFAULT '',
@@ -1024,6 +1040,7 @@ async function obtenerActividades(pool, filtros = {}) {
             responsable_usuario_ids,
             fecha_inicio,
             fecha_compromiso,
+            duracion_estimada,
             entregables,
             observaciones,
             prioridad,
@@ -1053,9 +1070,9 @@ async function insertarActividad(pool, actividadRaw, orden, auditoria = {}) {
     const [result] = await pool.query(
         `INSERT INTO sgc_control_proyectos
             (empresa_id, empresa_nombre, folio, nombre_proyecto, item, condicion_requerimiento, actividades_accion,
-             referencia_normativa, responsable, responsable_usuario_ids, fecha_inicio, fecha_compromiso, entregables,
-             observaciones, prioridad, estatus, avance, orden, activo, creado_por, modificado_por, modificado_en)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
+             referencia_normativa, responsable, responsable_usuario_ids, fecha_inicio, fecha_compromiso, duracion_estimada,
+             entregables, observaciones, prioridad, estatus, avance, orden, activo, creado_por, modificado_por, modificado_en)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
         [
             p.empresaId,
             p.empresaNombre,
@@ -1069,6 +1086,7 @@ async function insertarActividad(pool, actividadRaw, orden, auditoria = {}) {
             p.responsableUsuarioIds,
             p.fechaInicio,
             p.fechaCompromiso,
+            p.duracionEstimada || '',
             p.entregables || null,
             p.observaciones || null,
             p.prioridad,
@@ -1103,7 +1121,7 @@ async function actualizarActividad(pool, actividadRaw, orden, auditoria = {}, op
     const [prevRows] = await pool.query(
         `SELECT control_proyecto_id, empresa_id, empresa_nombre, folio, nombre_proyecto, item,
                 condicion_requerimiento, actividades_accion, referencia_normativa, responsable,
-                responsable_usuario_ids, fecha_inicio, fecha_compromiso, entregables, observaciones,
+                responsable_usuario_ids, fecha_inicio, fecha_compromiso, duracion_estimada, entregables, observaciones,
                 prioridad, estatus, avance, orden, creado_por, created_at
          FROM sgc_control_proyectos
          WHERE control_proyecto_id = ?
@@ -1150,6 +1168,7 @@ async function actualizarActividad(pool, actividadRaw, orden, auditoria = {}, op
              responsable_usuario_ids = ?,
              fecha_inicio = ?,
              fecha_compromiso = ?,
+             duracion_estimada = ?,
              entregables = ?,
              observaciones = ?,
              prioridad = ?,
@@ -1175,6 +1194,7 @@ async function actualizarActividad(pool, actividadRaw, orden, auditoria = {}, op
             p.responsableUsuarioIds,
             p.fechaInicio,
             p.fechaCompromiso,
+            p.duracionEstimada || '',
             p.entregables || null,
             p.observaciones || null,
             p.prioridad,
@@ -1232,7 +1252,7 @@ async function obtenerDetalleActividad(pool, actividadId) {
         `SELECT
             control_proyecto_id, empresa_id, empresa_nombre, folio, nombre_proyecto, item,
             condicion_requerimiento, actividades_accion, referencia_normativa, responsable,
-            responsable_usuario_ids, fecha_inicio, fecha_compromiso, entregables, observaciones,
+            responsable_usuario_ids, fecha_inicio, fecha_compromiso, duracion_estimada, entregables, observaciones,
             prioridad, estatus, avance, orden, activo, modificado_por, modificado_en, creado_por,
             eliminado_por, eliminado_en, created_at, updated_at
          FROM sgc_control_proyectos
@@ -1390,7 +1410,7 @@ async function restaurarVersionActividad(pool, actividadId, versionToken, opcion
     const [actRows] = await pool.query(
         `SELECT control_proyecto_id, empresa_id, empresa_nombre, folio, nombre_proyecto, item,
                 condicion_requerimiento, actividades_accion, referencia_normativa, responsable,
-                responsable_usuario_ids, fecha_inicio, fecha_compromiso, entregables, observaciones,
+                responsable_usuario_ids, fecha_inicio, fecha_compromiso, duracion_estimada, entregables, observaciones,
                 prioridad, estatus, avance, orden
          FROM sgc_control_proyectos
          WHERE control_proyecto_id = ?

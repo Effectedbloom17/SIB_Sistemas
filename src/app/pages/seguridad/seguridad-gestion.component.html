@@ -735,7 +735,7 @@
                     {{ etiquetaAccionActiva(punto) }}
                   </span>
                   <span class="ges-tag ges-tag--muted" *ngIf="pesoAccionSeleccionada(punto) == null">Sin acción</span>
-                  <span class="ges-tag ges-tag--docs" *ngIf="punto.documentos?.length"><i class="fas fa-paperclip"></i> {{ punto.documentos.length }}</span>
+                  <span class="ges-tag ges-tag--docs" *ngIf="docsVisiblesPunto(punto).length"><i class="fas fa-paperclip"></i> {{ docsVisiblesPunto(punto).length }}</span>
                 </div>
                 <div class="ges-req-card__meta-right">
                   <span class="ges-tag ges-tag--date"><em>Inicio</em> {{ fechaMesAnio(punto.fecha_inicio) }}</span>
@@ -914,7 +914,7 @@
                      tabindex="0"
                      title="También puedes pegar archivos o imágenes con Ctrl+V"
                      [class.is-busy]="subiendo"
-                     [class.has-files]="punto.documentos.length">
+                     [class.has-files]="docsVisiblesPunto(punto).length">
                 <input type="file" multiple (change)="subir(punto.id, $event)"
                        accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp,.zip" [disabled]="subiendo">
                 <i class="fas" [class.fa-cloud-upload-alt]="!subiendo" [class.fa-spinner]="subiendo" [class.fa-spin]="subiendo"></i>
@@ -925,14 +925,25 @@
                 <i class="fab fa-google-drive"></i>
                 Sistema / {{ det.asignacion.empresa_nombre }} / Normativas {{ anioEvidencia }} / {{ det.asignacion.codigo }} / {{ punto.punto_norma || 'Punto' }}
               </p>
-              <div class="ges-evid-grid" *ngIf="punto.documentos.length; else sinDocs">
-                <article class="ges-evid-card ges-evid-card--guide" *ngFor="let doc of punto.documentos">
+              <div class="ges-evid-grid" *ngIf="docsVisiblesPunto(punto).length; else sinDocs">
+                <article class="ges-evid-card ges-evid-card--guide"
+                         [class.ges-evid-card--ligada]="doc.ligado"
+                         *ngFor="let doc of docsVisiblesPunto(punto)">
                   <header class="ges-evid-card__head">
                     <span class="ges-evid-card__badge">{{ etiquetaTipoArchivo(doc.nombre_original) }}</span>
+                    <span class="ges-evid-card__origen" *ngIf="doc.ligado" [title]="doc.origen_etiqueta || ''">
+                      <i class="fas fa-link" aria-hidden="true"></i>
+                      {{ doc.origen_etiqueta || 'Punto ligado' }}
+                    </span>
                     <div class="ges-evid-card__actions">
                       <button type="button" (click)="abrirVisorEvidencia(doc, $event)" title="Ver"><i class="fas fa-eye"></i></button>
                       <button type="button" (click)="descargar(doc); $event.stopPropagation()" title="Abrir / descargar"><i class="fas fa-external-link-alt"></i></button>
-                      <button type="button" class="is-danger" (click)="eliminarDoc(doc); $event.stopPropagation()" title="Quitar" aria-label="Quitar"><i class="fas fa-times"></i></button>
+                      <button type="button"
+                              class="is-danger"
+                              *ngIf="!doc.ligado"
+                              (click)="eliminarDoc(doc); $event.stopPropagation()"
+                              title="Quitar"
+                              aria-label="Quitar"><i class="fas fa-times"></i></button>
                     </div>
                   </header>
                   <button type="button" class="ges-evid-card__thumb" (click)="abrirVisorEvidencia(doc, $event)" [title]="'Ver ' + doc.nombre_original">
@@ -978,6 +989,10 @@
               <ng-template #sinDocs>
                 <p class="ges-empty ges-empty--soft">Sin archivos aún. La primera carga crea la carpeta en Drive.</p>
               </ng-template>
+              <p class="ges-ligue-evid-note" *ngIf="punto.documentos_ligados?.length">
+                <i class="fas fa-link" aria-hidden="true"></i>
+                {{ punto.documentos_ligados.length }} archivo(s) llegan desde otros puntos ligados. Quítalos o edítalos en su punto de origen.
+              </p>
             </article>
           </section>
 
@@ -985,10 +1000,65 @@
             <article class="ges-mini ges-enter" [style.animation-delay]="'120ms'">
               <h4>Resumen</h4>
               <div class="ges-mini-stats">
-                <div><span>{{ punto.documentos.length }}</span><em>Archivos</em></div>
+                <div><span>{{ docsVisiblesPunto(punto).length }}</span><em>Archivos</em></div>
                 <div><span>{{ fechaCorta(punto.ultima_evidencia) }}</span><em>Última carga</em></div>
               </div>
             </article>
+
+            <article class="ges-mini ges-mini--ligue ges-enter" [style.animation-delay]="'130ms'">
+              <button type="button"
+                      class="ges-ligue-btn"
+                      [class.is-open]="ligueAbierto"
+                      (click)="togglePanelLigue()">
+                <i class="fas fa-link" aria-hidden="true"></i>
+                <span>Ligar formatos</span>
+                <em *ngIf="punto.ligues_destino?.length">{{ punto.ligues_destino.length }}</em>
+              </button>
+
+              <div class="ges-ligue-board" *ngIf="ligueAbierto">
+                <label class="ges-ligue__search">
+                  <i class="fas fa-search" aria-hidden="true"></i>
+                  <input type="search"
+                         [(ngModel)]="ligueBusqueda"
+                         placeholder="Buscar punto…"
+                         aria-label="Buscar puntos para ligar">
+                </label>
+
+                <div class="ges-ligue__loading" *ngIf="cargandoLigues">
+                  <i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Cargando…
+                </div>
+                <div class="ges-ligue__empty" *ngIf="!cargandoLigues && !ligueCandidatosFiltrados.length">
+                  No hay otros puntos asignados en esta empresa.
+                </div>
+
+                <div class="ges-ligue-board__body" *ngIf="!cargandoLigues">
+                  <section class="ges-ligue-norma" *ngFor="let norma of ligueCandidatosFiltrados">
+                    <header class="ges-ligue-norma__head">
+                      <strong>{{ codigoCorto(norma.codigo) || norma.codigo || 'NOM' }}</strong>
+                      <span *ngIf="norma.misma_normativa">Esta</span>
+                    </header>
+                    <div class="ges-ligue-cap" *ngFor="let cap of capitulosLigue(norma)">
+                      <div class="ges-ligue-cap__head">
+                        <span>Cap. {{ cap.clave }}</span>
+                        <small>{{ conteoLigueCapitulo(cap) }}</small>
+                      </div>
+                      <div class="ges-ligue-pills">
+                        <button type="button"
+                                class="ges-ligue-pill"
+                                *ngFor="let cand of cap.puntos"
+                                [class.is-on]="estaLigueSeleccionado(cand.id)"
+                                [attr.aria-pressed]="estaLigueSeleccionado(cand.id)"
+                                [title]="cand.formato_nombre || cand.descripcion || cand.punto_norma"
+                                (click)="toggleLigueDestino(cand.id)">
+                          {{ cand.punto_norma }}
+                        </button>
+                      </div>
+                    </div>
+                  </section>
+                </div>
+              </div>
+            </article>
+
             <article class="ges-mini ges-enter" [style.animation-delay]="'140ms'">
               <h4>Responsables</h4>
               <ul class="ges-people">

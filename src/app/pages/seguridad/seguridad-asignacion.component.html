@@ -7,7 +7,7 @@
             <i class="fas fa-tasks" aria-hidden="true"></i>
           </div>
           <p class="text-white mb-1 seg-hero-tagline">Seguridad e Higiene</p>
-          <h1 class="text-white mb-0 seg-hero-title">Asignación de Normativas</h1>
+          <h1 class="text-white mb-0 seg-hero-title">{{ tituloHero }}</h1>
         </div>
       </div>
     </div>
@@ -16,24 +16,108 @@
 
 <div class="container-fluid seg-main-wrap mt--5">
   <div class="seg-panel asig-panel">
-    <p class="asig-readonly-banner" *ngIf="!puedeEditarAsignacion">
-      <i class="fas fa-eye" aria-hidden="true"></i>
-      Solo lectura: se muestran las normativas asignadas a usted. La edición y publicación es solo para administradores.
-    </p>
+    <!-- Responsables: empresas a cargo (estilo gestión) -->
+    <ng-container *ngIf="muestraTableroEmpresas">
+      <div class="pto-emp-strip">
+        <div class="pto-emp-strip__lead">
+          <h2>Empresas a cargo</h2>
+          <p>Normativas que Dirección General le asignó para organizar sus puntos</p>
+        </div>
+        <div class="pto-emp-strip__stats" *ngIf="!cargandoEmpresasPuntos && empresasPuntos.length">
+          <div class="pto-emp-kpi"><span>{{ empresasPuntos.length }}</span><em>Empresas</em></div>
+          <div class="pto-emp-kpi"><span>{{ totalNormasPuntos() }}</span><em>Normativas</em></div>
+        </div>
+      </div>
+
+      <div class="pto-emp-loading" *ngIf="cargandoEmpresasPuntos">
+        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Cargando empresas…
+      </div>
+
+      <div class="pto-emp-empty" *ngIf="!cargandoEmpresasPuntos && !empresasPuntosFiltradas.length">
+        <i class="fas fa-building" aria-hidden="true"></i>
+        <strong>Sin normativas a cargo</strong>
+        <p>Cuando Dirección General le asigne normativas, aparecerán aquí para seleccionar sus puntos.</p>
+      </div>
+
+      <ng-container *ngIf="!cargandoEmpresasPuntos && empresasPuntos.length">
+        <div class="pto-emp-toolbar">
+          <label class="asig-filter pto-emp-search">
+            <i class="fas fa-search" aria-hidden="true"></i>
+            <input type="search"
+                   [(ngModel)]="busquedaEmpresaPuntos"
+                   (ngModelChange)="filtrarEmpresasPuntos()"
+                   placeholder="Buscar empresa…"
+                   aria-label="Buscar empresa">
+          </label>
+        </div>
+        <div class="pto-emp-grid">
+          <button type="button"
+                  class="pto-emp-card"
+                  *ngFor="let emp of empresasPuntosFiltradas"
+                  [attr.data-tone]="tonoAvance(emp.avance)"
+                  (click)="abrirEmpresaPuntos(emp)">
+            <div class="pto-emp-card__glow" aria-hidden="true"></div>
+            <div class="pto-emp-card__top">
+              <span class="pto-emp-card__logo" [class.has-logo]="!!logoEmpresaPuntos(emp)">
+                <img *ngIf="logoEmpresaPuntos(emp) as logo" [src]="logo" [alt]="emp.empresa_nombre">
+                <span *ngIf="!logoEmpresaPuntos(emp)">{{ iniciales(emp.empresa_nombre) }}</span>
+              </span>
+              <div class="pto-emp-card__brand">
+                <strong>{{ emp.empresa_nombre }}</strong>
+                <small *ngIf="fechaCorta(emp.ultima_gestion) as fecha">
+                  <i class="far fa-calendar-alt" aria-hidden="true"></i> {{ fecha }}
+                </small>
+                <small *ngIf="!fechaCorta(emp.ultima_gestion)">Asignada a su cargo</small>
+              </div>
+              <div class="pto-emp-ring" [ngStyle]="anilloAvanceStyle(emp.avance)" [attr.data-tone]="tonoAvance(emp.avance)">
+                <span>{{ emp.avance }}%</span>
+              </div>
+            </div>
+            <div class="pto-emp-card__meta">
+              <span class="pto-emp-pill">
+                <i class="fas fa-book" aria-hidden="true"></i>
+                <b>{{ emp.normativas }}</b> normativas
+              </span>
+              <span class="pto-emp-pill">
+                <i class="fas fa-list-ol" aria-hidden="true"></i>
+                <b>{{ emp.puntos_con_evidencia }}/{{ emp.puntos_asignados }}</b> pts
+              </span>
+              <span class="pto-emp-pill">
+                <i class="fas fa-paperclip" aria-hidden="true"></i>
+                <b>{{ emp.documentos }}</b> archivos
+              </span>
+            </div>
+            <span class="pto-emp-card__cta">
+              Seleccionar puntos
+              <i class="fas fa-arrow-right" aria-hidden="true"></i>
+            </span>
+          </button>
+        </div>
+      </ng-container>
+    </ng-container>
+
+    <ng-container *ngIf="!muestraTableroEmpresas">
     <div class="asig-top">
-      <ol class="asig-pasos" aria-label="Pasos de la asignación">
-        <li *ngFor="let nombre of pasos; let i = index" [class.is-fill]="progreso > i">
+      <ol class="asig-pasos" aria-label="Pasos">
+        <li *ngFor="let item of pasosVisibles; let i = index" [class.is-fill]="progreso > item.indice">
           <button type="button"
                   class="asig-pasos__btn"
-                  [class.is-active]="paso === i"
-                  [class.is-done]="progreso > i && paso !== i"
-                  (click)="irAPaso(i)">
-            <span class="asig-pasos__n">{{ progreso > i && paso !== i ? '✓' : i + 1 }}</span>
-            {{ nombre }}
+                  [class.is-active]="paso === item.indice"
+                  [class.is-done]="progreso > item.indice && paso !== item.indice"
+                  (click)="irAPaso(item.indice)">
+            <span class="asig-pasos__n">{{ progreso > item.indice && paso !== item.indice ? '✓' : (i + 1) }}</span>
+            {{ item.nombre }}
           </button>
         </li>
       </ol>
       <div class="asig-marks">
+        <button type="button"
+                class="asig-banner asig-banner--btn"
+                *ngIf="!puedeEditarAsignacion && empresa"
+                (click)="volverAEmpresasPuntos()"
+                title="Volver a empresas">
+          <i class="fas fa-building" aria-hidden="true"></i>
+        </button>
         <div class="asig-banner" *ngIf="avisoRecuperado" [title]="avisoRecuperado">
           <i class="fas fa-history" aria-hidden="true"></i>
         </div>
@@ -49,7 +133,7 @@
       </div>
     </div>
 
-    <section class="asig-step compose" *ngIf="paso === 0">
+    <section class="asig-step compose" *ngIf="paso === 0 && puedeEditarAsignacion">
       <div class="board">
         <div class="board-main">
         <div class="board-top">
@@ -148,7 +232,7 @@
                       *ngFor="let item of catalogoFiltrado; let i = index"
                       [style.animation-delay.ms]="(i < 10 ? i : 10) * 35"
                       [class.is-on]="estaSeleccionada(item.id)"
-                      [disabled]="!empresa"
+                      [disabled]="!empresa || !puedeEditarAsignacion"
                       [attr.aria-pressed]="estaSeleccionada(item.id)"
                       (click)="toggleNorma(item)">
                 <span class="ncard__media" [class.has-photo]="!!item.imagen_portada" [attr.data-cat]="item.categoria_id">
@@ -260,6 +344,12 @@
           </button>
         </aside>
 
+        <div class="puntos-empty-own" *ngIf="!normas.length">
+          <i class="fas fa-inbox" aria-hidden="true"></i>
+          <strong>Sin normativas a cargo</strong>
+          <p *ngIf="!puedeEditarAsignacion">Cuando Dirección General le asigne normativas, aquí podrá gestionar sus puntos.</p>
+          <p *ngIf="puedeEditarAsignacion">Seleccione normativas en el paso Asignación para configurar sus puntos.</p>
+        </div>
         <div class="puntos-work" *ngIf="normaActiva as norma">
           <div class="puntos-sticky">
             <header class="puntos-head">
@@ -287,10 +377,10 @@
                 <button type="button" *ngIf="tonosDisponibles().includes('documental')" [class.is-on]="filtroEvidencia === 'documental'" (click)="filtroEvidencia = 'documental'">Documental</button>
                 <button type="button" *ngIf="tonosDisponibles().includes('fisico')" [class.is-on]="filtroEvidencia === 'fisico'" (click)="filtroEvidencia = 'fisico'">Físico</button>
               </div>
-              <button type="button" class="puntos-action" (click)="seleccionarTodosPuntos(norma)" [disabled]="!puntosActivos.length">
+              <button type="button" class="puntos-action" (click)="seleccionarTodosPuntos(norma)" [disabled]="!puntosActivos.length || !puedeGestionarPuntos">
                 <i class="fas fa-check-double" aria-hidden="true"></i> Todos
               </button>
-              <button type="button" class="puntos-action puntos-action--quiet" (click)="limpiarPuntos(norma)" [disabled]="!norma.requisito_ids.length">
+              <button type="button" class="puntos-action puntos-action--quiet" (click)="limpiarPuntos(norma)" [disabled]="!norma.requisito_ids.length || !puedeGestionarPuntos">
                 <i class="fas fa-eraser" aria-hidden="true"></i> Limpiar
               </button>
             </div>
@@ -303,7 +393,7 @@
             <div class="pto-board" *ngIf="busquedaPunto.trim().length >= 2; else mapaCapitulos">
               <div class="pto-band__head">
                 <h3>{{ puntosFiltrados(resultadosBusqueda(norma)).length }} coincidencias</h3>
-                <button type="button" class="puntos-action puntos-action--quiet" (click)="toggleGrupo(norma, puntosFiltrados(resultadosBusqueda(norma)))" [disabled]="!puntosFiltrados(resultadosBusqueda(norma)).length">
+                <button type="button" class="puntos-action puntos-action--quiet" (click)="toggleGrupo(norma, puntosFiltrados(resultadosBusqueda(norma)))" [disabled]="!puntosFiltrados(resultadosBusqueda(norma)).length || !puedeGestionarPuntos">
                   {{ grupoMarcado(norma, puntosFiltrados(resultadosBusqueda(norma))) ? 'Quitar coincidencias' : 'Marcar coincidencias' }}
                 </button>
               </div>
@@ -332,7 +422,7 @@
                     <header class="pto-band__head">
                       <h3>Capítulo {{ cap.clave }}</h3>
                       <span>{{ cap.seleccionados }}<small>/{{ cap.total }}</small></span>
-                      <button type="button" class="puntos-action puntos-action--quiet" (click)="toggleGrupo(norma, puntosCapituloVisibles(norma, cap.clave))">
+                      <button type="button" class="puntos-action puntos-action--quiet" (click)="toggleGrupo(norma, puntosCapituloVisibles(norma, cap.clave))" [disabled]="!puedeGestionarPuntos">
                         {{ grupoMarcado(norma, puntosCapituloVisibles(norma, cap.clave)) ? 'Quitar' : 'Marcar' }}
                       </button>
                     </header>
@@ -360,7 +450,7 @@
                       [attr.aria-label]="(punto.punto_norma || 'Punto') + '. ' + resumenPunto(punto.descripcion)"
                       (mouseenter)="onPillEnter(punto)"
                       (mouseleave)="onPillLeave()"
-                      (pointerdown)="pulsarPunto(normaPill || norma, punto, $event)">
+                      (click)="pulsarPunto(normaPill || norma, punto, $event)">
                 {{ punto.punto_norma || '—' }}
               </button>
             </ng-template>
@@ -388,7 +478,11 @@
                         </div>
                       </div>
                     </header>
-                    <button type="button" class="pto-ficha__mark" [class.is-off]="estaPunto(norma, foco.id)" (click)="togglePunto(norma, foco.id)">
+                    <button type="button"
+                            class="pto-ficha__mark"
+                            [class.is-off]="estaPunto(norma, foco.id)"
+                            [disabled]="!puedeGestionarPuntos"
+                            (click)="togglePunto(norma, foco.id)">
                       {{ estaPunto(norma, foco.id) ? 'Quitar' : 'Asignar' }}
                     </button>
                     <section class="pto-ficha__block">
@@ -518,8 +612,9 @@
     </section>
 
     <footer class="asig-footer">
-      <button type="button" class="btn asig-btn-ghost" (click)="anterior()" [disabled]="paso === 0">
-        <i class="fas fa-arrow-left" aria-hidden="true"></i> Anterior
+      <button type="button" class="btn asig-btn-ghost" (click)="anterior()" [disabled]="paso === 0 && puedeEditarAsignacion">
+        <i class="fas fa-arrow-left" aria-hidden="true"></i>
+        {{ !puedeEditarAsignacion && paso <= 1 ? 'Empresas' : 'Anterior' }}
       </button>
       <div class="asig-footer__mid">
         <span class="asig-stat" *ngIf="paso === 0" title="Normativas">
@@ -545,8 +640,9 @@
         {{ publicando ? 'Publicando…' : 'Publicar en gestión' }}
       </button>
       <span class="asig-stat" *ngIf="paso === 2 && !puedeEditarAsignacion">
-        <i class="fas fa-lock" aria-hidden="true"></i> Solo administradores publican
+        <i class="fas fa-check-circle" aria-hidden="true"></i> Avance guardado
       </span>
     </footer>
+    </ng-container>
   </div>
 </div>

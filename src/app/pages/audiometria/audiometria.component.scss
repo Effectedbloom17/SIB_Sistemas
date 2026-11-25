@@ -55,6 +55,82 @@
   font-weight: 700;
 }
 
+.aud-form-card {
+  overflow: visible;
+}
+
+.aud-form-body {
+  position: relative;
+  overflow: hidden;
+
+  > *:not(.aud-form-body__deco) {
+    position: relative;
+    z-index: 1;
+  }
+
+  .form-control::placeholder {
+    color: #7f93ad;
+    opacity: 1;
+  }
+
+  select.form-control {
+    color: #0f3661;
+
+    option {
+      color: #0f3661;
+    }
+
+    // Placeholder "Seleccionar" en azul de interfaz (no verde)
+    &:has(option[value='']:checked),
+    &:has(option:checked[value='']) {
+      color: #7f93ad;
+    }
+  }
+}
+
+.aud-form-body__deco {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    background-color: #0b6988;
+    opacity: 0.15;
+    filter: blur(1.5px);
+    mask-repeat: no-repeat;
+    mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    -webkit-mask-size: contain;
+  }
+
+  &::before {
+    bottom: 0;
+    left: 0;
+    width: min(580px, 88%);
+    height: min(580px, 78%);
+    mask-image: url('/assets/img/img_deco/Fondo_com_inf.png');
+    -webkit-mask-image: url('/assets/img/img_deco/Fondo_com_inf.png');
+    mask-position: bottom left;
+    -webkit-mask-position: bottom left;
+  }
+
+  &::after {
+    top: 0;
+    right: 0;
+    width: min(580px, 88%);
+    height: min(580px, 78%);
+    mask-image: url('/assets/img/img_deco/Fondo_com_sup.png');
+    -webkit-mask-image: url('/assets/img/img_deco/Fondo_com_sup.png');
+    mask-position: top right;
+    -webkit-mask-position: top right;
+  }
+}
+
 .form-row {
   align-items: flex-end;
 

@@ -153,34 +153,42 @@ function sanitizarHtmlDescripcion(html) {
         .trim();
 }
 
-/** Corrige 9.60000000000001 → 9.6 y conserva puntos tipo 7.1.1 */
+/**
+ * Etiqueta jerárquica de punto (5.10, 7.1.1, 8.2.10).
+ * Siempre texto literal: NUNCA Number()/parseFloat ("5.10" → 5.1).
+ */
 function formatearPuntoNorma(value) {
     if (value === null || value === undefined || value === '') return null;
 
+    // Si ya llegó como number, el cero final ya se perdió en JS; no inventar dígitos.
     if (typeof value === 'number' && Number.isFinite(value)) {
-        const n = Math.round(value * 10000) / 10000;
-        let s = String(n);
-        if (s.includes('.')) {
-            s = s.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
-        }
-        return s;
+        return String(value).slice(0, 32);
     }
 
-    let s = limpiarTexto(value);
+    let s;
+    if (typeof value === 'object' && value !== null && !(value instanceof Date)) {
+        s = limpiarTexto(extraerTextoCrudo(value));
+    } else {
+        s = limpiarTexto(value);
+    }
     if (!s) return null;
 
-    const artefacto = s.match(/^(\d+)\.(\d{1,4})0{4,}\d*$/);
+    // Solo basura float obvia (9.60000000000001). No tocar "5.10" / "5.20".
+    const artefacto = s.match(/^(\d+)\.(\d{1,4}?)0{6,}\d+$/);
     if (artefacto) {
         const dec = artefacto[2].replace(/0+$/, '');
-        return dec ? `${artefacto[1]}.${dec}` : artefacto[1];
+        return (dec ? `${artefacto[1]}.${dec}` : artefacto[1]).slice(0, 32);
     }
 
-    const num = Number(s);
-    if (Number.isFinite(num) && /^\d+(\.\d+)?$/.test(s)) {
-        return formatearPuntoNorma(num);
-    }
+    return s.slice(0, 32);
+}
 
-    return s;
+/** Guarda el punto tal como lo escribió el usuario (trim + tope). */
+function puntoNormaParaGuardar(valor) {
+    if (valor === null || valor === undefined) return null;
+    const s = String(valor).replace(/\s+/g, ' ').trim();
+    if (!s) return null;
+    return s.slice(0, 32);
 }
 
 function celdaAHtml(value) {
@@ -605,6 +613,17 @@ function leerColumna(row, col) {
     return valorCelda(row.getCell(col));
 }
 
+/** Para la columna Punto: preferir texto de Excel (5.10) sobre value numérico (5.1). */
+function leerColumnaPunto(row, col) {
+    if (!col) return null;
+    const cell = row.getCell(col);
+    if (!cell) return null;
+    const fuente = celdaEsclava(cell) && cell.master ? cell.master : cell;
+    const textoFmt = fuente.text != null ? String(fuente.text).trim() : '';
+    if (textoFmt) return textoFmt;
+    return valorCelda(fuente);
+}
+
 function extraerPuntoDesdeDescripcion(descripcion) {
     const txt = String(descripcion || '').trim();
     const m = txt.match(/^(\d+(?:\.\d+){0,6})\b/);
@@ -614,7 +633,7 @@ function extraerPuntoDesdeDescripcion(descripcion) {
 function parsearFilaRequisito(ws, rowNum, estructura) {
     const cols = estructura.cols;
     const row = ws.getRow(rowNum);
-    const celdaPuntoVal = leerColumna(row, cols.PUNTO);
+    const celdaPuntoVal = leerColumnaPunto(row, cols.PUNTO);
     const celdaDescVal = leerColumna(row, cols.DESCRIPCION);
     const numeroItem = cols.ITEM ? limpiarTexto(leerColumna(row, cols.ITEM)) : '';
     let punto = formatearPuntoNorma(celdaPuntoVal);
@@ -773,16 +792,62 @@ function borrarArchivoSeguro(publicPath) {
 }
 
 async function normalizarPuntosExistentes(pool) {
+    // Solo homogeniza espacios; nunca altera dígitos.
     const [rows] = await pool.query(
         `SELECT id, punto_norma FROM seg_normativa_requisito WHERE punto_norma IS NOT NULL`
     );
     for (const row of rows) {
-        const fixed = formatearPuntoNorma(row.punto_norma);
+        const fixed = puntoNormaParaGuardar(row.punto_norma);
         if (fixed && fixed !== row.punto_norma) {
             await pool.query(
                 'UPDATE seg_normativa_requisito SET punto_norma = ? WHERE id = ?',
                 [fixed, row.id]
             );
+        }
+    }
+}
+
+/**
+ * Repara ceros finales perdidos por Number() en import/edición antigua.
+ * Ej.: secuencia 7.9 → 7.1 → 7.11  ⇒  el del medio era 7.10.
+ */
+async function repararPuntosCeroFinal(pool) {
+    const [normas] = await pool.query('SELECT id FROM seg_normativa');
+    for (const n of normas) {
+        const [rows] = await pool.query(
+            `SELECT id, punto_norma
+             FROM seg_normativa_requisito
+             WHERE normativa_id = ?
+             ORDER BY orden ASC, id ASC`,
+            [n.id]
+        );
+        for (let i = 1; i < rows.length - 1; i++) {
+            const prev = String(rows[i - 1].punto_norma || '');
+            const cur = String(rows[i].punto_norma || '');
+            const next = String(rows[i + 1].punto_norma || '');
+            if (!prev || !cur || !next) continue;
+            const pc = prev.split('.');
+            const cc = cur.split('.');
+            const nc = next.split('.');
+            if (pc.length !== cc.length || cc.length !== nc.length) continue;
+            const raizP = pc.slice(0, -1).join('.');
+            const raizC = cc.slice(0, -1).join('.');
+            const raizN = nc.slice(0, -1).join('.');
+            if (raizP !== raizC || raizC !== raizN) continue;
+            const p = Number(pc[pc.length - 1]);
+            const c = Number(cc[cc.length - 1]);
+            const nx = Number(nc[nc.length - 1]);
+            if (!Number.isInteger(p) || !Number.isInteger(c) || !Number.isInteger(nx)) continue;
+            if (nx !== p + 2 || c === p + 1) continue;
+            const parts = cc.slice();
+            parts[parts.length - 1] = String(p + 1);
+            const corregido = parts.join('.').slice(0, 32);
+            if (corregido === cur) continue;
+            await pool.query(
+                'UPDATE seg_normativa_requisito SET punto_norma = ? WHERE id = ?',
+                [corregido, rows[i].id]
+            );
+            rows[i].punto_norma = corregido;
         }
     }
 }
@@ -926,6 +991,7 @@ async function asegurarTablas(pool) {
     `);
 
     await normalizarPuntosExistentes(pool);
+    await repararPuntosCeroFinal(pool);
     await normalizarResponsablesExistentes(pool);
 }
 
@@ -988,7 +1054,8 @@ function mapRequisitoRow(row) {
         id: row.id,
         normativa_id: row.normativa_id,
         numero_item: row.numero_item,
-        punto_norma: formatearPuntoNorma(row.punto_norma),
+        // Confiar en VARCHAR: no pasar por Number ni recortar ceros.
+        punto_norma: row.punto_norma == null ? null : String(row.punto_norma),
         descripcion: row.descripcion,
         descripcion_html: row.descripcion_html || null,
         aplica: row.aplica == null ? null : !!Number(row.aplica),
@@ -1305,9 +1372,14 @@ async function actualizarRequisito(pool, normativaId, requisitoId, datos, usuari
         const limpio = String(valor).trim();
         return limpio || null;
     };
-    const punto = datos.punto_norma !== undefined
-        ? (formatearPuntoNorma(datos.punto_norma) || texto(datos.punto_norma, null))
-        : prev.punto_norma;
+    // Texto literal del editor. "5.10" se guarda "5.10" (no Number, no formateo numérico).
+    // Preferir punto_norma_texto si el cliente lo manda (evita coerción JSON rara).
+    const puntoEntrada = datos.punto_norma_texto !== undefined
+        ? datos.punto_norma_texto
+        : datos.punto_norma;
+    const punto = puntoEntrada !== undefined
+        ? puntoNormaParaGuardar(puntoEntrada)
+        : (prev.punto_norma == null ? null : String(prev.punto_norma));
     const quitarFormato = datos.quitar_formato === true || datos.quitar_formato === 'true';
     const campos = {
         punto_norma: punto,
@@ -1724,6 +1796,7 @@ module.exports = {
     eliminarNormativa,
     parsearPlantillaExcel,
     formatearPuntoNorma,
+    puntoNormaParaGuardar,
     normalizarResponsablePunto,
     contextoUsuario,
     categoriaDesdeNumero

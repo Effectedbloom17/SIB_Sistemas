@@ -366,16 +366,112 @@ async function obtener(pool, id) {
     return fila;
 }
 
+function normalizarNivelEtiqueta(raw) {
+    const n = String(raw || '').toUpperCase().replace(/\s+/g, ' ').trim();
+    if (n === 'MUY ALTO' || n === 'MUY_ALTO') return 'MUY ALTO';
+    if (['NULO', 'BAJO', 'MEDIO', 'ALTO'].includes(n)) return n;
+    return '';
+}
+
+function construirGruposDesdePersonas(personas) {
+    const map = new Map();
+    for (const p of personas || []) {
+        const depto = txt(p.departamento, 160) || 'Sin departamento';
+        if (!map.has(depto)) {
+            map.set(depto, { departamento: depto, personal: 0, suma: 0, niveles: {} });
+        }
+        const g = map.get(depto);
+        const puntaje = Number(p.puntaje);
+        g.personal += 1;
+        if (Number.isFinite(puntaje)) g.suma += puntaje;
+        const nivel = normalizarNivelEtiqueta(p.nivel_riesgo) || nivelDesdeCalificacion(puntaje) || 'NULO';
+        g.niveles[nivel] = (g.niveles[nivel] || 0) + 1;
+    }
+    return Array.from(map.values())
+        .map((g) => {
+            const promedio = g.personal ? Math.round((g.suma / g.personal) * 100) / 100 : null;
+            const nivel = nivelDesdeCalificacion(promedio) || 'NULO';
+            return {
+                departamento: g.departamento,
+                personal: g.personal,
+                promedio,
+                nivel_riesgo: nivel,
+                color_nivel: colorNivel(nivel),
+                distribucion_niveles: g.niveles
+            };
+        })
+        .sort((a, b) => String(a.departamento).localeCompare(String(b.departamento), 'es'));
+}
+
+function resumenDesdePersonas(personas) {
+    const lista = Array.isArray(personas) ? personas : [];
+    const dist = { NULO: 0, BAJO: 0, MEDIO: 0, ALTO: 0, 'MUY ALTO': 0 };
+    let suma = 0;
+    let conPuntaje = 0;
+    for (const p of lista) {
+        const puntaje = Number(p.puntaje);
+        if (Number.isFinite(puntaje)) {
+            suma += puntaje;
+            conPuntaje += 1;
+        }
+        const nivel = normalizarNivelEtiqueta(p.nivel_riesgo) || nivelDesdeCalificacion(puntaje) || '';
+        if (nivel && Object.prototype.hasOwnProperty.call(dist, nivel)) {
+            dist[nivel] += 1;
+        }
+    }
+    const promedio = conPuntaje ? Math.round((suma / conPuntaje) * 100) / 100 : null;
+    const nivel = nivelDesdeCalificacion(promedio);
+    return {
+        personal_evaluado: lista.length,
+        calificacion_promedio: promedio,
+        nivel_riesgo: nivel,
+        color_nivel: colorNivel(nivel),
+        distribucion_niveles: dist
+    };
+}
+
 function normalizarPayload(body = {}) {
     const tipo = ['ats', 'factores', 'otro'].includes(String(body.tipo_encuesta || ''))
         ? String(body.tipo_encuesta)
         : 'factores';
-    const resumen = body.resumen && typeof body.resumen === 'object' ? body.resumen : {};
-    let detalle = body.detalle && typeof body.detalle === 'object' ? body.detalle : {};
+    const resumen = body.resumen && typeof body.resumen === 'object' ? { ...body.resumen } : {};
+    let detalle = body.detalle && typeof body.detalle === 'object' ? { ...body.detalle } : {};
     if (tipo === 'factores') {
+        const personas = Array.isArray(detalle.personas)
+            ? detalle.personas.map((p) => {
+                const puntaje = p.puntaje == null || p.puntaje === '' ? null : Number(p.puntaje);
+                const nivel = normalizarNivelEtiqueta(p.nivel_riesgo)
+                    || (Number.isFinite(puntaje) ? nivelDesdeCalificacion(puntaje) : '')
+                    || '';
+                return {
+                    nombre: txt(p.nombre, 160),
+                    puesto: txt(p.puesto, 160),
+                    departamento: txt(p.departamento, 160),
+                    puntaje: Number.isFinite(puntaje) ? puntaje : null,
+                    nivel_riesgo: nivel,
+                    color_nivel: colorNivel(nivel)
+                };
+            }).filter((p) => p.nombre)
+            : [];
+        const grupos = Array.isArray(detalle.grupos) && detalle.grupos.length
+            ? detalle.grupos
+            : construirGruposDesdePersonas(personas);
+        const calc = personas.length ? resumenDesdePersonas(personas) : null;
+        if (calc) {
+            Object.assign(resumen, {
+                personal_evaluado: resumen.personal_evaluado ?? calc.personal_evaluado,
+                calificacion_promedio: resumen.calificacion_promedio ?? calc.calificacion_promedio,
+                nivel_riesgo: resumen.nivel_riesgo || calc.nivel_riesgo,
+                color_nivel: resumen.color_nivel || calc.color_nivel,
+                distribucion_niveles: resumen.distribucion_niveles || calc.distribucion_niveles
+            });
+        }
         detalle = {
             niveles: detalle.niveles || NIVELES_RIESGO,
             rangos: detalle.rangos || RANGOS_CALIFICACION,
+            personas,
+            grupos,
+            origen: detalle.origen || (personas.length ? 'excel' : 'manual'),
             resultado_final: detalle.resultado_final || {
                 personal_evaluado: resumen.personal_evaluado ?? null,
                 nivel_riesgo_promedio: resumen.calificacion_promedio ?? null,
@@ -403,6 +499,119 @@ function normalizarPayload(body = {}) {
         detalle,
         notas: txt(body.notas, 1000) || null,
         texto_extraido: body.texto_extraido != null ? String(body.texto_extraido) : null
+    };
+}
+
+function normalizarHeaderCelda(valor) {
+    return sinAcentos(valor)
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim();
+}
+
+function mapearColumnasExcel(headers) {
+    const idx = { nombre: -1, puesto: -1, departamento: -1, puntaje: -1, nivel: -1 };
+    headers.forEach((h, i) => {
+        const key = normalizarHeaderCelda(h);
+        if (!key) return;
+        if (idx.nombre < 0 && (key === 'nombre' || key.includes('nombre'))) idx.nombre = i;
+        else if (idx.puesto < 0 && (key === 'puesto' || key.includes('puesto'))) idx.puesto = i;
+        else if (idx.departamento < 0 && (key === 'departamento' || key.includes('departamento') || key.includes('area'))) idx.departamento = i;
+        else if (idx.puntaje < 0 && (key.includes('puntaje') || key.includes('calificacion') || key.includes('score'))) idx.puntaje = i;
+        else if (idx.nivel < 0 && ((key.includes('nivel') && key.includes('riesgo')) || key === 'nivel de riesgo' || key === 'nivel')) idx.nivel = i;
+    });
+    return idx;
+}
+
+async function parsearExcelConcentrado(buffer, originalname = '') {
+    const ExcelJS = require('exceljs');
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer);
+    const sheet = workbook.worksheets[0];
+    if (!sheet) {
+        const e = new Error('El Excel no tiene hojas');
+        e.status = 422;
+        throw e;
+    }
+
+    let headerRowNum = 1;
+    let colMap = null;
+    const maxScan = Math.min(15, sheet.rowCount || 15);
+    for (let r = 1; r <= maxScan; r += 1) {
+        const row = sheet.getRow(r);
+        const headers = [];
+        row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+            headers[colNumber - 1] = String(cell.value == null ? '' : (cell.text || cell.value));
+        });
+        const map = mapearColumnasExcel(headers);
+        if (map.nombre >= 0 && (map.puntaje >= 0 || map.nivel >= 0)) {
+            headerRowNum = r;
+            colMap = map;
+            break;
+        }
+    }
+    if (!colMap) {
+        const e = new Error('No se encontraron columnas Nombre / Puntaje / Nivel De Riesgo en el Excel');
+        e.status = 422;
+        throw e;
+    }
+
+    const personas = [];
+    for (let r = headerRowNum + 1; r <= (sheet.rowCount || 0); r += 1) {
+        const row = sheet.getRow(r);
+        const cellVal = (idx) => {
+            if (idx < 0) return '';
+            const cell = row.getCell(idx + 1);
+            if (cell.value == null) return '';
+            if (typeof cell.value === 'object' && cell.value.result != null) return cell.value.result;
+            if (typeof cell.value === 'object' && cell.value.text != null) return cell.value.text;
+            return cell.value;
+        };
+        const nombre = txt(cellVal(colMap.nombre), 160);
+        if (!nombre) continue;
+        const puntajeRaw = cellVal(colMap.puntaje);
+        const puntaje = puntajeRaw === '' || puntajeRaw == null ? null : Number(String(puntajeRaw).replace(',', '.'));
+        let nivel = normalizarNivelEtiqueta(cellVal(colMap.nivel));
+        if (!nivel && Number.isFinite(puntaje)) nivel = nivelDesdeCalificacion(puntaje);
+        personas.push({
+            nombre,
+            puesto: txt(cellVal(colMap.puesto), 160),
+            departamento: txt(cellVal(colMap.departamento), 160),
+            puntaje: Number.isFinite(puntaje) ? puntaje : null,
+            nivel_riesgo: nivel || '',
+            color_nivel: colorNivel(nivel)
+        });
+    }
+
+    if (!personas.length) {
+        const e = new Error('El Excel no trae filas de personal evaluado');
+        e.status = 422;
+        throw e;
+    }
+
+    const resumen = resumenDesdePersonas(personas);
+    const grupos = construirGruposDesdePersonas(personas);
+    const baseName = String(originalname || '').replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
+    return {
+        periodo: txt(baseName, 160) || `Concentrado ${new Date().toISOString().slice(0, 10)}`,
+        tipo_encuesta: 'factores',
+        departamento: 'Todos',
+        puesto: 'Todos',
+        resumen,
+        detalle: {
+            niveles: NIVELES_RIESGO,
+            rangos: RANGOS_CALIFICACION,
+            personas,
+            grupos,
+            origen: 'excel',
+            resultado_final: {
+                personal_evaluado: resumen.personal_evaluado,
+                nivel_riesgo_promedio: resumen.calificacion_promedio,
+                calificacion_promedio: resumen.nivel_riesgo
+            },
+            encuesta_label: 'Factores De Riesgo Psicosocial (concentrado)'
+        },
+        texto_extraido: `Excel ${personas.length} personas · promedio ${resumen.calificacion_promedio}`,
+        confianza: 'alta'
     };
 }
 
@@ -517,11 +726,26 @@ async function obtenerArchivo(pool, id) {
 }
 
 /**
- * Interpreta un PDF (o texto ya extraído) y devuelve borrador editable.
+ * Interpreta Excel / PDF / imagen y devuelve borrador editable.
  */
 async function previsualizarImportacion({ buffer, mimetype, originalname, texto }) {
+    const name = String(originalname || '');
+    const mime = String(mimetype || '');
+    const esExcel = /sheet|excel|\.xlsx?$/i.test(mime + ' ' + name) || /\.xlsx?$/i.test(name);
+
+    if (esExcel && buffer?.length) {
+        const parsed = await parsearExcelConcentrado(buffer, name);
+        return {
+            ok: true,
+            requiere_captura_manual: false,
+            mensaje: `Se leyeron ${parsed.detalle.personas.length} personas del Excel. Revisa periodo e indicadores antes de guardar.`,
+            borrador: parsed,
+            catalogo: catalogoReferencia()
+        };
+    }
+
     let textoExtraido = String(texto || '').trim();
-    const esPdf = /pdf/i.test(mimetype || '') || /\.pdf$/i.test(originalname || '');
+    const esPdf = /pdf/i.test(mime) || /\.pdf$/i.test(name);
     if (!textoExtraido && esPdf && buffer?.length) {
         textoExtraido = await extraerTextoPdf(buffer);
     }
@@ -529,7 +753,7 @@ async function previsualizarImportacion({ buffer, mimetype, originalname, texto 
         return {
             ok: true,
             requiere_captura_manual: true,
-            mensaje: 'La imagen se puede adjuntar; captura los indicadores manualmente o sube un PDF con texto seleccionable.',
+            mensaje: 'La imagen se puede adjuntar; captura los indicadores manualmente o sube un Excel/PDF.',
             borrador: {
                 periodo: 'Sin periodo',
                 tipo_encuesta: 'factores',
@@ -540,7 +764,8 @@ async function previsualizarImportacion({ buffer, mimetype, originalname, texto 
                     niveles: NIVELES_RIESGO,
                     rangos: RANGOS_CALIFICACION,
                     reglas: REGLAS_ATS,
-                    personas: []
+                    personas: [],
+                    grupos: []
                 },
                 texto_extraido: '',
                 confianza: 'baja'
@@ -558,11 +783,7 @@ async function previsualizarImportacion({ buffer, mimetype, originalname, texto 
             ...parsed,
             texto_extraido: textoExtraido
         },
-        catalogo: {
-            niveles: NIVELES_RIESGO,
-            rangos: RANGOS_CALIFICACION,
-            reglas: REGLAS_ATS
-        }
+        catalogo: catalogoReferencia()
     };
 }
 
@@ -570,26 +791,65 @@ function catalogoReferencia() {
     return { niveles: NIVELES_RIESGO, rangos: RANGOS_CALIFICACION, reglas: REGLAS_ATS };
 }
 
+function enriquecerRegistroFactores(reg) {
+    if (!reg || reg.tipo_encuesta !== 'factores') return reg;
+    const personas = Array.isArray(reg.detalle?.personas) ? reg.detalle.personas : [];
+    const grupos = Array.isArray(reg.detalle?.grupos) && reg.detalle.grupos.length
+        ? reg.detalle.grupos
+        : construirGruposDesdePersonas(personas);
+    const distPersonas = resumenDesdePersonas(personas).distribucion_niveles;
+    return {
+        ...reg,
+        detalle: {
+            ...(reg.detalle || {}),
+            personas,
+            grupos
+        },
+        individuales: personas,
+        grupales: grupos,
+        distribucion_personas: distPersonas
+    };
+}
+
 function dashboardDesdeRegistros(registros) {
     const ats = (registros || []).filter((r) => r.tipo_encuesta === 'ats');
     const factores = (registros || []).filter((r) => r.tipo_encuesta === 'factores');
     const ultimoAts = ats[0] || null;
-    const ultimoFactores = factores[0] || null;
+    const ultimoFactoresRaw = factores[0] || null;
+    const ultimoFactores = enriquecerRegistroFactores(ultimoFactoresRaw);
 
     const distNiveles = { NULO: 0, BAJO: 0, MEDIO: 0, ALTO: 0, 'MUY ALTO': 0 };
     for (const r of factores) {
-        const n = String(r.resumen?.nivel_riesgo || '').toUpperCase().replace(/\s+/g, ' ').trim();
+        const n = normalizarNivelEtiqueta(r.resumen?.nivel_riesgo);
         if (n && Object.prototype.hasOwnProperty.call(distNiveles, n)) {
             distNiveles[n] += 1;
-        } else if (n === 'MUY ALTO' || n === 'MUY_ALTO') {
-            distNiveles['MUY ALTO'] += 1;
         }
     }
+
+    const factoresAsc = [...factores].reverse();
+    const comparativas = {
+        periodos: factoresAsc.map((r) => ({
+            id: r.id,
+            periodo: r.periodo,
+            creado_en: r.creado_en,
+            personal_evaluado: r.resumen?.personal_evaluado ?? null,
+            calificacion_promedio: r.resumen?.calificacion_promedio ?? null,
+            nivel_riesgo: r.resumen?.nivel_riesgo ?? null,
+            color_nivel: colorNivel(r.resumen?.nivel_riesgo)
+        })),
+        serie_promedio: factoresAsc.map((r) => Number(r.resumen?.calificacion_promedio) || 0),
+        serie_personal: factoresAsc.map((r) => Number(r.resumen?.personal_evaluado) || 0),
+        etiquetas: factoresAsc.map((r) => r.periodo || `ID ${r.id}`)
+    };
 
     return {
         catalogo: catalogoReferencia(),
         ultimo_ats: ultimoAts,
         ultimo_factores: ultimoFactores,
+        individuales: ultimoFactores?.individuales || [],
+        grupales: ultimoFactores?.grupales || [],
+        distribucion_personas: ultimoFactores?.distribucion_personas || distNiveles,
+        comparativas,
         totales: {
             reportes: (registros || []).length,
             ats: ats.length,
@@ -609,8 +869,11 @@ module.exports = {
     obtenerArchivo,
     previsualizarImportacion,
     parsearTextoReporte,
+    parsearExcelConcentrado,
     catalogoReferencia,
     dashboardDesdeRegistros,
+    construirGruposDesdePersonas,
+    resumenDesdePersonas,
     NIVELES_RIESGO,
     RANGOS_CALIFICACION,
     REGLAS_ATS

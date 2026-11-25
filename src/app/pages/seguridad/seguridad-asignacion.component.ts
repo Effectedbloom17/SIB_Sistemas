@@ -1,8 +1,8 @@
 import { Component, ElementRef, HostListener, NgZone, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { Router } from '@angular/router';
-import { Subject } from 'rxjs';
-import { takeUntil } from 'rxjs/operators';
+import { forkJoin, of, Subject } from 'rxjs';
+import { catchError, takeUntil } from 'rxjs/operators';
 import Swal from 'sweetalert2';
 import { environment } from 'src/environments/environment';
 import { AuthService } from 'src/app/services/auth.service';
@@ -15,6 +15,19 @@ interface EmpresaOpcion {
   rfc?: string;
   ciudad?: string;
   estado?: string;
+  logo?: string | null;
+}
+
+/** Tarjeta de empresa para responsables (estilo gestión). */
+interface EmpresaPuntosCard {
+  empresa_id: number;
+  empresa_nombre: string;
+  avance: number;
+  normativas: number;
+  puntos_asignados: number;
+  puntos_con_evidencia: number;
+  documentos: number;
+  ultima_gestion?: string | null;
   logo?: string | null;
 }
 
@@ -194,6 +207,7 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
 
   private readonly destroy$ = new Subject<void>();
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
+  private pubProgressTimer: ReturnType<typeof setInterval> | null = null;
   private sucio = false;
   private enVuelo = false;
   private cargaToken = 0;
@@ -207,23 +221,62 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
     private sanitizer: DomSanitizer
   ) {}
 
-  /** Solo administradores editan/publican; el resto solo ve lo asignado a sí. */
+  /**
+   * Solo Dirección General (marisol12, leonel58) y superadministrador asignan/publican.
+   * El resto gestiona puntos de las normativas ya asignadas a su cargo.
+   */
   get puedeEditarAsignacion(): boolean {
-    return this.auth.esAdministradorOSuperior();
+    return this.auth.puedeAsignarNormativasSeguridad();
+  }
+
+  /** Puede marcar/quitar puntos: asignadores, o responsables con normativas a cargo. */
+  get puedeGestionarPuntos(): boolean {
+    return this.puedeEditarAsignacion || this.normas.length > 0;
   }
 
   get usuarioActualId(): number {
     return Number(this.auth.getUsuarioId() || 0);
   }
 
+  get tituloHero(): string {
+    return this.puedeEditarAsignacion ? 'Asignación de Normativas' : 'Selección de puntos';
+  }
+
+  /** Pasos del stepper visibles según perfil. */
+  get pasosVisibles(): Array<{ nombre: string; indice: number }> {
+    if (this.puedeEditarAsignacion) {
+      return this.pasos.map((nombre, indice) => ({ nombre, indice }));
+    }
+    return [
+      { nombre: 'Puntos', indice: 1 },
+      { nombre: 'Resumen', indice: 2 }
+    ];
+  }
+
+  /** Responsable sin empresa: tablero de empresas a cargo. */
+  get muestraTableroEmpresas(): boolean {
+    return !this.puedeEditarAsignacion && !this.empresa;
+  }
+
+  empresasPuntos: EmpresaPuntosCard[] = [];
+  empresasPuntosFiltradas: EmpresaPuntosCard[] = [];
+  busquedaEmpresaPuntos = '';
+  cargandoEmpresasPuntos = false;
+
   ngOnInit(): void {
-    this.cargarEmpresas();
-    this.cargarCatalogo();
-    this.cargarUsuarios();
+    if (this.puedeEditarAsignacion) {
+      this.cargarEmpresas();
+      this.cargarCatalogo();
+      this.cargarUsuarios();
+    } else {
+      this.cargarEmpresasPuntos();
+      this.cargarCatalogo();
+    }
   }
 
   ngOnDestroy(): void {
     if (this.saveTimer) clearTimeout(this.saveTimer);
+    this.detenerProgresoPublicacion();
     this.flush();
     this.destroy$.next();
     this.destroy$.complete();
@@ -331,6 +384,99 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
         this.cargandoEmpresas = false;
       }
     });
+  }
+
+  /** Empresas donde el responsable tiene normativas a cargo (tablero estilo gestión). */
+  cargarEmpresasPuntos(): void {
+    this.cargandoEmpresasPuntos = true;
+    forkJoin({
+      gestion: this.backend.listarEmpresasGestionSeguridad(),
+      empresas: this.backend.obtenerEmpresas().pipe(catchError(() => of({ empresas: [] })))
+    })
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: ({ gestion, empresas }: any) => {
+          const logos = new Map<number, string | null>();
+          for (const e of empresas?.empresas || []) {
+            const id = Number(e.empresa_id);
+            if (id > 0) logos.set(id, e.logo || e.logo_url || null);
+          }
+          const lista = Array.isArray(gestion?.empresas) ? gestion.empresas : [];
+          this.empresasPuntos = lista
+            .map((e: any) => {
+              const empresaId = Number(e.empresa_id);
+              return {
+                empresa_id: empresaId,
+                empresa_nombre: String(e.empresa_nombre || e.nombre_empresa || '').trim(),
+                avance: Math.max(0, Math.min(100, Number(e.avance) || 0)),
+                normativas: Number(e.normativas) || 0,
+                puntos_asignados: Number(e.puntos_asignados) || 0,
+                puntos_con_evidencia: Number(e.puntos_con_evidencia) || 0,
+                documentos: Number(e.documentos) || 0,
+                ultima_gestion: e.ultima_gestion || null,
+                logo: logos.get(empresaId) || null
+              } as EmpresaPuntosCard;
+            })
+            .filter((e: EmpresaPuntosCard) => e.empresa_id > 0 && e.empresa_nombre);
+          this.filtrarEmpresasPuntos();
+          this.cargandoEmpresasPuntos = false;
+        },
+        error: () => {
+          this.empresasPuntos = [];
+          this.empresasPuntosFiltradas = [];
+          this.cargandoEmpresasPuntos = false;
+        }
+      });
+  }
+
+  logoEmpresaPuntos(emp: EmpresaPuntosCard): string | null {
+    return emp?.logo ? this.backend.resolverUrlDrivePreview(emp.logo) : null;
+  }
+
+  tonoAvance(pct: number): 'low' | 'mid' | 'high' {
+    const n = Number(pct) || 0;
+    if (n >= 70) return 'high';
+    if (n >= 35) return 'mid';
+    return 'low';
+  }
+
+  filtrarEmpresasPuntos(): void {
+    const q = this.busquedaEmpresaPuntos.trim().toLowerCase();
+    this.empresasPuntosFiltradas = !q
+      ? [...this.empresasPuntos]
+      : this.empresasPuntos.filter((e) => e.empresa_nombre.toLowerCase().includes(q));
+  }
+
+  anilloAvanceStyle(pct: number): { [key: string]: string } {
+    const n = Math.max(0, Math.min(100, Number(pct) || 0));
+    const color = n >= 70 ? '#16a34a' : n >= 35 ? '#d97706' : '#e11d48';
+    return {
+      background: `conic-gradient(${color} ${n * 3.6}deg, rgba(226, 232, 240, 0.55) 0deg)`
+    };
+  }
+
+  fechaCorta(valor: string | null | undefined): string {
+    if (!valor) return '';
+    const d = new Date(valor);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  abrirEmpresaPuntos(card: EmpresaPuntosCard): void {
+    const emp: EmpresaOpcion = {
+      empresa_id: card.empresa_id,
+      nombre_empresa: card.empresa_nombre
+    };
+    this.seleccionarEmpresa(emp);
+  }
+
+  volverAEmpresasPuntos(): void {
+    this.limpiarEmpresa();
+    if (!this.empresasPuntos.length) this.cargarEmpresasPuntos();
+  }
+
+  totalNormasPuntos(): number {
+    return this.empresasPuntos.reduce((sum, e) => sum + (e.normativas || 0), 0);
   }
 
   cargarCatalogo(): void {
@@ -528,7 +674,7 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
         }
         this.aplicando = false;
         this.enfocarAsignacion();
-        if (res?.sugerir_historial && this.historialSugerido) {
+        if (this.puedeEditarAsignacion && res?.sugerir_historial && this.historialSugerido) {
           this.ofrecerHistorialPrevio();
         }
       },
@@ -633,8 +779,8 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
   private avisarSoloLecturaAsignacion(): void {
     Swal.fire({
       icon: 'info',
-      title: 'Solo lectura',
-      text: 'Solo los administradores pueden editar o publicar asignaciones. Aquí solo ve las normativas que tiene a cargo.',
+      title: 'Asignación restringida',
+      text: 'Solo Dirección General y el superadministrador pueden asignar normativas. Usted puede gestionar los puntos de las que ya tiene a cargo.',
       confirmButtonColor: '#b91c1c'
     });
   }
@@ -807,6 +953,10 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
   }
 
   togglePunto(norma: NormaAsignada, id: number): void {
+    if (!this.puedeGestionarPuntos) {
+      this.avisarSoloLecturaAsignacion();
+      return;
+    }
     if (norma.requisito_ids.includes(id)) {
       norma.requisito_ids = norma.requisito_ids.filter((x) => x !== id);
       norma.puntos_accion = (norma.puntos_accion || []).filter((p) => p.requisito_id !== id);
@@ -946,24 +1096,24 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
     if (ev instanceof PointerEvent && ev.button !== 0) return;
     ev?.preventDefault();
     ev?.stopPropagation();
-    // Clic fija el detalle; otro clic en el mismo punto lo libera para volver a previsualizar.
+    // Mismo punto fijado → liberar. Otro punto → reemplaza el fijo de inmediato.
     if (this.puntoFijadoId === punto.id) {
       this.puntoFijadoId = null;
       return;
     }
     this.puntoFijadoId = punto.id;
     this.puntoHoverId = null;
-    this.puntoEnfoque = punto;
+    this.imagenAbierta = null;
     try {
       this.cargarDetalle(punto);
     } catch {
+      this.puntoEnfoque = punto;
       this.lecturaHtml = this.sanitizer.bypassSecurityTrustHtml(
         this.escaparHtml(punto.descripcion || 'Sin descripción').replace(/\n/g, '<br>')
       );
       this.imagenesSobrantes = punto.imagenes || [];
       this.fichaAnim += 1;
     }
-    this.imagenAbierta = null;
     if (!this.usaHover) this.fichaMovil = true;
   }
 
@@ -1162,12 +1312,17 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
 
   irAPaso(destino: number): void {
     if (destino === this.paso) return;
+    if (!this.puedeEditarAsignacion && destino === 0) {
+      this.volverAEmpresasPuntos();
+      return;
+    }
     if (destino < this.paso) {
       this.paso = destino;
       this.persistirPaso();
       return;
     }
     for (let i = this.paso; i < destino; i++) {
+      if (!this.puedeEditarAsignacion && i === 0) continue;
       if (!this.pasoValido(i)) {
         this.paso = i;
         this.avisarPaso(i);
@@ -1198,6 +1353,10 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
   }
 
   anterior(): void {
+    if (!this.puedeEditarAsignacion && this.paso <= 1) {
+      this.volverAEmpresasPuntos();
+      return;
+    }
     this.paso = Math.max(0, this.paso - 1);
     this.persistirPaso();
   }
@@ -1267,7 +1426,7 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
       : ` Quedará registrada en el historial ${this.anioCiclo}.`;
     Swal.fire({
       title: 'Publicar en Gestión de Normativas',
-      text: `Se asignarán ${this.normas.length} normativa(s) a ${this.empresa.nombre_empresa}.${extra}${cicloTxt}`,
+      text: `Se asignarán ${this.normas.length} normativa(s) a ${this.empresa.nombre_empresa}.${extra}${cicloTxt} Se generará la matriz Word/PDF en Normativas ${this.anioCiclo}.`,
       icon: 'question',
       showCancelButton: true,
       confirmButtonText: 'Publicar',
@@ -1276,6 +1435,7 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
     }).then((r) => {
       if (!r.isConfirmed || !this.empresa) return;
       this.publicando = true;
+      this.abrirProgresoPublicacion();
       this.backend.publicarSeguridadAsignacion(this.empresa.empresa_id, this.armarPayload(), {
         anio: this.anioCiclo,
         nuevo_ciclo: this.nuevoCiclo,
@@ -1283,7 +1443,8 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
       })
         .pipe(takeUntil(this.destroy$))
         .subscribe({
-          next: () => {
+          next: (res: any) => {
+            this.cerrarProgresoPublicacion(100, 'Descargando PDF…');
             this.publicando = false;
             this.borrarLocal(this.empresa!.empresa_id);
             this.sucio = false;
@@ -1292,21 +1453,30 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
             this.clonarDesdeAnio = null;
             this.nuevoCiclo = false;
             this.historialSugerido = null;
-            Swal.fire({
-              icon: 'success',
-              title: 'Asignación publicada',
-              text: `Guardada en el historial ${this.anioCiclo}. Ya puede cargar documentos en Gestión de Normativas.`,
-              confirmButtonText: 'Ir a gestión',
-              showCancelButton: true,
-              cancelButtonText: 'Quedarme aquí',
-              confirmButtonColor: '#b91c1c'
-            }).then((go) => {
-              if (go.isConfirmed && this.empresa) {
-                this.router.navigate(['/seguridad/gestion/empresa', this.empresa.empresa_id]);
-              }
-            });
+            const pdfsDescargados = this.descargarPdfsMatriz(Array.isArray(res?.pdfs) ? res.pdfs : []);
+            const avisoMatriz = res?.matriz?.error
+              ? ` La asignación quedó publicada, pero la matriz Word/PDF no se generó: ${res.matriz.error}`
+              : (pdfsDescargados
+                ? ' Se descargó el PDF de la matriz de normativas.'
+                : '');
+            setTimeout(() => {
+              Swal.fire({
+                icon: 'success',
+                title: 'Asignación publicada',
+                html: `Guardada en el historial ${this.anioCiclo}. Ya puede cargar documentos en Gestión de Normativas.${avisoMatriz}`,
+                confirmButtonText: 'Ir a gestión',
+                showCancelButton: true,
+                cancelButtonText: 'Quedarme aquí',
+                confirmButtonColor: '#b91c1c'
+              }).then((go) => {
+                if (go.isConfirmed && this.empresa) {
+                  this.router.navigate(['/seguridad/gestion/empresa', this.empresa.empresa_id]);
+                }
+              });
+            }, 280);
           },
           error: (err: any) => {
+            this.detenerProgresoPublicacion();
             this.publicando = false;
             Swal.fire({
               icon: 'error',
@@ -1319,8 +1489,168 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
     });
   }
 
+  private abrirProgresoPublicacion(): void {
+    this.detenerProgresoPublicacion();
+    let pct = 4;
+    const etapas = [
+      { min: 0, key: 'guardar', msg: 'Guardando asignación en el sistema…' },
+      { min: 18, key: 'plantilla', msg: 'Copiando plantilla Word en Drive…' },
+      { min: 38, key: 'relleno', msg: 'Rellenando normativas y puntos…' },
+      { min: 58, key: 'formato', msg: 'Aplicando formato de la matriz…' },
+      { min: 76, key: 'pdf', msg: 'Generando PDF en Normativas…' },
+      { min: 92, key: 'fin', msg: 'Finalizando…' }
+    ];
+    const mensajeDe = (valor: number) => {
+      let actual = etapas[0];
+      for (const e of etapas) {
+        if (valor >= e.min) actual = e;
+      }
+      return actual;
+    };
+    const pintar = (valor: number, msgOverride?: string) => {
+      const etapa = mensajeDe(valor);
+      const bar = document.getElementById('seg-pub-bar');
+      const fill = document.getElementById('seg-pub-fill');
+      const label = document.getElementById('seg-pub-msg');
+      const pctLabel = document.getElementById('seg-pub-pct');
+      const ring = document.getElementById('seg-pub-ring');
+      if (bar) bar.style.width = `${valor}%`;
+      if (fill) fill.style.width = `${valor}%`;
+      if (label) label.textContent = msgOverride || etapa.msg;
+      if (pctLabel) pctLabel.textContent = `${Math.round(valor)}%`;
+      if (ring) {
+        const deg = Math.round((valor / 100) * 360);
+        ring.style.background = `conic-gradient(#b91c1c ${deg}deg, #f1f5f9 ${deg}deg)`;
+      }
+      document.querySelectorAll('[data-seg-pub-step]').forEach((nodo) => {
+        const el = nodo as HTMLElement;
+        const key = el.getAttribute('data-seg-pub-step') || '';
+        const idx = etapas.findIndex((e) => e.key === key);
+        const actualIdx = etapas.findIndex((e) => e.key === etapa.key);
+        el.classList.toggle('is-done', idx >= 0 && idx < actualIdx);
+        el.classList.toggle('is-active', key === etapa.key);
+      });
+    };
+
+    Swal.fire({
+      title: '',
+      html: `
+        <div class="seg-pub">
+          <div class="seg-pub__hero">
+            <div class="seg-pub__ring-wrap">
+              <div id="seg-pub-ring" class="seg-pub__ring"></div>
+              <div class="seg-pub__ring-core">
+                <i class="fas fa-cloud-upload-alt" aria-hidden="true"></i>
+              </div>
+            </div>
+            <div class="seg-pub__titles">
+              <span class="seg-pub__eyebrow">Seguridad · Normativas</span>
+              <strong>Publicando asignación</strong>
+              <p id="seg-pub-msg">Guardando asignación en el sistema…</p>
+            </div>
+          </div>
+
+          <div class="seg-pub__meter">
+            <div class="seg-pub__track">
+              <div id="seg-pub-bar" class="seg-pub__bar" style="width:4%"></div>
+              <div id="seg-pub-fill" class="seg-pub__glow" style="width:4%"></div>
+            </div>
+            <div class="seg-pub__meta">
+              <span>Progreso</span>
+              <b id="seg-pub-pct">4%</b>
+            </div>
+          </div>
+
+          <ol class="seg-pub__steps">
+            <li data-seg-pub-step="guardar" class="is-active"><i class="fas fa-database"></i><span>Guardar</span></li>
+            <li data-seg-pub-step="plantilla"><i class="fas fa-copy"></i><span>Plantilla</span></li>
+            <li data-seg-pub-step="relleno"><i class="fas fa-list-ol"></i><span>Puntos</span></li>
+            <li data-seg-pub-step="formato"><i class="fas fa-magic"></i><span>Formato</span></li>
+            <li data-seg-pub-step="pdf"><i class="fas fa-file-pdf"></i><span>PDF</span></li>
+            <li data-seg-pub-step="fin"><i class="fas fa-check"></i><span>Listo</span></li>
+          </ol>
+        </div>
+      `,
+      customClass: {
+        popup: 'seg-pub-swal',
+        htmlContainer: 'seg-pub-swal__html'
+      },
+      width: 460,
+      padding: '1.15rem 1.2rem 1.25rem',
+      background: '#fff',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showConfirmButton: false,
+      didOpen: () => {
+        pintar(pct);
+        this.pubProgressTimer = setInterval(() => {
+          const paso = pct < 40 ? 3.4 : pct < 70 ? 2.3 : 1.15;
+          pct = Math.min(94, pct + paso);
+          pintar(pct);
+        }, 420);
+      }
+    });
+  }
+
+  private cerrarProgresoPublicacion(pct = 100, msg = 'Listo'): void {
+    this.detenerProgresoPublicacion();
+    const bar = document.getElementById('seg-pub-bar');
+    const fill = document.getElementById('seg-pub-fill');
+    const label = document.getElementById('seg-pub-msg');
+    const pctLabel = document.getElementById('seg-pub-pct');
+    const ring = document.getElementById('seg-pub-ring');
+    if (bar) bar.style.width = `${pct}%`;
+    if (fill) fill.style.width = `${pct}%`;
+    if (label) label.textContent = msg;
+    if (pctLabel) pctLabel.textContent = `${Math.round(pct)}%`;
+    if (ring) ring.style.background = `conic-gradient(#16a34a 360deg, #f1f5f9 360deg)`;
+    document.querySelectorAll('[data-seg-pub-step]').forEach((nodo) => {
+      const el = nodo as HTMLElement;
+      el.classList.add('is-done');
+      el.classList.remove('is-active');
+    });
+  }
+
+  private detenerProgresoPublicacion(): void {
+    if (this.pubProgressTimer) {
+      clearInterval(this.pubProgressTimer);
+      this.pubProgressTimer = null;
+    }
+  }
+
+  /** Descarga automática del PDF de matriz (mismo patrón que PIPC). */
+  private descargarPdfsMatriz(pdfs: Array<{ filename?: string; base64?: string; mime_type?: string }>): number {
+    let n = 0;
+    for (let i = 0; i < pdfs.length; i++) {
+      const pdf = pdfs[i];
+      if (!pdf?.base64) continue;
+      try {
+        const blob = this.base64ABlob(pdf.base64, pdf.mime_type || 'application/pdf');
+        const url = window.URL.createObjectURL(blob);
+        const enlace = document.createElement('a');
+        enlace.href = url;
+        enlace.download = pdf.filename || `Matriz_normativas_${i + 1}.pdf`;
+        enlace.click();
+        window.URL.revokeObjectURL(url);
+        n += 1;
+      } catch {
+        /* ignore download failures */
+      }
+    }
+    return n;
+  }
+
+  private base64ABlob(base64: string, mimeType: string): Blob {
+    const byteCharacters = atob(base64);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    return new Blob([new Uint8Array(byteNumbers)], { type: mimeType });
+  }
+
   private marcarCambio(): void {
-    if (this.aplicando || !this.empresa || !this.puedeEditarAsignacion) return;
+    if (this.aplicando || !this.empresa || !this.puedeGestionarPuntos) return;
     this.sucio = true;
     this.estadoGuardado = 'pendiente';
     this.persistirLocal(true);
@@ -1457,8 +1787,20 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
   }
 
   private enfocarAsignacion(): void {
-    this.paso = 0;
     if (this.normas.length && !this.normaFocoId) this.normaFocoId = this.normas[0].normativa_id;
+    // Responsables: nunca ven el paso Asignación; van directo a Puntos.
+    if (!this.puedeEditarAsignacion) {
+      if (!this.normas.length) {
+        this.paso = 1;
+        this.progreso = Math.max(this.progreso, 1);
+        return;
+      }
+      this.paso = 1;
+      this.progreso = Math.max(this.progreso, 1);
+      this.abrirNormaPuntos(this.normaActiva || this.normas[0]);
+      return;
+    }
+    this.paso = 0;
   }
 
   private desplazarAlBloque(bloque: 'empresa' | 'normas' | 'resp'): void {

@@ -18,19 +18,24 @@ import Swal from 'sweetalert2';
 import { BackendServices } from 'src/app/services/backend.services';
 
 export type TipoEncuestaNom035 = 'ats' | 'factores' | 'otro';
-type PestanaVista = 'factores' | 'ats' | 'importar' | 'historial';
+type PestanaVista = 'individuales' | 'grupales' | 'importar' | 'comparativas';
 
-export interface Nom035ResumenAts {
-  total_evaluados?: number | null;
-  requieren_atencion?: number | null;
-  sin_riesgo?: number | null;
+export interface Nom035Persona {
+  nombre: string;
+  puesto?: string;
+  departamento?: string;
+  puntaje?: number | null;
+  nivel_riesgo?: string;
+  color_nivel?: string;
 }
 
-export interface Nom035ResumenFactores {
-  nivel_riesgo?: string | null;
-  personal_evaluado?: number | null;
-  calificacion_promedio?: number | null;
-  color_nivel?: string | null;
+export interface Nom035Grupo {
+  departamento: string;
+  personal: number;
+  promedio: number | null;
+  nivel_riesgo: string;
+  color_nivel?: string;
+  distribucion_niveles?: Record<string, number>;
 }
 
 export interface Nom035Registro {
@@ -39,15 +44,13 @@ export interface Nom035Registro {
   tipo_encuesta: TipoEncuestaNom035;
   departamento: string;
   puesto: string;
-  resumen: Nom035ResumenAts & Nom035ResumenFactores;
+  resumen: any;
   detalle: any;
   archivo_nombre?: string | null;
   tiene_archivo?: boolean;
   notas?: string | null;
   creado_por?: string | null;
   creado_en?: string;
-  confianza?: string;
-  texto_extraido?: string;
 }
 
 interface BorradorImportacion {
@@ -55,12 +58,50 @@ interface BorradorImportacion {
   tipo_encuesta: TipoEncuestaNom035;
   departamento: string;
   puesto: string;
-  resumen: Nom035ResumenAts & Nom035ResumenFactores;
+  resumen: any;
   detalle: any;
   texto_extraido?: string;
   confianza?: string;
   notas?: string;
 }
+
+type ChartBar = {
+  series: ApexAxisChartSeries;
+  chart: ApexChart;
+  colors: string[];
+  plotOptions: ApexPlotOptions;
+  dataLabels: ApexDataLabels;
+  xaxis: ApexXAxis;
+  yaxis: ApexYAxis;
+  legend: ApexLegend;
+  tooltip: ApexTooltip;
+  fill: ApexFill;
+  stroke: ApexStroke;
+};
+
+type ChartDonut = {
+  series: ApexNonAxisChartSeries;
+  chart: ApexChart;
+  labels: string[];
+  colors: string[];
+  legend: ApexLegend;
+  dataLabels: ApexDataLabels;
+  tooltip: ApexTooltip;
+  plotOptions: ApexPlotOptions;
+};
+
+type ChartLine = {
+  series: ApexAxisChartSeries;
+  chart: ApexChart;
+  colors: string[];
+  stroke: ApexStroke;
+  dataLabels: ApexDataLabels;
+  xaxis: ApexXAxis;
+  yaxis: ApexYAxis;
+  legend: ApexLegend;
+  tooltip: ApexTooltip;
+  fill?: ApexFill;
+};
 
 @Component({
   selector: 'app-riesgos-psicosociales',
@@ -77,44 +118,31 @@ export class RiesgosPsicosocialesComponent implements OnInit, OnDestroy {
   guardando = false;
   errorCarga = '';
   mensajeOk = '';
-  pestana: PestanaVista = 'factores';
+  pestana: PestanaVista = 'individuales';
+  filtroDepto = '';
+  busquedaPersona = '';
 
   registros: Nom035Registro[] = [];
-  ultimoAts: Nom035Registro | null = null;
   ultimoFactores: Nom035Registro | null = null;
   catalogo: any = { niveles: [], rangos: [], reglas: [] };
   totales = { reportes: 0, ats: 0, factores: 0 };
-  distribucionNiveles: Record<string, number> = {};
+  individuales: Nom035Persona[] = [];
+  grupales: Nom035Grupo[] = [];
+  distribucionPersonas: Record<string, number> = {};
+  comparativas: any = { periodos: [], serie_promedio: [], serie_personal: [], etiquetas: [] };
 
   archivoPendiente: File | null = null;
   borrador: BorradorImportacion | null = null;
   previewMensaje = '';
   dropOver = false;
 
-  chartAts: {
-    series: ApexNonAxisChartSeries;
-    chart: ApexChart;
-    labels: string[];
-    colors: string[];
-    legend: ApexLegend;
-    dataLabels: ApexDataLabels;
-    tooltip: ApexTooltip;
-    plotOptions: ApexPlotOptions;
-  } | null = null;
-
-  chartNiveles: {
-    series: ApexAxisChartSeries;
-    chart: ApexChart;
-    colors: string[];
-    plotOptions: ApexPlotOptions;
-    dataLabels: ApexDataLabels;
-    xaxis: ApexXAxis;
-    yaxis: ApexYAxis;
-    legend: ApexLegend;
-    tooltip: ApexTooltip;
-    fill: ApexFill;
-    stroke: ApexStroke;
-  } | null = null;
+  chartNivelesInd: ChartDonut | null = null;
+  chartPuntajesInd: ChartBar | null = null;
+  chartGruposPromedio: ChartBar | null = null;
+  chartGruposPersonal: ChartBar | null = null;
+  chartCompPromedio: ChartLine | null = null;
+  chartCompPersonal: ChartBar | null = null;
+  chartCompNiveles: ChartBar | null = null;
 
   readonly nivelesOrden = ['NULO', 'BAJO', 'MEDIO', 'ALTO', 'MUY ALTO'];
 
@@ -129,30 +157,8 @@ export class RiesgosPsicosocialesComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
-  get metaFactores() {
-    return this.ultimoFactores;
-  }
-
-  get metaAts() {
-    return this.ultimoAts;
-  }
-
-  get resumenFactores(): Nom035ResumenFactores {
+  get resumen(): any {
     return this.ultimoFactores?.resumen || {};
-  }
-
-  get resumenAts(): Nom035ResumenAts {
-    return this.ultimoAts?.resumen || {};
-  }
-
-  get personasAts(): any[] {
-    return Array.isArray(this.ultimoAts?.detalle?.personas) ? this.ultimoAts.detalle.personas : [];
-  }
-
-  get reglasAts(): any[] {
-    return Array.isArray(this.catalogo?.reglas) && this.catalogo.reglas.length
-      ? this.catalogo.reglas
-      : (this.ultimoAts?.detalle?.reglas || []);
   }
 
   get nivelesRef(): any[] {
@@ -165,6 +171,29 @@ export class RiesgosPsicosocialesComponent implements OnInit, OnDestroy {
     return Array.isArray(this.catalogo?.rangos) && this.catalogo.rangos.length
       ? this.catalogo.rangos
       : (this.ultimoFactores?.detalle?.rangos || []);
+  }
+
+  get personasFiltradas(): Nom035Persona[] {
+    const q = this.busquedaPersona.trim().toLowerCase();
+    const depto = this.filtroDepto.trim().toLowerCase();
+    return (this.individuales || []).filter((p) => {
+      if (depto && String(p.departamento || '').toLowerCase() !== depto) return false;
+      if (!q) return true;
+      const blob = `${p.nombre} ${p.puesto || ''} ${p.departamento || ''}`.toLowerCase();
+      return blob.includes(q);
+    });
+  }
+
+  get departamentosOpciones(): string[] {
+    const set = new Set<string>();
+    for (const p of this.individuales || []) {
+      if (p.departamento) set.add(p.departamento);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'es'));
+  }
+
+  get personasBorrador(): Nom035Persona[] {
+    return Array.isArray(this.borrador?.detalle?.personas) ? this.borrador.detalle.personas : [];
   }
 
   colorNivel(nivel?: string | null): string {
@@ -190,11 +219,13 @@ export class RiesgosPsicosocialesComponent implements OnInit, OnDestroy {
       .subscribe({
         next: (res) => {
           this.registros = res?.registros || [];
-          this.ultimoAts = res?.ultimo_ats || null;
           this.ultimoFactores = res?.ultimo_factores || null;
           this.catalogo = res?.catalogo || { niveles: [], rangos: [], reglas: [] };
           this.totales = res?.totales || { reportes: 0, ats: 0, factores: 0 };
-          this.distribucionNiveles = res?.distribucion_niveles || {};
+          this.individuales = res?.individuales || res?.ultimo_factores?.individuales || [];
+          this.grupales = res?.grupales || res?.ultimo_factores?.grupales || [];
+          this.distribucionPersonas = res?.distribucion_personas || {};
+          this.comparativas = res?.comparativas || { periodos: [], serie_promedio: [], serie_personal: [], etiquetas: [] };
           this.armarCharts();
         },
         error: (err) => {
@@ -215,9 +246,7 @@ export class RiesgosPsicosocialesComponent implements OnInit, OnDestroy {
     const input = ev.target as HTMLInputElement;
     const file = input.files?.[0];
     input.value = '';
-    if (file) {
-      this.procesarArchivo(file);
-    }
+    if (file) this.procesarArchivo(file);
   }
 
   onDragOver(ev: DragEvent): void {
@@ -234,18 +263,16 @@ export class RiesgosPsicosocialesComponent implements OnInit, OnDestroy {
     ev.preventDefault();
     this.dropOver = false;
     const file = ev.dataTransfer?.files?.[0];
-    if (file) {
-      this.procesarArchivo(file);
-    }
+    if (file) this.procesarArchivo(file);
   }
 
   procesarArchivo(file: File): void {
-    const okExt = /\.(pdf|png|jpe?g|webp|gif)$/i.test(file.name);
+    const okExt = /\.(pdf|png|jpe?g|webp|gif|xlsx|xls)$/i.test(file.name);
     if (!okExt) {
       Swal.fire({
         icon: 'warning',
         title: 'Formato no soportado',
-        text: 'Sube un PDF (preferido) o una imagen del reporte.'
+        text: 'Sube un Excel (.xlsx), PDF o imagen del reporte.'
       });
       return;
     }
@@ -274,16 +301,14 @@ export class RiesgosPsicosocialesComponent implements OnInit, OnDestroy {
             confianza: b.confianza || 'baja',
             notas: ''
           };
-          if (res?.catalogo) {
-            this.catalogo = res.catalogo;
-          }
+          if (res?.catalogo) this.catalogo = res.catalogo;
           this.asegurarResumenBorrador();
         },
         error: (err) => {
           Swal.fire({
             icon: 'error',
             title: 'No se pudo leer el archivo',
-            text: err?.error?.message || err?.message || 'Intenta con un PDF con texto seleccionable.'
+            text: err?.error?.message || err?.message || 'Revisa el formato del Excel o PDF.'
           });
         }
       });
@@ -297,21 +322,16 @@ export class RiesgosPsicosocialesComponent implements OnInit, OnDestroy {
         requieren_atencion: this.borrador.resumen.requieren_atencion ?? null,
         sin_riesgo: this.borrador.resumen.sin_riesgo ?? null
       };
-      if (!Array.isArray(this.borrador.detalle?.personas)) {
-        this.borrador.detalle = { ...(this.borrador.detalle || {}), personas: [] };
-      }
-    } else {
-      this.borrador.resumen = {
-        nivel_riesgo: this.borrador.resumen.nivel_riesgo || 'BAJO',
-        personal_evaluado: this.borrador.resumen.personal_evaluado ?? null,
-        calificacion_promedio: this.borrador.resumen.calificacion_promedio ?? null,
-        color_nivel: this.colorNivel(this.borrador.resumen.nivel_riesgo || 'BAJO')
-      };
+      return;
     }
-  }
-
-  onTipoBorradorChange(): void {
-    this.asegurarResumenBorrador();
+    const personas = Array.isArray(this.borrador.detalle?.personas) ? this.borrador.detalle.personas : [];
+    this.borrador.resumen = {
+      nivel_riesgo: this.borrador.resumen.nivel_riesgo || 'BAJO',
+      personal_evaluado: this.borrador.resumen.personal_evaluado ?? personas.length ?? null,
+      calificacion_promedio: this.borrador.resumen.calificacion_promedio ?? null,
+      color_nivel: this.colorNivel(this.borrador.resumen.nivel_riesgo || 'BAJO'),
+      distribucion_niveles: this.borrador.resumen.distribucion_niveles || {}
+    };
   }
 
   onNivelBorradorChange(): void {
@@ -327,7 +347,6 @@ export class RiesgosPsicosocialesComponent implements OnInit, OnDestroy {
 
   guardarImportacion(): void {
     if (!this.borrador) return;
-    const tipoGuardado = this.borrador.tipo_encuesta;
     this.guardando = true;
     this.backend.guardarRrhhNom035(this.borrador, this.archivoPendiente || undefined)
       .pipe(
@@ -336,14 +355,14 @@ export class RiesgosPsicosocialesComponent implements OnInit, OnDestroy {
       )
       .subscribe({
         next: () => {
-          this.mensajeOk = 'Reporte NOM-035 guardado correctamente';
+          this.mensajeOk = 'Concentrado NOM-035 guardado correctamente';
           this.cancelarImportacion();
-          this.pestana = tipoGuardado === 'ats' ? 'ats' : 'factores';
+          this.pestana = 'individuales';
           this.cargarDashboard();
           Swal.fire({
             icon: 'success',
             title: 'Guardado',
-            text: 'Los indicadores ya están visibles en el dashboard.',
+            text: 'Ya puedes ver factores individuales, grupales y comparativas.',
             timer: 1800,
             showConfirmButton: false
           });
@@ -361,8 +380,8 @@ export class RiesgosPsicosocialesComponent implements OnInit, OnDestroy {
   eliminarRegistro(item: Nom035Registro): void {
     Swal.fire({
       icon: 'warning',
-      title: '¿Eliminar reporte?',
-      text: `${item.periodo} · ${item.tipo_encuesta === 'ats' ? 'Acontecimientos traumáticos' : 'Factores de riesgo'}`,
+      title: '¿Eliminar registro?',
+      text: item.periodo,
       showCancelButton: true,
       confirmButtonText: 'Eliminar',
       cancelButtonText: 'Cancelar',
@@ -373,7 +392,7 @@ export class RiesgosPsicosocialesComponent implements OnInit, OnDestroy {
         .pipe(takeUntil(this.destroy$))
         .subscribe({
           next: () => {
-            this.mensajeOk = 'Reporte eliminado';
+            this.mensajeOk = 'Registro eliminado';
             this.cargarDashboard();
           },
           error: (err) => {
@@ -387,35 +406,34 @@ export class RiesgosPsicosocialesComponent implements OnInit, OnDestroy {
     });
   }
 
-  etiquetaTipo(tipo: string): string {
-    if (tipo === 'ats') return 'Acontecimientos traumáticos';
-    if (tipo === 'factores') return 'Factores de riesgo';
-    return 'Otro';
+  private armarCharts(): void {
+    this.armarChartsIndividuales();
+    this.armarChartsGrupales();
+    this.armarChartsComparativas();
   }
 
-  private armarCharts(): void {
-    const ats = this.resumenAts;
-    const requieren = Number(ats.requieren_atencion || 0);
-    const sinRiesgo = Number(ats.sin_riesgo || 0);
-    if ((requieren + sinRiesgo) > 0 || Number(ats.total_evaluados || 0) > 0) {
-      this.chartAts = {
-        series: [requieren, sinRiesgo || Math.max(0, Number(ats.total_evaluados || 0) - requieren)],
-        chart: { type: 'donut', height: 260, fontFamily: 'Open Sans, sans-serif' },
-        labels: ['Requieren atención', 'Sin riesgo'],
-        colors: ['#db2777', '#16a34a'],
+  private armarChartsIndividuales(): void {
+    const dist = this.distribucionPersonas || {};
+    const seriesDonut = this.nivelesOrden.map((n) => Number(dist[n] || 0));
+    if (seriesDonut.some((n) => n > 0)) {
+      this.chartNivelesInd = {
+        series: seriesDonut,
+        chart: { type: 'donut', height: 280, fontFamily: 'Open Sans, sans-serif' },
+        labels: this.nivelesOrden,
+        colors: this.nivelesOrden.map((n) => this.colorNivel(n)),
         legend: { position: 'bottom' },
         dataLabels: { enabled: true },
-        tooltip: { y: { formatter: (v) => `${v}` } },
+        tooltip: { y: { formatter: (v) => `${v} persona(s)` } },
         plotOptions: {
           pie: {
             donut: {
-              size: '62%',
+              size: '58%',
               labels: {
                 show: true,
                 total: {
                   show: true,
                   label: 'Evaluados',
-                  formatter: () => String(ats.total_evaluados ?? requieren + sinRiesgo)
+                  formatter: () => String(this.individuales.length || seriesDonut.reduce((a, b) => a + b, 0))
                 }
               }
             }
@@ -423,40 +441,133 @@ export class RiesgosPsicosocialesComponent implements OnInit, OnDestroy {
         }
       };
     } else {
-      this.chartAts = null;
+      this.chartNivelesInd = null;
     }
 
-    const seriesData = this.nivelesOrden.map((n) => Number(this.distribucionNiveles?.[n] || 0));
-    const colores = this.nivelesOrden.map((n) => this.colorNivel(n));
-    if (seriesData.some((n) => n > 0) || this.ultimoFactores) {
-      this.chartNiveles = {
-        series: [{ name: 'Reportes', data: seriesData }],
-        chart: { type: 'bar', height: 260, toolbar: { show: false }, fontFamily: 'Open Sans, sans-serif' },
-        colors: colores,
-        plotOptions: {
-          bar: {
-            distributed: true,
-            borderRadius: 6,
-            columnWidth: '52%'
-          }
-        },
+    const top = [...(this.individuales || [])]
+      .filter((p) => p.puntaje != null)
+      .sort((a, b) => Number(b.puntaje) - Number(a.puntaje))
+      .slice(0, 12);
+    if (top.length) {
+      this.chartPuntajesInd = {
+        series: [{ name: 'Puntaje', data: top.map((p) => Number(p.puntaje) || 0) }],
+        chart: { type: 'bar', height: Math.max(260, top.length * 28), toolbar: { show: false }, fontFamily: 'Open Sans, sans-serif' },
+        colors: top.map((p) => this.colorNivel(p.nivel_riesgo)),
+        plotOptions: { bar: { horizontal: true, distributed: true, borderRadius: 5, barHeight: '68%' } },
         dataLabels: { enabled: true },
-        xaxis: {
-          categories: this.nivelesOrden,
-          labels: { style: { fontWeight: 700 } }
-        },
-        yaxis: {
-          min: 0,
-          forceNiceScale: true,
-          labels: { formatter: (v) => String(Math.round(Number(v))) }
-        },
+        xaxis: { categories: top.map((p) => p.nombre), labels: { style: { fontSize: '11px' } } },
+        yaxis: { labels: { maxWidth: 160 } },
         legend: { show: false },
-        tooltip: { y: { formatter: (v) => `${v} reporte(s)` } },
+        tooltip: { y: { formatter: (v) => `${v}` } },
         fill: { opacity: 1 },
         stroke: { width: 0 }
       };
     } else {
-      this.chartNiveles = null;
+      this.chartPuntajesInd = null;
+    }
+  }
+
+  private armarChartsGrupales(): void {
+    const grupos = this.grupales || [];
+    if (!grupos.length) {
+      this.chartGruposPromedio = null;
+      this.chartGruposPersonal = null;
+      return;
+    }
+    this.chartGruposPromedio = {
+      series: [{ name: 'Promedio', data: grupos.map((g) => Number(g.promedio) || 0) }],
+      chart: { type: 'bar', height: Math.max(280, grupos.length * 36), toolbar: { show: false }, fontFamily: 'Open Sans, sans-serif' },
+      colors: grupos.map((g) => this.colorNivel(g.nivel_riesgo)),
+      plotOptions: { bar: { horizontal: true, distributed: true, borderRadius: 6, barHeight: '62%' } },
+      dataLabels: { enabled: true },
+      xaxis: { categories: grupos.map((g) => g.departamento) },
+      yaxis: { labels: { maxWidth: 180 } },
+      legend: { show: false },
+      tooltip: { y: { formatter: (v) => `${v}` } },
+      fill: { opacity: 1 },
+      stroke: { width: 0 }
+    };
+    this.chartGruposPersonal = {
+      series: [{ name: 'Personal', data: grupos.map((g) => Number(g.personal) || 0) }],
+      chart: { type: 'bar', height: Math.max(260, grupos.length * 34), toolbar: { show: false }, fontFamily: 'Open Sans, sans-serif' },
+      colors: ['#db2777'],
+      plotOptions: { bar: { borderRadius: 6, columnWidth: '48%' } },
+      dataLabels: { enabled: true },
+      xaxis: {
+        categories: grupos.map((g) => g.departamento),
+        labels: { rotate: -25, style: { fontSize: '10px' } }
+      },
+      yaxis: { min: 0, forceNiceScale: true, labels: { formatter: (v) => String(Math.round(Number(v))) } },
+      legend: { show: false },
+      tooltip: { y: { formatter: (v) => `${v} persona(s)` } },
+      fill: { opacity: 1 },
+      stroke: { width: 0 }
+    };
+  }
+
+  private armarChartsComparativas(): void {
+    const etiquetas = this.comparativas?.etiquetas || [];
+    const serieProm = this.comparativas?.serie_promedio || [];
+    const seriePers = this.comparativas?.serie_personal || [];
+    const periodos = this.comparativas?.periodos || [];
+
+    if (etiquetas.length && serieProm.length) {
+      this.chartCompPromedio = {
+        series: [{ name: 'Calificación promedio', data: serieProm }],
+        chart: { type: 'area', height: 280, toolbar: { show: false }, fontFamily: 'Open Sans, sans-serif' },
+        colors: ['#9d174d'],
+        stroke: { curve: 'smooth', width: 3 },
+        dataLabels: { enabled: true },
+        xaxis: { categories: etiquetas, labels: { rotate: -20, style: { fontSize: '11px' } } },
+        yaxis: { min: 0, forceNiceScale: true },
+        legend: { show: false },
+        tooltip: { y: { formatter: (v) => `${v}` } },
+        fill: {
+          type: 'gradient',
+          gradient: { shadeIntensity: 0.4, opacityFrom: 0.45, opacityTo: 0.05, stops: [0, 90, 100] }
+        }
+      };
+    } else {
+      this.chartCompPromedio = null;
+    }
+
+    if (etiquetas.length && seriePers.length) {
+      this.chartCompPersonal = {
+        series: [{ name: 'Personal evaluado', data: seriePers }],
+        chart: { type: 'bar', height: 260, toolbar: { show: false }, fontFamily: 'Open Sans, sans-serif' },
+        colors: ['#db2777'],
+        plotOptions: { bar: { borderRadius: 6, columnWidth: '45%' } },
+        dataLabels: { enabled: true },
+        xaxis: { categories: etiquetas, labels: { rotate: -20, style: { fontSize: '11px' } } },
+        yaxis: { min: 0, forceNiceScale: true, labels: { formatter: (v) => String(Math.round(Number(v))) } },
+        legend: { show: false },
+        tooltip: { y: { formatter: (v) => `${v}` } },
+        fill: { opacity: 1 },
+        stroke: { width: 0 }
+      };
+    } else {
+      this.chartCompPersonal = null;
+    }
+
+    const conteo = this.nivelesOrden.map((nivel) =>
+      periodos.filter((p: any) => String(p.nivel_riesgo || '').toUpperCase().replace(/\s+/g, ' ') === nivel).length
+    );
+    if (conteo.some((n) => n > 0)) {
+      this.chartCompNiveles = {
+        series: [{ name: 'Periodos', data: conteo }],
+        chart: { type: 'bar', height: 260, toolbar: { show: false }, fontFamily: 'Open Sans, sans-serif' },
+        colors: this.nivelesOrden.map((n) => this.colorNivel(n)),
+        plotOptions: { bar: { distributed: true, borderRadius: 6, columnWidth: '50%' } },
+        dataLabels: { enabled: true },
+        xaxis: { categories: this.nivelesOrden },
+        yaxis: { min: 0, forceNiceScale: true, labels: { formatter: (v) => String(Math.round(Number(v))) } },
+        legend: { show: false },
+        tooltip: { y: { formatter: (v) => `${v} periodo(s)` } },
+        fill: { opacity: 1 },
+        stroke: { width: 0 }
+      };
+    } else {
+      this.chartCompNiveles = null;
     }
   }
 }

@@ -709,79 +709,121 @@
 
               <!-- Nivel 1: catálogo de proyectos -->
               <ng-container *ngIf="gestionNivelVista === 'proyectos'">
-                <div class="cp-gestion__toolbar">
-                  <div class="cp-gestion__search">
-                    <i class="fas fa-search"></i>
-                    <input
-                      type="text"
-                      class="cp-gestion__search-input"
-                      placeholder="Buscar proyecto, responsable…"
-                      [(ngModel)]="busquedaGestion"
-                      (ngModelChange)="onBusquedaGestionChange()"
-                    >
-                  </div>
-                  <button type="button" class="cp-btn cp-btn--primary" (click)="abrirRegistro()" *ngIf="!esConsultaEmpresa">
-                    <i class="fas fa-plus"></i> Nuevo proyecto
-                  </button>
-                </div>
-
-                <div class="cp-gestion-catalog" *ngIf="gestionAgrupadaLista.length; else gestionVacia">
-                  <button
-                    type="button"
-                    class="cp-gestion-proj"
-                    *ngFor="let grupo of gestionAgrupadaLista; trackBy: trackByGrupoGestion"
-                    (click)="seleccionarProyectoGestion(grupo.clave)"
+                <div class="cp-gestion-browse">
+                  <aside
+                    class="cp-gestion-resp-filter"
+                    *ngIf="responsablesGestionFiltroDisponibles.length"
+                    aria-label="Filtrar por responsable principal"
                   >
-                    <ng-container *ngIf="resumenGrupoGestion(grupo) as r">
-                      <ng-container *ngIf="statsGrupoGestion(grupo) as st">
-                        <div class="cp-gestion-proj__top">
-                          <div class="cp-gestion-proj__metrics">
-                            <span class="cp-gestion-proj__chip cp-gestion-proj__chip--warn" *ngIf="st.vencidas > 0">
-                              {{ st.vencidas }} vencida{{ st.vencidas === 1 ? '' : 's' }}
+                    <p class="cp-gestion-resp-filter__title">
+                      <i class="fas fa-user-tie"></i>
+                      Responsable
+                    </p>
+                    <button
+                      type="button"
+                      class="cp-gestion-resp-filter__item"
+                      [class.is-active]="!filtroResponsableGestion"
+                      (click)="limpiarFiltroResponsableGestion()"
+                    >
+                      <span class="cp-gestion-resp-filter__av cp-gestion-resp-filter__av--all">
+                        <i class="fas fa-users"></i>
+                      </span>
+                      <span class="cp-gestion-resp-filter__name">Todos</span>
+                    </button>
+                    <button
+                      type="button"
+                      class="cp-gestion-resp-filter__item"
+                      *ngFor="let r of responsablesGestionFiltroDisponibles"
+                      [class.is-active]="filtroResponsableGestion === r"
+                      (click)="seleccionarFiltroResponsableGestion(r)"
+                      [title]="r"
+                    >
+                      <span class="cp-gestion-resp-filter__av" [style.background]="colorAvatar(r)">{{ iniciales(r) }}</span>
+                      <span class="cp-gestion-resp-filter__name">{{ r }}</span>
+                    </button>
+                  </aside>
+
+                  <div class="cp-gestion-browse__main">
+                    <div class="cp-gestion__toolbar">
+                      <div class="cp-gestion__search">
+                        <i class="fas fa-search"></i>
+                        <input
+                          type="text"
+                          class="cp-gestion__search-input"
+                          placeholder="Buscar proyecto, responsable…"
+                          [(ngModel)]="busquedaGestion"
+                          (ngModelChange)="onBusquedaGestionChange()"
+                        >
+                      </div>
+                      <button type="button" class="cp-btn cp-btn--primary" (click)="abrirRegistro()" *ngIf="!esConsultaEmpresa">
+                        <i class="fas fa-plus"></i> Nuevo proyecto
+                      </button>
+                    </div>
+
+                    <div class="cp-gestion-catalog" *ngIf="gestionAgrupadaLista.length; else gestionVacia">
+                      <button
+                        type="button"
+                        class="cp-gestion-proj"
+                        *ngFor="let grupo of gestionAgrupadaLista; trackBy: trackByGrupoGestion"
+                        (click)="seleccionarProyectoGestion(grupo.clave)"
+                      >
+                        <ng-container *ngIf="resumenGrupoGestion(grupo) as r">
+                          <ng-container *ngIf="statsGrupoGestion(grupo) as st">
+                            <div class="cp-gestion-proj__top">
+                              <div class="cp-gestion-proj__metrics">
+                                <span class="cp-gestion-proj__chip cp-gestion-proj__chip--warn" *ngIf="st.vencidas > 0">
+                                  {{ st.vencidas }} vencida{{ st.vencidas === 1 ? '' : 's' }}
+                                </span>
+                                <span class="cp-gestion-proj__count">{{ st.total }} act.</span>
+                                <span
+                                  class="cp-gestion-proj__prio"
+                                  *ngIf="r.prioridad"
+                                  [title]="r.prioridad"
+                                  [attr.aria-label]="'Prioridad: ' + r.prioridad"
+                                >
+                                  <i
+                                    class="fas"
+                                    [ngClass]="[prioridadIcono(r.prioridad), prioridadIconClass(r.prioridad)]"
+                                  ></i>
+                                </span>
+                              </div>
+                            </div>
+                            <h3 class="cp-gestion-proj__name" [title]="grupo.nombreProyecto">{{ grupo.nombreProyecto }}</h3>
+                            <div class="cp-gestion-proj__meta">
+                              <span [title]="'Responsable principal: ' + r.responsable">
+                                <i class="fas fa-user-tie"></i> {{ r.responsable }}
+                              </span>
+                              <span *ngIf="colaboradoresCountGrupo(grupo) as nColab" class="cp-gestion-proj__colabs">
+                                <i class="fas fa-user-friends"></i> {{ nColab }} colab.
+                              </span>
+                              <span><i class="fas fa-calendar"></i> {{ r.fechaCompromiso ? formatearFechaProyecto(r.fechaCompromiso) : 'Sin fecha' }}</span>
+                            </div>
+                            <div class="cp-gestion-proj__progress">
+                              <div class="cp-gestion-proj__bar">
+                                <span [style.width.%]="st.avance"></span>
+                              </div>
+                              <span class="cp-gestion-proj__pct">{{ st.avance }}%</span>
+                            </div>
+                            <div class="cp-gestion-proj__foot">
+                              <span
+                                class="cp-gestion-proj__chip cp-gestion-proj__chip--status"
+                                [ngClass]="claseEstatusProyectoResumen(r.estatus, r.avance)"
+                              >
+                                <i class="fas" [ngClass]="iconoEstatusGestion(r.estatus)"></i>
+                                {{ r.estatus }}
+                              </span>
+                              <span class="cp-gestion-proj__chip cp-gestion-proj__chip--ok" *ngIf="st.concluidas > 0">
+                                {{ st.concluidas }}/{{ st.total }} hechas
+                              </span>
+                            </div>
+                            <span class="cp-gestion-proj__cta">
+                              {{ esConsultaEmpresa ? 'Ver' : 'Gestionar' }} <i class="fas fa-chevron-right"></i>
                             </span>
-                            <span class="cp-gestion-proj__count">{{ st.total }} act.</span>
-                            <span
-                              class="cp-gestion-proj__prio"
-                              *ngIf="r.prioridad"
-                              [title]="r.prioridad"
-                              [attr.aria-label]="'Prioridad: ' + r.prioridad"
-                            >
-                              <i
-                                class="fas"
-                                [ngClass]="[prioridadIcono(r.prioridad), prioridadIconClass(r.prioridad)]"
-                              ></i>
-                            </span>
-                          </div>
-                        </div>
-                        <h3 class="cp-gestion-proj__name" [title]="grupo.nombreProyecto">{{ grupo.nombreProyecto }}</h3>
-                        <div class="cp-gestion-proj__meta">
-                          <span><i class="fas fa-user"></i> {{ r.responsable }}</span>
-                          <span><i class="fas fa-calendar"></i> {{ r.fechaCompromiso ? formatearFechaProyecto(r.fechaCompromiso) : 'Sin fecha' }}</span>
-                        </div>
-                        <div class="cp-gestion-proj__progress">
-                          <div class="cp-gestion-proj__bar">
-                            <span [style.width.%]="st.avance"></span>
-                          </div>
-                          <span class="cp-gestion-proj__pct">{{ st.avance }}%</span>
-                        </div>
-                        <div class="cp-gestion-proj__foot">
-                          <span
-                            class="cp-gestion-proj__chip cp-gestion-proj__chip--status"
-                            [ngClass]="claseEstatusProyectoResumen(r.estatus, r.avance)"
-                          >
-                            <i class="fas" [ngClass]="iconoEstatusGestion(r.estatus)"></i>
-                            {{ r.estatus }}
-                          </span>
-                          <span class="cp-gestion-proj__chip cp-gestion-proj__chip--ok" *ngIf="st.concluidas > 0">
-                            {{ st.concluidas }}/{{ st.total }} hechas
-                          </span>
-                        </div>
-                        <span class="cp-gestion-proj__cta">
-                          {{ esConsultaEmpresa ? 'Ver' : 'Gestionar' }} <i class="fas fa-chevron-right"></i>
-                        </span>
-                      </ng-container>
-                    </ng-container>
-                  </button>
+                          </ng-container>
+                        </ng-container>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </ng-container>
 
@@ -793,12 +835,20 @@
                     <ng-container *ngIf="resumenGrupoGestion(grupo) as r">
                       <div class="cp-gestion-detail-panel__summary" *ngIf="!esConsultaEmpresa">
                         <div class="cp-gestion-detail-panel__stat">
-                          <span class="cp-gestion-detail-panel__stat-label">Responsable</span>
+                          <span class="cp-gestion-detail-panel__stat-label">Responsable principal</span>
                           <span class="cp-gestion-detail-panel__stat-value">{{ r.responsable }}</span>
+                        </div>
+                        <div class="cp-gestion-detail-panel__stat" *ngIf="colaboradoresCountGrupo(grupo) as nColab">
+                          <span class="cp-gestion-detail-panel__stat-label">Colaboradores</span>
+                          <span class="cp-gestion-detail-panel__stat-value">{{ nColab }}</span>
                         </div>
                         <div class="cp-gestion-detail-panel__stat">
                           <span class="cp-gestion-detail-panel__stat-label">Vencimiento</span>
                           <span class="cp-gestion-detail-panel__stat-value">{{ r.fechaCompromiso ? formatearFechaProyecto(r.fechaCompromiso) : '—' }}</span>
+                        </div>
+                        <div class="cp-gestion-detail-panel__stat" *ngIf="grupo.actividades[0]?.proyecto?.duracionEstimada as dur">
+                          <span class="cp-gestion-detail-panel__stat-label">Duración estimada</span>
+                          <span class="cp-gestion-detail-panel__stat-value">{{ dur }}</span>
                         </div>
                         <div class="cp-gestion-detail-panel__stat">
                           <span class="cp-gestion-detail-panel__stat-label">Estatus</span>
@@ -811,7 +861,7 @@
                       </div>
                       <div class="cp-gestion-detail-panel__summary cp-gestion-detail-panel__summary--consulta" *ngIf="esConsultaEmpresa && statsGrupoGestion(grupo) as st">
                         <div class="cp-gestion-detail-panel__stat">
-                          <span class="cp-gestion-detail-panel__stat-label"><i class="fas fa-user"></i> Responsable</span>
+                          <span class="cp-gestion-detail-panel__stat-label"><i class="fas fa-user-tie"></i> Responsable principal</span>
                           <span class="cp-gestion-detail-panel__stat-value">{{ r.responsable }}</span>
                         </div>
                         <div class="cp-gestion-detail-panel__stat">
@@ -947,7 +997,7 @@
                             <th class="cp-gestion-act-table__col--name">Actividad</th>
                             <th class="cp-gestion-act-table__col--date">Vencimiento</th>
                             <th class="cp-gestion-act-table__col--status">Estatus</th>
-                            <th class="cp-gestion-act-table__col--assignees">Responsables</th>
+                            <th class="cp-gestion-act-table__col--assignees">Equipo</th>
                             <th class="cp-gestion-act-table__col--obs">Observaciones</th>
                             <th class="cp-gestion-act-table__col--act" aria-label="Acciones"></th>
                           </tr>
@@ -1061,9 +1111,10 @@
                                   <ng-container *ngIf="responsablesDe(item.proyecto) as reps">
                                     <span
                                       class="cp-assignee-stack__av"
-                                      *ngFor="let r of reps.slice(0, MAX_AVATARES_VISIBLES)"
+                                      *ngFor="let r of reps.slice(0, MAX_AVATARES_VISIBLES); let i = index"
+                                      [class.cp-assignee-stack__av--principal]="i === 0"
                                       [style.background]="colorAvatar(r)"
-                                      [title]="r"
+                                      [title]="i === 0 ? ('Responsable principal: ' + r) : ('Colaborador: ' + r)"
                                     >{{ iniciales(r) }}</span>
                                     <span class="cp-assignee-stack__more" *ngIf="reps.length > MAX_AVATARES_VISIBLES" [title]="reps.slice(MAX_AVATARES_VISIBLES).join(', ')">
                                       +{{ reps.length - MAX_AVATARES_VISIBLES }}
@@ -1075,7 +1126,7 @@
                                     *ngIf="puedeEditarActividadGestion(item.proyecto, grupo)"
                                     (click)="toggleMenuResponsablesGestion($event, item.indice)"
                                     [attr.aria-expanded]="menuResponsablesGestionIndice === item.indice"
-                                    title="Asignar responsables"
+                                    title="Asignar equipo"
                                   >
                                     <i class="fas fa-plus"></i>
                                   </button>
@@ -1085,7 +1136,7 @@
                                     [ngStyle]="menuResponsablesGestionStyle"
                                     (click)="$event.stopPropagation()"
                                   >
-                                    <p class="cp-gestion-assignees__title">Responsables</p>
+                                    <p class="cp-gestion-assignees__title">Equipo de la actividad</p>
                                     <div class="cp-gestion-assignees__search">
                                       <i class="fas fa-search"></i>
                                       <input
@@ -1096,17 +1147,47 @@
                                         autocomplete="off"
                                       >
                                     </div>
-                                    <button
-                                      type="button"
+                                    <div class="cp-gestion-assignees__principal">
+                                      <span class="cp-gestion-assignees__section">Responsable principal</span>
+                                      <span class="cp-gestion-assignees__principal-chip">
+                                        <span
+                                          class="cp-assignee-stack__av cp-assignee-stack__av--sm cp-assignee-stack__av--principal"
+                                          [style.background]="colorAvatar(responsablePrincipal(item.proyecto))"
+                                        >{{ iniciales(responsablePrincipal(item.proyecto)) }}</span>
+                                        {{ responsablePrincipal(item.proyecto) }}
+                                      </span>
+                                    </div>
+                                    <p class="cp-gestion-assignees__section">Cambiar principal · agregar colaboradores</p>
+                                    <div
                                       class="cp-gestion-assignees__option"
                                       *ngFor="let u of usuariosResponsablesGestionFiltrados"
-                                      [class.is-active]="actividadTieneResponsable(item.proyecto, u)"
-                                      (click)="toggleResponsableActividad(item.proyecto, u)"
+                                      [class.is-principal]="esResponsablePrincipalDe(item.proyecto, u)"
+                                      [class.is-active]="actividadEsColaborador(item.proyecto, u)"
                                     >
                                       <span class="cp-assignee-stack__av cp-assignee-stack__av--sm" [style.background]="colorAvatar(u)">{{ iniciales(u) }}</span>
                                       <span class="cp-gestion-assignees__name">{{ u }}</span>
-                                      <i class="fas fa-check" *ngIf="actividadTieneResponsable(item.proyecto, u)"></i>
-                                    </button>
+                                      <span class="cp-gestion-assignees__actions">
+                                        <button
+                                          type="button"
+                                          class="cp-gestion-assignees__mini"
+                                          [class.is-on]="esResponsablePrincipalDe(item.proyecto, u)"
+                                          title="Hacer responsable principal"
+                                          (click)="setResponsablePrincipalActividad(item.proyecto, u)"
+                                        >
+                                          <i class="fas fa-star"></i>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          class="cp-gestion-assignees__mini"
+                                          [class.is-on]="actividadEsColaborador(item.proyecto, u)"
+                                          [disabled]="esResponsablePrincipalDe(item.proyecto, u)"
+                                          title="Colaborador"
+                                          (click)="toggleColaboradorActividad(item.proyecto, u)"
+                                        >
+                                          <i class="fas fa-user-plus"></i>
+                                        </button>
+                                      </span>
+                                    </div>
                                     <p class="cp-gestion-assignees__empty" *ngIf="!usuariosResponsablesGestionFiltrados.length">
                                       Sin coincidencias
                                     </p>
@@ -1368,14 +1449,25 @@
 
               <ng-template #gestionVacia>
                 <div class="cp-gestion-empty">
-                  <ng-container *ngIf="esConsultaEmpresa; else gestionVaciaInterno">
-                    No hay proyectos en gestión para tu empresa.
+                  <ng-container *ngIf="filtroResponsableGestion || busquedaGestion; else gestionVaciaBase">
+                    No hay proyectos con ese criterio.
+                    <button
+                      type="button"
+                      class="cp-note__link"
+                      *ngIf="filtroResponsableGestion"
+                      (click)="limpiarFiltroResponsableGestion()"
+                    >Quitar filtro de responsable</button>
                   </ng-container>
-                  <ng-template #gestionVaciaInterno>
-                    No hay proyectos para gestionar. Usa
-                    <button type="button" class="cp-note__link" (click)="abrirRegistro()">Nuevo proyecto</button>
-                    o
-                    <button type="button" class="cp-note__link" (click)="refrescarDesdeBd()">actualizar desde base de datos</button>.
+                  <ng-template #gestionVaciaBase>
+                    <ng-container *ngIf="esConsultaEmpresa; else gestionVaciaInterno">
+                      No hay proyectos en gestión para tu empresa.
+                    </ng-container>
+                    <ng-template #gestionVaciaInterno>
+                      No hay proyectos para gestionar. Usa
+                      <button type="button" class="cp-note__link" (click)="abrirRegistro()">Nuevo proyecto</button>
+                      o
+                      <button type="button" class="cp-note__link" (click)="refrescarDesdeBd()">actualizar desde base de datos</button>.
+                    </ng-template>
                   </ng-template>
                 </div>
               </ng-template>
@@ -2199,7 +2291,7 @@
             <p class="cp-registro-layout__group-label"><i class="fas fa-user-cog"></i> Asignación</p>
 
             <div class="cp-registro-field cp-registro-field--wide">
-              <span class="cp-registro-field__label"><i class="fas fa-user-tie"></i> Responsable</span>
+              <span class="cp-registro-field__label"><i class="fas fa-user-tie"></i> Responsable principal de proyecto</span>
               <div
                 class="cp-registro-combobox"
                 [class.is-open]="registroResponsableDropdownAbierto"
@@ -2215,7 +2307,7 @@
                     (click)="$event.stopPropagation(); abrirDropdownResponsableRegistro()"
                     (keydown.escape)="cerrarComboboxesRegistro(true); $event.preventDefault(); $event.stopPropagation()"
                     (ngModelChange)="onBusquedaResponsableRegistro()"
-                    placeholder="Buscar usuario del sistema…"
+                    placeholder="Buscar responsable principal…"
                     autocomplete="off"
                     aria-autocomplete="list"
                     [attr.aria-expanded]="registroResponsableDropdownAbierto"
@@ -2225,7 +2317,7 @@
                     class="cp-registro-combobox__clear"
                     *ngIf="formRegistro.responsable || registroResponsableBusqueda"
                     (click)="limpiarResponsableRegistro($event)"
-                    aria-label="Limpiar responsable"
+                    aria-label="Limpiar responsable principal"
                   >
                     <i class="fas fa-times"></i>
                   </button>
@@ -2257,6 +2349,73 @@
                 </div>
               </div>
               <input type="hidden" [(ngModel)]="formRegistro.responsable" name="responsable">
+              <p class="cp-registro-field__hint">Una sola persona lidera el proyecto. Los demás van en Colaboradores.</p>
+            </div>
+
+            <div class="cp-registro-field cp-registro-field--wide">
+              <span class="cp-registro-field__label"><i class="fas fa-user-friends"></i> Colaboradores</span>
+              <div
+                class="cp-registro-colabs"
+                [class.is-open]="registroColaboradorDropdownAbierto"
+                (mousedown)="$event.stopPropagation()"
+              >
+                <div class="cp-registro-colabs__chips" *ngIf="formRegistro.colaboradores?.length">
+                  <span class="cp-registro-colabs__chip" *ngFor="let colab of formRegistro.colaboradores">
+                    <span class="cp-registro-colabs__av" [style.background]="colorAvatar(colab)">{{ iniciales(colab) }}</span>
+                    <span class="cp-registro-colabs__name" [title]="colab">{{ colab }}</span>
+                    <button
+                      type="button"
+                      class="cp-registro-colabs__remove"
+                      (click)="quitarColaboradorRegistro(colab, $event)"
+                      [attr.aria-label]="'Quitar ' + colab"
+                    >
+                      <i class="fas fa-times"></i>
+                    </button>
+                  </span>
+                </div>
+                <div class="cp-registro-combobox" [class.is-open]="registroColaboradorDropdownAbierto">
+                  <div class="cp-registro-combobox__control" (click)="abrirDropdownColaboradorRegistro()">
+                    <span class="cp-registro-combobox__icon" aria-hidden="true"><i class="fas fa-plus"></i></span>
+                    <input
+                      type="text"
+                      class="cp-registro-combobox__input"
+                      name="colaboradorBusqueda"
+                      [(ngModel)]="registroColaboradorBusqueda"
+                      (click)="$event.stopPropagation(); abrirDropdownColaboradorRegistro()"
+                      (keydown.escape)="cerrarComboboxesRegistro(true); $event.preventDefault(); $event.stopPropagation()"
+                      (ngModelChange)="onBusquedaColaboradorRegistro()"
+                      placeholder="Agregar colaborador…"
+                      autocomplete="off"
+                      aria-autocomplete="list"
+                      [attr.aria-expanded]="registroColaboradorDropdownAbierto"
+                    >
+                    <span class="cp-registro-combobox__chevron" aria-hidden="true">
+                      <i class="fas" [ngClass]="registroColaboradorDropdownAbierto ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+                    </span>
+                  </div>
+                  <div class="cp-registro-combobox__dropdown" *ngIf="registroColaboradorDropdownAbierto" role="listbox">
+                    <button
+                      type="button"
+                      class="cp-registro-combobox__option"
+                      role="option"
+                      *ngFor="let nombre of colaboradoresRegistroFiltrados"
+                      (click)="agregarColaboradorRegistro(nombre)"
+                    >
+                      <span class="cp-registro-combobox__option-icon cp-registro-combobox__option-icon--user">
+                        <i class="fas fa-user"></i>
+                      </span>
+                      <span class="cp-registro-combobox__option-body">
+                        <span class="cp-registro-combobox__option-title">{{ nombre }}</span>
+                      </span>
+                    </button>
+                    <div class="cp-registro-combobox__state" *ngIf="colaboradoresRegistroFiltrados.length === 0">
+                      <i class="fas fa-info-circle"></i>
+                      {{ formRegistro.responsable ? 'No hay más usuarios disponibles' : 'Elige primero el responsable principal' }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <p class="cp-registro-field__hint">Personas de apoyo. No aparecen como responsables principales del proyecto.</p>
             </div>
 
             <div class="cp-registro-field cp-registro-field--wide">
@@ -2306,7 +2465,12 @@
               <label class="cp-registro-field">
                 <span class="cp-registro-field__label"><i class="fas fa-calendar-day"></i> Fecha de inicio</span>
                 <div class="cp-registro-field__control">
-                  <input type="date" [(ngModel)]="formRegistro.fechaInicio" name="fechaInicio">
+                  <input
+                    type="date"
+                    [(ngModel)]="formRegistro.fechaInicio"
+                    name="fechaInicio"
+                    (ngModelChange)="onFechaInicioRegistroChange()"
+                  >
                 </div>
               </label>
               <label class="cp-registro-field">
@@ -2315,6 +2479,29 @@
                   <input type="date" [(ngModel)]="formRegistro.fechaCompromiso" name="fechaCompromiso">
                 </div>
               </label>
+            </div>
+
+            <div class="cp-registro-field cp-registro-field--wide">
+              <span class="cp-registro-field__label"><i class="fas fa-hourglass-half"></i> Duración estimada</span>
+              <div class="cp-registro-avance-pills" role="group" aria-label="Duración estimada del proyecto">
+                <button
+                  type="button"
+                  class="cp-registro-avance-pill"
+                  *ngFor="let du of opcionesDuracionEstimada"
+                  [class.is-active]="formRegistro.duracionEstimada === du.value"
+                  [attr.data-tone]="'duration'"
+                  (click)="seleccionarDuracionEstimadaRegistro(du.value)"
+                  [attr.aria-pressed]="formRegistro.duracionEstimada === du.value"
+                >
+                  <i class="fas {{ du.icon }}"></i>
+                  <strong>{{ du.shortLabel }}</strong>
+                  <small>{{ du.hint }}</small>
+                </button>
+              </div>
+              <p class="cp-registro-avance-selected">{{ etiquetaDuracionEstimada(formRegistro.duracionEstimada) }}</p>
+              <p class="cp-registro-field__hint">
+                Al elegir duración con fecha de inicio, se propone la fecha compromiso automáticamente.
+              </p>
             </div>
           </div>
         </div>
@@ -2425,8 +2612,16 @@
         <article class="cp-det-fact">
           <span class="cp-det-fact__icon" aria-hidden="true"><i class="fas fa-user"></i></span>
           <div>
-            <p class="cp-det-fact__label">Responsable</p>
-            <p class="cp-det-fact__value">{{ panel.proyecto.responsable || 'Sin asignar' }}</p>
+            <p class="cp-det-fact__label">Responsable principal</p>
+            <p class="cp-det-fact__value">{{ responsablePrincipal(panel.proyecto) }}</p>
+            <ng-container *ngIf="colaboradoresDe(panel.proyecto) as cols">
+              <p class="cp-det-fact__label" *ngIf="cols.length">Colaboradores</p>
+              <p class="cp-det-fact__value" *ngIf="cols.length">{{ cols.join(', ') }}</p>
+            </ng-container>
+            <ng-container *ngIf="panel.proyecto.duracionEstimada">
+              <p class="cp-det-fact__label">Duración estimada</p>
+              <p class="cp-det-fact__value">{{ panel.proyecto.duracionEstimada }}</p>
+            </ng-container>
           </div>
         </article>
         <article class="cp-det-fact">

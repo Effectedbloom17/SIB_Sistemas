@@ -3075,6 +3075,23 @@ export class BackendServices {
         );
     }
 
+    listarLiguesPuntoSeguridad(asignacionId: number, requisitoId: number): Observable<any> {
+        return this.httpClient.get(
+            `${this.baseUrl}/seguridad/asignacion/${asignacionId}/puntos/${requisitoId}/ligues`
+        );
+    }
+
+    guardarLiguesPuntoSeguridad(
+        asignacionId: number,
+        requisitoId: number,
+        destinoRequisitoIds: number[]
+    ): Observable<any> {
+        return this.httpClient.put(
+            `${this.baseUrl}/seguridad/asignacion/${asignacionId}/puntos/${requisitoId}/ligues`,
+            { destino_requisito_ids: destinoRequisitoIds || [] }
+        );
+    }
+
     subirDocumentoSeguridadAsignacion(
         asignacionId: number,
         archivo: File,
@@ -4494,6 +4511,7 @@ export class BackendServices {
         responsableUsuarioIds?: number[];
         fechaInicio?: string;
         fechaCompromiso?: string;
+        duracionEstimada?: string;
         entregables?: string;
         observaciones?: string;
         prioridad?: string;
@@ -4517,6 +4535,7 @@ export class BackendServices {
         responsableUsuarioIds?: number[];
         fechaInicio?: string;
         fechaCompromiso?: string;
+        duracionEstimada?: string;
         entregables?: string;
         observaciones?: string;
         prioridad?: string;

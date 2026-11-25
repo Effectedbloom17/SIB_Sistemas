@@ -32,6 +32,39 @@ interface DocumentoItem {
   drive_file_id?: string | null;
   drive_web_view_link?: string | null;
   anio?: number | null;
+  /** Documento propio de otro punto, visible aquí por ligue. */
+  ligado?: boolean;
+  origen_requisito_id?: number | null;
+  origen_punto_norma?: string | null;
+  origen_normativa_codigo?: string | null;
+  origen_normativa_titulo?: string | null;
+  origen_formato?: string | null;
+  origen_etiqueta?: string | null;
+}
+
+interface LigueDestinoItem {
+  requisito_id: number;
+  punto_norma: string;
+  normativa_id: number | null;
+  normativa_codigo: string;
+  normativa_titulo: string;
+}
+
+interface LigueCandidatoPunto {
+  id: number;
+  punto_norma: string;
+  descripcion: string;
+  formato_nombre: string | null;
+  seleccionado: boolean;
+}
+
+interface LigueCandidatoNorma {
+  asignacion_id: number;
+  normativa_id: number;
+  codigo: string;
+  titulo: string;
+  misma_normativa: boolean;
+  puntos: LigueCandidatoPunto[];
 }
 
 interface CategoriaAvance {
@@ -117,6 +150,8 @@ interface PuntoGestion {
   estado: 'cumple' | 'parcial' | 'no_cumple';
   imagenes: ImagenPuntoLite[];
   documentos: DocumentoItem[];
+  documentos_ligados: DocumentoItem[];
+  ligues_destino: LigueDestinoItem[];
 }
 
 /** Opciones de acción (plantilla Excel). */
@@ -239,6 +274,15 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
   puntoActivo: PuntoGestion | null = null;
   subiendo = false;
   guardandoPunto = false;
+  /** Panel «Ligar punto de normativa». */
+  ligueAbierto = false;
+  cargandoLigues = false;
+  guardandoLigues = false;
+  private ligueSavePendiente: number[] | null = null;
+  ligueBusqueda = '';
+  ligueCandidatos: LigueCandidatoNorma[] = [];
+  /** IDs destino seleccionados en el panel (borrador). */
+  ligueSeleccion = new Set<number>();
   lecturaHtml: SafeHtml | null = null;
   imagenesSobrantes: ImagenPuntoLite[] = [];
   imagenAbierta: string | null = null;
@@ -311,7 +355,7 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
   ) {}
 
   get puedeAsignar(): boolean {
-    return this.auth.esAdministradorOSuperior();
+    return this.auth.puedeAsignarNormativasSeguridad();
   }
 
   /** Admin o root: desactivar sin borrar datos. */
@@ -683,6 +727,7 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
     if (asignacionId > 0) {
       this.vista = 'normativa';
       this.puntoActivo = null;
+      this.resetPanelLigue();
       this.cargarDetalle(asignacionId);
       return;
     }
@@ -690,6 +735,7 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
       this.vista = 'empresa';
       this.detalle = null;
       this.puntoActivo = null;
+      this.resetPanelLigue();
       this.aplicarCategoriaQuery();
       this.cargarEmpresa(empresaId);
       return;
@@ -698,6 +744,7 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
     this.empresa = null;
     this.detalle = null;
     this.puntoActivo = null;
+    this.resetPanelLigue();
     this.cargarEmpresas();
   }
 
@@ -921,7 +968,9 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
           this.inicializarCapitulosColapsados();
           this.precargarThumbsEvidencias(this.detalle.puntos);
           if (requisitoId) {
+            const mismoPunto = this.puntoActivo?.id === requisitoId;
             this.puntoActivo = this.detalle.puntos.find((p) => p.id === requisitoId) || null;
+            if (!mismoPunto) this.resetPanelLigue();
             if (!this.puntoActivo) {
               this.error = 'No se encontró el punto de la normativa.';
               this.lecturaHtml = null;
@@ -930,9 +979,16 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
             } else {
               this.observacionesDraft = this.puntoActivo.observaciones || '';
               this.prepararLecturaPunto(this.puntoActivo);
+              if (!this.ligueCandidatos.length) this.cargarPanelLigues();
+              else {
+                this.ligueSeleccion = new Set(
+                  (this.puntoActivo.ligues_destino || []).map((l) => l.requisito_id)
+                );
+              }
             }
           } else {
             this.puntoActivo = null;
+            this.resetPanelLigue();
             this.lecturaHtml = null;
             this.observacionesDraft = '';
             this.limpiarFormatoPreviewBlob();
@@ -1012,8 +1068,257 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
           nombre: String(img.nombre || '')
         })).filter((img: ImagenPuntoLite) => !!img.ruta)
         : [],
-      documentos: p.documentos || []
+      documentos: Array.isArray(p.documentos) ? p.documentos : [],
+      documentos_ligados: Array.isArray(p.documentos_ligados)
+        ? p.documentos_ligados.map((d: any) => this.mapearDocumentoLigado(d))
+        : [],
+      ligues_destino: Array.isArray(p.ligues_destino)
+        ? p.ligues_destino.map((l: any) => ({
+          requisito_id: Number(l.requisito_id),
+          punto_norma: String(l.punto_norma || '').trim(),
+          normativa_id: l.normativa_id != null ? Number(l.normativa_id) : null,
+          normativa_codigo: String(l.normativa_codigo || '').trim(),
+          normativa_titulo: String(l.normativa_titulo || '').trim()
+        }))
+        : []
     };
+  }
+
+  private mapearDocumentoLigado(d: any): DocumentoItem {
+    return {
+      id: Number(d.id),
+      requisito_id: d.requisito_id != null ? Number(d.requisito_id) : null,
+      nombre_original: String(d.nombre_original || ''),
+      tamano: Number(d.tamano) || 0,
+      subido_por: d.subido_por || null,
+      creado_en: d.creado_en || null,
+      drive_file_id: d.drive_file_id || null,
+      drive_web_view_link: d.drive_web_view_link || null,
+      anio: d.anio != null ? Number(d.anio) : null,
+      ligado: true,
+      origen_requisito_id: d.origen_requisito_id != null ? Number(d.origen_requisito_id) : null,
+      origen_punto_norma: d.origen_punto_norma || null,
+      origen_normativa_codigo: d.origen_normativa_codigo || null,
+      origen_normativa_titulo: d.origen_normativa_titulo || null,
+      origen_formato: d.origen_formato || null,
+      origen_etiqueta: d.origen_etiqueta
+        || [d.origen_normativa_codigo, d.origen_punto_norma, d.origen_formato]
+          .filter(Boolean)
+          .join(' · ')
+        || 'Punto ligado'
+    };
+  }
+
+  /** Documentos propios + ligados (para miniaturas y conteo). */
+  docsVisiblesPunto(punto: PuntoGestion | null): DocumentoItem[] {
+    if (!punto) return [];
+    return [...(punto.documentos || []), ...(punto.documentos_ligados || [])];
+  }
+
+  etiquetaLigueDestino(l: LigueDestinoItem): string {
+    const codigo = (l.normativa_codigo || '').trim();
+    const punto = (l.punto_norma || '').trim();
+    return codigo ? `${codigo} · ${punto}` : punto || 'Punto';
+  }
+
+  togglePanelLigue(): void {
+    if (!this.puntoActivo || !this.detalle) return;
+    this.ligueAbierto = !this.ligueAbierto;
+    if (this.ligueAbierto) {
+      this.cargarPanelLigues();
+    } else {
+      this.ligueBusqueda = '';
+    }
+    this.cdr.markForCheck();
+  }
+
+  private resetPanelLigue(): void {
+    this.ligueAbierto = false;
+    this.cargandoLigues = false;
+    this.guardandoLigues = false;
+    this.ligueSavePendiente = null;
+    this.ligueBusqueda = '';
+    this.ligueCandidatos = [];
+    this.ligueSeleccion = new Set();
+  }
+
+  private mapearCandidatosLigue(res: any): LigueCandidatoNorma[] {
+    return Array.isArray(res?.candidatos)
+      ? res.candidatos.map((n: any) => ({
+        asignacion_id: Number(n.asignacion_id),
+        normativa_id: Number(n.normativa_id),
+        codigo: String(n.codigo || ''),
+        titulo: String(n.titulo || ''),
+        misma_normativa: !!n.misma_normativa,
+        puntos: Array.isArray(n.puntos)
+          ? n.puntos.map((p: any) => ({
+            id: Number(p.id),
+            punto_norma: String(p.punto_norma || ''),
+            descripcion: String(p.descripcion || ''),
+            formato_nombre: p.formato_nombre || null,
+            seleccionado: !!p.seleccionado
+          }))
+          : []
+      }))
+      : [];
+  }
+
+  private cargarPanelLigues(): void {
+    if (!this.puntoActivo || !this.detalle) return;
+    this.cargandoLigues = true;
+    this.backend.listarLiguesPuntoSeguridad(this.detalle.asignacion.id, this.puntoActivo.id)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res: any) => {
+          this.ligueCandidatos = this.mapearCandidatosLigue(res);
+          this.ligueSeleccion = new Set<number>(
+            (res?.destino_requisito_ids || [])
+              .map((id: any) => Number(id))
+              .filter((id: number) => Number.isFinite(id) && id > 0)
+          );
+          this.cargandoLigues = false;
+          this.cdr.markForCheck();
+        },
+        error: (err: any) => {
+          this.cargandoLigues = false;
+          Swal.fire({
+            icon: 'error',
+            title: 'No se cargaron los puntos',
+            text: err?.error?.message || 'Intente de nuevo.',
+            confirmButtonColor: '#b91c1c'
+          });
+          this.cdr.markForCheck();
+        }
+      });
+  }
+
+  get ligueCandidatosFiltrados(): LigueCandidatoNorma[] {
+    const q = this.ligueBusqueda.trim().toLowerCase();
+    if (!q) return this.ligueCandidatos;
+    return this.ligueCandidatos
+      .map((n) => {
+        const normaHit = `${n.codigo} ${n.titulo}`.toLowerCase().includes(q);
+        const puntos = normaHit
+          ? n.puntos
+          : n.puntos.filter((p) =>
+            `${p.punto_norma} ${p.descripcion} ${p.formato_nombre || ''}`.toLowerCase().includes(q)
+          );
+        return { ...n, puntos };
+      })
+      .filter((n) => n.puntos.length > 0);
+  }
+
+  capitulosLigue(norma: LigueCandidatoNorma): Array<{ clave: string; puntos: LigueCandidatoPunto[] }> {
+    const mapa = new Map<string, LigueCandidatoPunto[]>();
+    for (const p of norma.puntos || []) {
+      const m = String(p.punto_norma || '').trim().match(/^(\d+)/);
+      const clave = m ? m[1] : 'Otros';
+      const lista = mapa.get(clave) || [];
+      lista.push(p);
+      mapa.set(clave, lista);
+    }
+    return [...mapa.entries()]
+      .sort((a, b) => {
+        const na = Number(a[0]);
+        const nb = Number(b[0]);
+        if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
+        return a[0].localeCompare(b[0], 'es');
+      })
+      .map(([clave, puntos]) => ({ clave, puntos }));
+  }
+
+  conteoLigueCapitulo(cap: { puntos: LigueCandidatoPunto[] }): string {
+    const total = cap.puntos.length;
+    const on = cap.puntos.filter((p) => this.ligueSeleccion.has(p.id)).length;
+    return `${on}/${total}`;
+  }
+
+  estaLigueSeleccionado(requisitoId: number): boolean {
+    return this.ligueSeleccion.has(requisitoId);
+  }
+
+  /** Seleccionar/deseleccionar liga el formato al instante. */
+  toggleLigueDestino(requisitoId: number): void {
+    if (!this.puntoActivo || !this.detalle) return;
+    const next = new Set(this.ligueSeleccion);
+    if (next.has(requisitoId)) next.delete(requisitoId);
+    else next.add(requisitoId);
+    this.ligueSeleccion = next;
+    this.sincronizarLiguesEnPuntoActivo();
+    this.cdr.markForCheck();
+    this.persistirLiguesInmediato();
+  }
+
+  private sincronizarLiguesEnPuntoActivo(): void {
+    if (!this.puntoActivo) return;
+    const destinos: LigueDestinoItem[] = [];
+    for (const norma of this.ligueCandidatos) {
+      for (const p of norma.puntos) {
+        if (!this.ligueSeleccion.has(p.id)) continue;
+        destinos.push({
+          requisito_id: p.id,
+          punto_norma: p.punto_norma,
+          normativa_id: norma.normativa_id,
+          normativa_codigo: norma.codigo,
+          normativa_titulo: norma.titulo
+        });
+      }
+    }
+    this.puntoActivo.ligues_destino = destinos;
+    const enDetalle = this.detalle?.puntos?.find((p) => p.id === this.puntoActivo!.id);
+    if (enDetalle) enDetalle.ligues_destino = destinos;
+  }
+
+  private persistirLiguesInmediato(): void {
+    if (!this.puntoActivo || !this.detalle) return;
+    const ids = [...this.ligueSeleccion];
+    if (this.guardandoLigues) {
+      this.ligueSavePendiente = ids;
+      return;
+    }
+    this.guardandoLigues = true;
+    this.backend.guardarLiguesPuntoSeguridad(
+      this.detalle.asignacion.id,
+      this.puntoActivo.id,
+      ids
+    )
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res: any) => {
+          this.guardandoLigues = false;
+          if (this.ligueSavePendiente) {
+            const pending = this.ligueSavePendiente;
+            this.ligueSavePendiente = null;
+            this.ligueSeleccion = new Set(pending);
+            this.sincronizarLiguesEnPuntoActivo();
+            this.persistirLiguesInmediato();
+            this.cdr.markForCheck();
+            return;
+          }
+          this.ligueSeleccion = new Set<number>(
+            (res?.destino_requisito_ids || ids)
+              .map((id: any) => Number(id))
+              .filter((id: number) => Number.isFinite(id) && id > 0)
+          );
+          if (Array.isArray(res?.candidatos)) {
+            this.ligueCandidatos = this.mapearCandidatosLigue(res);
+          }
+          this.sincronizarLiguesEnPuntoActivo();
+          this.cdr.markForCheck();
+        },
+        error: (err: any) => {
+          this.guardandoLigues = false;
+          this.ligueSavePendiente = null;
+          this.cargarPanelLigues();
+          Swal.fire({
+            icon: 'error',
+            title: 'No se ligó el formato',
+            text: err?.error?.message || 'Intente de nuevo.',
+            confirmButtonColor: '#b91c1c'
+          });
+          this.cdr.markForCheck();
+        }
+      });
   }
 
   private accionesDesdeScore(score: number): AccionesPunto {
@@ -1911,8 +2216,9 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
     this.limpiarThumbsBlob();
     this.driveThumbFallidos.clear();
     for (const p of puntos) {
-      for (const doc of p.documentos || []) {
+      for (const doc of this.docsVisiblesPunto(p)) {
         if (doc.drive_file_id) continue;
+        if (this.thumbsBlob.has(doc.id)) continue;
         const tipo = this.etiquetaTipoArchivo(doc.nombre_original);
         if (tipo !== 'PDF' && tipo !== 'IMAGEN') continue;
         this.backend.descargarDocumentoSeguridadAsignacion(doc.id)

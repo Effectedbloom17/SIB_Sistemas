@@ -460,6 +460,18 @@ export class AuthService {
   }
 
   /**
+   * Seguridad · Asignación de normativas:
+   * solo Dirección General (marisol12, leonel58) y superadministrador (root).
+   */
+  public puedeAsignarNormativasSeguridad(): boolean {
+    if (this.esRoot() || this.esSuperusuario()) {
+      return true;
+    }
+    const username = String(this.getUsername() || '').toLowerCase().trim();
+    return username === 'marisol12' || username === 'leonel58';
+  }
+
+  /**
    * Roles que pueden subir y gestionar el repositorio documental de empresas.
    */
   public puedeEscribirRepositorioEmpresa(): boolean {

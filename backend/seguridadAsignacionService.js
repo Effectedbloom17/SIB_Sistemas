@@ -9,6 +9,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { formatearPuntoNorma, contextoUsuario } = require('./seguridadNormativasService');
 const driveService = require('./driveService');
+const seguridadMatrizNormativasService = require('./seguridadMatrizNormativasService');
 
 const MAX_NORMAS = 80;
 const MAX_PUNTOS_NORMA = 8000;
@@ -46,13 +47,32 @@ function rolesUsuario(usuario) {
     return [];
 }
 
-/** root / administrador ven todas las asignaciones; el resto solo las propias. */
+function usernameUsuario(usuario) {
+    return String(usuario?.username || '').toLowerCase().trim();
+}
+
+/** Dirección General: marisol12 y leonel58. */
+function esDireccionGeneral(usuario) {
+    const u = usernameUsuario(usuario);
+    return u === 'marisol12' || u === 'leonel58';
+}
+
+/**
+ * Solo Dirección General y superadministrador pueden asignar/publicar normativas.
+ * El resto solo gestiona puntos de las ya asignadas a su cargo.
+ */
+function esAsignadorNormativas(usuario) {
+    return esRootSeguridad(usuario) || esDireccionGeneral(usuario);
+}
+
+/** root / administrador / DG ven todas las gestiones; el resto solo las propias. */
 function esAdminSeguridad(usuario) {
     const roles = rolesUsuario(usuario);
     return roles.includes('root')
         || roles.includes('administrador')
         || roles.includes('super_admin')
-        || roles.includes('superadmin');
+        || roles.includes('superadmin')
+        || esDireccionGeneral(usuario);
 }
 
 /** Solo superadministrador (root) puede reactivar o borrar en definitivo. */
@@ -64,6 +84,21 @@ function assertAdminSeguridad(usuario, mensaje) {
     if (!esAdminSeguridad(usuario)) {
         throw httpError(403, mensaje || 'Solo administradores pueden realizar esta acción.');
     }
+}
+
+function assertAsignadorNormativas(usuario, mensaje) {
+    if (!esAsignadorNormativas(usuario)) {
+        throw httpError(403, mensaje || 'Solo Dirección General o el superadministrador pueden asignar normativas.');
+    }
+}
+
+/**
+ * Alcance del borrador/estado de asignación.
+ * Asignadores ven todo; el resto solo las normativas donde es responsable.
+ */
+function alcanceAsignacion(usuario) {
+    if (!usuario || esAsignadorNormativas(usuario)) return { empleadoId: null };
+    return { empleadoId: idUsuarioSeguridad(usuario) };
 }
 
 function assertRootSeguridad(usuario, mensaje) {
@@ -362,6 +397,28 @@ async function crearTablas(pool) {
             REFERENCES seg_asignacion_historial_norma (id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
+
+    /**
+     * Ligues entre puntos: los archivos del origen se muestran en el destino
+     * (evita subir la misma evidencia dos veces). Catálogo de requisitos.
+     */
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS seg_punto_ligue (
+          id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+          origen_requisito_id BIGINT UNSIGNED NOT NULL,
+          destino_requisito_id BIGINT UNSIGNED NOT NULL,
+          creado_por VARCHAR(120) NULL,
+          creado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (id),
+          UNIQUE KEY uk_ligue_origen_destino (origen_requisito_id, destino_requisito_id),
+          KEY idx_ligue_destino (destino_requisito_id),
+          KEY idx_ligue_origen (origen_requisito_id),
+          CONSTRAINT fk_ligue_origen FOREIGN KEY (origen_requisito_id)
+            REFERENCES seg_normativa_requisito (id) ON DELETE CASCADE,
+          CONSTRAINT fk_ligue_destino FOREIGN KEY (destino_requisito_id)
+            REFERENCES seg_normativa_requisito (id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
 }
 
 const ACCION_SCORE_META = {
@@ -467,12 +524,56 @@ function filtrarPayloadPorEmpleado(payload, empleadoId) {
 
 async function guardarBorrador(pool, empresaId, payload, usuario) {
     await asegurarTablas(pool);
-    if (!esAdminSeguridad(usuario)) {
-        throw httpError(403, 'Solo administradores pueden editar la asignación de normativas.');
-    }
     const id = entero(empresaId);
     if (!id) throw httpError(400, 'Seleccione una empresa válida.');
-    const limpio = sanitizarPayload(payload);
+
+    const entrada = sanitizarPayload(payload);
+    let limpio = entrada;
+
+    if (!esAsignadorNormativas(usuario)) {
+        const uid = idUsuarioSeguridad(usuario);
+        if (!uid) {
+            throw httpError(403, 'Solo Dirección General o el superadministrador pueden editar la asignación.');
+        }
+
+        const [borradorRows] = await pool.query(
+            'SELECT payload FROM seg_asignacion_borrador WHERE empresa_id = ? LIMIT 1',
+            [id]
+        );
+        const base = borradorRows[0]
+            ? leerPayload(borradorRows[0].payload)
+            : (await payloadPublicado(pool, id)) || { paso: 0, normas: [] };
+
+        const propias = new Set(
+            (base.normas || [])
+                .filter((n) => (n.empleados || []).some((e) => Number(e.empleado_id) === uid))
+                .map((n) => Number(n.normativa_id))
+        );
+        if (!propias.size) {
+            throw httpError(403, 'No tiene normativas asignadas para gestionar puntos.');
+        }
+
+        const porEntrada = new Map((entrada.normas || []).map((n) => [Number(n.normativa_id), n]));
+        limpio = {
+            ...base,
+            paso: Math.max(Number(base.paso) || 0, Number(entrada.paso) || 0, 1),
+            vista: entrada.vista || base.vista || '',
+            normas: (base.normas || []).map((n) => {
+                const nid = Number(n.normativa_id);
+                if (!propias.has(nid)) return n;
+                const patch = porEntrada.get(nid);
+                if (!patch) return n;
+                return {
+                    ...n,
+                    empleados: n.empleados,
+                    requisito_ids: patch.requisito_ids || [],
+                    puntos: Array.isArray(patch.puntos) ? patch.puntos : (n.puntos || [])
+                };
+            })
+        };
+        limpio = sanitizarPayload(limpio);
+    }
+
     const ctx = contextoUsuario(usuario);
     const json = JSON.stringify(limpio);
     if (json.length > 4_000_000) {
@@ -982,7 +1083,7 @@ async function obtenerEstado(pool, empresaId, anioQuery, usuario = null) {
     const id = entero(empresaId);
     if (!id) throw httpError(400, 'Seleccione una empresa válida.');
     const anio = anioCiclo(anioQuery);
-    const alcance = alcanceGestion(usuario);
+    const alcance = alcanceAsignacion(usuario);
 
     const [borradorRows] = await pool.query(
         `SELECT payload, actualizado_por, updated_at
@@ -1146,7 +1247,7 @@ async function listarPuntos(pool, normativaId) {
     return rows.map((row) => ({
         id: row.id,
         numero_item: row.numero_item,
-        punto_norma: formatearPuntoNorma(row.punto_norma) || '',
+        punto_norma: (row.punto_norma == null ? '' : String(row.punto_norma)),
         descripcion: row.descripcion || '',
         descripcion_html: row.descripcion_html || null,
         tipo_evidencia: row.tipo_evidencia || null,
@@ -1218,8 +1319,8 @@ async function validarResponsables(poolMain, responsables) {
 
 async function publicar(pool, poolMain, body, usuario) {
     await asegurarTablas(pool);
-    if (!esAdminSeguridad(usuario)) {
-        throw httpError(403, 'Solo administradores pueden publicar la asignación de normativas.');
+    if (!esAsignadorNormativas(usuario)) {
+        throw httpError(403, 'Solo Dirección General o el superadministrador pueden publicar la asignación de normativas.');
     }
     const empresaId = entero(body?.empresa_id);
     if (!empresaId) throw httpError(400, 'Seleccione una empresa.');
@@ -1379,6 +1480,31 @@ async function publicar(pool, poolMain, body, usuario) {
         });
 
         await conn.commit();
+
+        let matriz = null;
+        let pdfs = [];
+        try {
+            const filasMatriz = await seguridadMatrizNormativasService.armarFilasDesdeAsignacion(
+                pool,
+                empresaId,
+                normaIds
+            );
+            if (filasMatriz.length) {
+                matriz = await seguridadMatrizNormativasService.generarMatrizNormativas({
+                    empresaNombre,
+                    anio,
+                    filas: filasMatriz
+                });
+                pdfs = Array.isArray(matriz?.pdfs) ? matriz.pdfs : [];
+            }
+        } catch (matrizErr) {
+            console.warn(
+                `[SEG-ASIGNACION] Matriz Word/PDF no generada para empresa ${empresaId}:`,
+                matrizErr.message
+            );
+            matriz = { error: matrizErr.message || 'No se pudo generar la matriz.' };
+        }
+
         return {
             empresa_id: empresaId,
             empresa_nombre: empresaNombre,
@@ -1386,7 +1512,9 @@ async function publicar(pool, poolMain, body, usuario) {
             anio,
             nuevo_ciclo: !!nuevoCiclo,
             clonar_desde_anio: clonarDesdeAnio,
-            historial
+            historial,
+            matriz,
+            pdfs
         };
     } catch (error) {
         await conn.rollback();
@@ -1610,6 +1738,339 @@ function mapDocumento(row) {
     };
 }
 
+function etiquetaOrigenLigue(row) {
+    const codigo = String(row.origen_codigo || '').trim();
+    const punto = formatearPuntoNorma(row.origen_punto) || String(row.origen_requisito_id || '');
+    const formato = String(row.origen_formato || '').trim();
+    if (formato) return `${codigo ? codigo + ' · ' : ''}${punto} · ${formato}`;
+    return `${codigo ? codigo + ' · ' : ''}${punto}`.trim() || 'Punto ligado';
+}
+
+/**
+ * Carga ligues salientes y documentos entrantes (de otros puntos) para los
+ * requisitos de una asignación, resolviendo evidencias en la misma empresa.
+ */
+async function enriquecerPuntosConLigues(pool, empresaId, puntosBase, docsPropiosMap) {
+    const requisitoIds = puntosBase.map((p) => Number(p.id)).filter(Boolean);
+    if (!requisitoIds.length) {
+        return puntosBase.map((p) => ({
+            ...p,
+            ligues_destino: [],
+            documentos_ligados: []
+        }));
+    }
+
+    const placeholders = requisitoIds.map(() => '?').join(',');
+    let ligues = [];
+    try {
+        const [rows] = await pool.query(
+            `SELECT l.origen_requisito_id, l.destino_requisito_id,
+                    rd.punto_norma AS destino_punto, nd.codigo AS destino_codigo, nd.titulo AS destino_titulo,
+                    nd.id AS destino_normativa_id,
+                    ro.punto_norma AS origen_punto, no.codigo AS origen_codigo, no.titulo AS origen_titulo,
+                    no.id AS origen_normativa_id,
+                    ro.formato_nombre AS origen_formato
+             FROM seg_punto_ligue l
+             JOIN seg_normativa_requisito rd ON rd.id = l.destino_requisito_id
+             JOIN seg_normativa nd ON nd.id = rd.normativa_id
+             JOIN seg_normativa_requisito ro ON ro.id = l.origen_requisito_id
+             JOIN seg_normativa no ON no.id = ro.normativa_id
+             WHERE l.origen_requisito_id IN (${placeholders})
+                OR l.destino_requisito_id IN (${placeholders})`,
+            [...requisitoIds, ...requisitoIds]
+        );
+        ligues = rows;
+    } catch (err) {
+        if (err?.code === 'ER_NO_SUCH_TABLE') {
+            return puntosBase.map((p) => ({
+                ...p,
+                ligues_destino: [],
+                documentos_ligados: []
+            }));
+        }
+        throw err;
+    }
+
+    const salientesPorOrigen = new Map();
+    const origenesPorDestino = new Map();
+    const origenIdsEntrantes = new Set();
+
+    for (const row of ligues) {
+        const origenId = Number(row.origen_requisito_id);
+        const destinoId = Number(row.destino_requisito_id);
+        if (requisitoIds.includes(origenId)) {
+            const lista = salientesPorOrigen.get(origenId) || [];
+            lista.push({
+                requisito_id: destinoId,
+                punto_norma: formatearPuntoNorma(row.destino_punto) || String(destinoId),
+                normativa_id: Number(row.destino_normativa_id) || null,
+                normativa_codigo: row.destino_codigo || '',
+                normativa_titulo: row.destino_titulo || ''
+            });
+            salientesPorOrigen.set(origenId, lista);
+        }
+        if (requisitoIds.includes(destinoId)) {
+            origenIdsEntrantes.add(origenId);
+            const lista = origenesPorDestino.get(destinoId) || [];
+            lista.push({
+                requisito_id: origenId,
+                punto_norma: formatearPuntoNorma(row.origen_punto) || String(origenId),
+                normativa_id: Number(row.origen_normativa_id) || null,
+                normativa_codigo: row.origen_codigo || '',
+                normativa_titulo: row.origen_titulo || '',
+                formato_nombre: row.origen_formato || null,
+                etiqueta: etiquetaOrigenLigue(row)
+            });
+            origenesPorDestino.set(destinoId, lista);
+        }
+    }
+
+    const docsLigadosPorDestino = new Map();
+    if (origenIdsEntrantes.size && empresaId) {
+        const origenList = [...origenIdsEntrantes];
+        const phOrigen = origenList.map(() => '?').join(',');
+        const [docRows] = await pool.query(
+            `SELECT d.id, d.asignacion_id, d.requisito_id, d.nombre_original, d.mime, d.tamano,
+                    d.subido_por, d.creado_en, d.drive_file_id, d.drive_folder_id,
+                    d.drive_web_view_link, d.anio,
+                    r.punto_norma AS origen_punto, n.codigo AS origen_codigo, n.titulo AS origen_titulo,
+                    r.formato_nombre AS origen_formato, n.id AS origen_normativa_id
+             FROM seg_asignacion_documento d
+             JOIN seg_asignacion a ON a.id = d.asignacion_id
+             JOIN seg_normativa_requisito r ON r.id = d.requisito_id
+             JOIN seg_normativa n ON n.id = r.normativa_id
+             WHERE a.empresa_id = ?
+               AND a.estado = 'activa'
+               AND COALESCE(a.desactivada, 0) = 0
+               AND d.requisito_id IN (${phOrigen})
+             ORDER BY d.creado_en DESC, d.id DESC`,
+            [empresaId, ...origenList]
+        );
+
+        const metaPorOrigen = new Map();
+        for (const [, lista] of origenesPorDestino) {
+            for (const o of lista) metaPorOrigen.set(o.requisito_id, o);
+        }
+
+        for (const row of docRows) {
+            const origenId = Number(row.requisito_id);
+            const meta = metaPorOrigen.get(origenId) || {
+                requisito_id: origenId,
+                punto_norma: formatearPuntoNorma(row.origen_punto) || String(origenId),
+                normativa_codigo: row.origen_codigo || '',
+                normativa_titulo: row.origen_titulo || '',
+                formato_nombre: row.origen_formato || null,
+                etiqueta: etiquetaOrigenLigue(row)
+            };
+            const doc = {
+                ...mapDocumento(row),
+                ligado: true,
+                origen_requisito_id: origenId,
+                origen_punto_norma: meta.punto_norma,
+                origen_normativa_codigo: meta.normativa_codigo || row.origen_codigo || '',
+                origen_normativa_titulo: meta.normativa_titulo || row.origen_titulo || '',
+                origen_formato: meta.formato_nombre || row.origen_formato || null,
+                origen_etiqueta: meta.etiqueta || etiquetaOrigenLigue(row)
+            };
+            for (const [destinoId, origenes] of origenesPorDestino) {
+                if (origenes.some((o) => o.requisito_id === origenId)) {
+                    const arr = docsLigadosPorDestino.get(destinoId) || [];
+                    arr.push(doc);
+                    docsLigadosPorDestino.set(destinoId, arr);
+                }
+            }
+        }
+    }
+
+    return puntosBase.map((punto) => {
+        const rid = Number(punto.id);
+        const documentos = Array.isArray(punto.documentos)
+            ? punto.documentos
+            : (docsPropiosMap
+                ? docsPropiosMap.filter((d) => Number(d.requisito_id) === rid)
+                : []);
+        const documentos_ligados = docsLigadosPorDestino.get(rid) || [];
+        const estado = estadoPunto([...documentos, ...documentos_ligados]);
+        const ultimaPropia = punto.ultima_evidencia || null;
+        const ultimaLigada = documentos_ligados.reduce((acc, d) => {
+            if (!d.creado_en) return acc;
+            if (!acc || String(d.creado_en) > String(acc)) return d.creado_en;
+            return acc;
+        }, null);
+        let ultima = ultimaPropia;
+        if (ultimaLigada && (!ultima || String(ultimaLigada) > String(ultima))) {
+            ultima = ultimaLigada;
+        }
+        const indicador = estado === 'cumple' ? 100 : (estado === 'parcial' ? 50 : 0);
+        return {
+            ...punto,
+            documentos,
+            documentos_ligados,
+            ligues_destino: salientesPorOrigen.get(rid) || [],
+            ultima_evidencia: ultima,
+            fecha_terminacion: ultima,
+            estado,
+            indicador_avance: indicador
+        };
+    });
+}
+
+async function listarCandidatosLigue(pool, asignacionId, requisitoId, usuario = null) {
+    await asegurarTablas(pool);
+    const asigId = entero(asignacionId);
+    const reqId = entero(requisitoId);
+    if (!asigId || !reqId) throw httpError(400, 'Asignación o punto inválido.');
+    if (usuario) await assertAccesoAsignacion(pool, asigId, usuario);
+
+    const [asigs] = await pool.query(
+        `SELECT id, empresa_id, normativa_id
+         FROM seg_asignacion
+         WHERE id = ? AND estado = 'activa'
+         LIMIT 1`,
+        [asigId]
+    );
+    if (!asigs.length) throw httpError(404, 'La asignación no está disponible.');
+
+    const empresaId = asigs[0].empresa_id;
+    const [puntoOk] = await pool.query(
+        `SELECT requisito_id FROM seg_asignacion_punto
+         WHERE asignacion_id = ? AND requisito_id = ?
+         LIMIT 1`,
+        [asigId, reqId]
+    );
+    if (!puntoOk.length) throw httpError(404, 'Ese punto no forma parte de la normativa asignada.');
+
+    const [destinos] = await pool.query(
+        `SELECT destino_requisito_id
+         FROM seg_punto_ligue
+         WHERE origen_requisito_id = ?`,
+        [reqId]
+    );
+    const destinoIds = destinos.map((d) => Number(d.destino_requisito_id));
+
+    const [normas] = await pool.query(
+        `SELECT a.id AS asignacion_id, a.normativa_id, n.codigo, n.titulo
+         FROM seg_asignacion a
+         JOIN seg_normativa n ON n.id = a.normativa_id
+         WHERE a.empresa_id = ?
+           AND a.estado = 'activa'
+           AND COALESCE(a.desactivada, 0) = 0
+         ORDER BY n.codigo ASC, a.id ASC`,
+        [empresaId]
+    );
+
+    const candidatos = [];
+    for (const norma of normas) {
+        const [puntos] = await pool.query(
+            `SELECT r.id, r.punto_norma, r.descripcion, r.formato_nombre, r.orden
+             FROM seg_asignacion_punto p
+             JOIN seg_normativa_requisito r ON r.id = p.requisito_id
+             WHERE p.asignacion_id = ?
+             ORDER BY r.orden ASC, r.id ASC`,
+            [norma.asignacion_id]
+        );
+        const filtrados = puntos
+            .filter((p) => Number(p.id) !== reqId)
+            .map((p) => ({
+                id: Number(p.id),
+                punto_norma: formatearPuntoNorma(p.punto_norma) || String(p.id),
+                descripcion: String(p.descripcion || '').slice(0, 180),
+                formato_nombre: p.formato_nombre || null,
+                seleccionado: destinoIds.includes(Number(p.id))
+            }));
+        if (!filtrados.length) continue;
+        candidatos.push({
+            asignacion_id: Number(norma.asignacion_id),
+            normativa_id: Number(norma.normativa_id),
+            codigo: norma.codigo || '',
+            titulo: norma.titulo || '',
+            misma_normativa: Number(norma.asignacion_id) === asigId,
+            puntos: filtrados
+        });
+    }
+
+    return {
+        origen_requisito_id: reqId,
+        destino_requisito_ids: destinoIds,
+        candidatos
+    };
+}
+
+async function guardarLiguesPunto(pool, asignacionId, requisitoId, destinoIds, usuario = null) {
+    await asegurarTablas(pool);
+    const asigId = entero(asignacionId);
+    const origenId = entero(requisitoId);
+    if (!asigId || !origenId) throw httpError(400, 'Asignación o punto inválido.');
+    if (usuario) await assertAccesoAsignacion(pool, asigId, usuario);
+
+    const [asigs] = await pool.query(
+        `SELECT id, empresa_id
+         FROM seg_asignacion
+         WHERE id = ? AND estado = 'activa'
+         LIMIT 1`,
+        [asigId]
+    );
+    if (!asigs.length) throw httpError(404, 'La asignación no está disponible.');
+
+    const [puntoOk] = await pool.query(
+        `SELECT requisito_id FROM seg_asignacion_punto
+         WHERE asignacion_id = ? AND requisito_id = ?
+         LIMIT 1`,
+        [asigId, origenId]
+    );
+    if (!puntoOk.length) throw httpError(404, 'Ese punto no forma parte de la normativa asignada.');
+
+    const empresaId = asigs[0].empresa_id;
+    const rawIds = Array.isArray(destinoIds) ? destinoIds : [];
+    const limpios = [...new Set(
+        rawIds.map((id) => entero(id)).filter((id) => id && id !== origenId)
+    )];
+
+    if (limpios.length) {
+        const ph = limpios.map(() => '?').join(',');
+        const [validos] = await pool.query(
+            `SELECT DISTINCT p.requisito_id
+             FROM seg_asignacion_punto p
+             JOIN seg_asignacion a ON a.id = p.asignacion_id
+             WHERE a.empresa_id = ?
+               AND a.estado = 'activa'
+               AND COALESCE(a.desactivada, 0) = 0
+               AND p.requisito_id IN (${ph})`,
+            [empresaId, ...limpios]
+        );
+        const okSet = new Set(validos.map((r) => Number(r.requisito_id)));
+        const invalidos = limpios.filter((id) => !okSet.has(id));
+        if (invalidos.length) {
+            throw httpError(400, 'Uno o más puntos destino no están asignados a esta empresa.');
+        }
+    }
+
+    const conn = await pool.getConnection();
+    try {
+        await conn.beginTransaction();
+        await conn.query(
+            'DELETE FROM seg_punto_ligue WHERE origen_requisito_id = ?',
+            [origenId]
+        );
+        const creadoPor = String(usuario?.username || usuario?.nombre || '').slice(0, 120) || null;
+        for (const destinoId of limpios) {
+            await conn.query(
+                `INSERT INTO seg_punto_ligue (origen_requisito_id, destino_requisito_id, creado_por)
+                 VALUES (?, ?, ?)`,
+                [origenId, destinoId, creadoPor]
+            );
+        }
+        await conn.commit();
+    } catch (err) {
+        try { await conn.rollback(); } catch (_) { /* noop */ }
+        throw err;
+    } finally {
+        conn.release();
+    }
+
+    return listarCandidatosLigue(pool, asigId, origenId, usuario);
+}
+
 async function obtenerGestion(pool, asignacionId, usuario = null) {
     await asegurarTablas(pool);
     const id = entero(asignacionId);
@@ -1690,6 +2151,69 @@ async function obtenerGestion(pool, asignacionId, usuario = null) {
         [id]
     );
     const docsMap = docs.map(mapDocumento);
+    const puntosBase = puntos.map((row) => {
+        const documentos = docsMap.filter((d) => Number(d.requisito_id) === Number(row.id));
+        const ultima = aIso(row.ultima_evidencia);
+        const scoreGes = row.ges_accion_score != null ? Number(row.ges_accion_score) : null;
+        const score = scoreGes != null && !Number.isNaN(scoreGes)
+            ? scoreGes
+            : scoreDesdeAccionesCatalogo(row);
+        const acciones = score != null
+            ? accionesDesdeScore(score)
+            : {
+                preventiva: {
+                    conservar: !!Number(row.accion_prev_conservar || 0),
+                    mejorar: !!Number(row.accion_prev_mejorar || 0),
+                    actualizar: !!Number(row.accion_prev_actualizar || 0)
+                },
+                correctiva: {
+                    complementar: !!Number(row.accion_corr_complementar || 0),
+                    corregir: !!Number(row.accion_corr_corregir || 0),
+                    realizar: !!Number(row.accion_corr_realizar || 0)
+                }
+            };
+        const fechaInicio = row.ges_fecha_inicio || row.cat_fecha_inicio || null;
+        const observaciones = row.ges_observaciones != null
+            ? row.ges_observaciones
+            : (row.cat_observaciones || null);
+        const estado = estadoPunto(documentos);
+        /** Avance por cumplimiento (evidencias), no por nivel de acción. */
+        const indicador = estado === 'cumple' ? 100 : (estado === 'parcial' ? 50 : 0);
+        return {
+            id: row.id,
+            numero_item: row.numero_item != null ? Number(row.numero_item) : null,
+            punto_norma: (row.punto_norma == null ? '' : String(row.punto_norma)),
+            descripcion: row.descripcion || '',
+            descripcion_html: row.descripcion_html || null,
+            tipo_evidencia: row.tipo_evidencia || null,
+            periodicidad: row.periodicidad || null,
+            accion_score: score,
+            acciones,
+            fecha_inicio: fechaInicio,
+            /** Fecha de terminación = día en que se subió la evidencia. */
+            fecha_terminacion: ultima,
+            responsable: normalizarResponsableGestion(row.responsable),
+            indicador_avance: indicador,
+            evidencia_requerida: row.evidencia_requerida || null,
+            observaciones,
+            formato_nombre: row.formato_nombre || null,
+            formato_archivo: row.formato_archivo || null,
+            formato_nombre_archivo: row.formato_nombre_archivo || null,
+            orden: row.orden,
+            ultima_evidencia: ultima,
+            estado,
+            imagenes: imagenesMap.get(row.id) || [],
+            documentos
+        };
+    });
+
+    const puntosEnriquecidos = await enriquecerPuntosConLigues(
+        pool,
+        rows[0].empresa_id,
+        puntosBase,
+        docsMap
+    );
+
     return {
         asignacion: {
             ...mapAsignacionLista(rows[0]),
@@ -1700,61 +2224,7 @@ async function obtenerGestion(pool, asignacionId, usuario = null) {
                 puesto: r.empleado_puesto || ''
             }))
         },
-        puntos: puntos.map((row) => {
-            const documentos = docsMap.filter((d) => Number(d.requisito_id) === Number(row.id));
-            const ultima = aIso(row.ultima_evidencia);
-            const scoreGes = row.ges_accion_score != null ? Number(row.ges_accion_score) : null;
-            const score = scoreGes != null && !Number.isNaN(scoreGes)
-                ? scoreGes
-                : scoreDesdeAccionesCatalogo(row);
-            const acciones = score != null
-                ? accionesDesdeScore(score)
-                : {
-                    preventiva: {
-                        conservar: !!Number(row.accion_prev_conservar || 0),
-                        mejorar: !!Number(row.accion_prev_mejorar || 0),
-                        actualizar: !!Number(row.accion_prev_actualizar || 0)
-                    },
-                    correctiva: {
-                        complementar: !!Number(row.accion_corr_complementar || 0),
-                        corregir: !!Number(row.accion_corr_corregir || 0),
-                        realizar: !!Number(row.accion_corr_realizar || 0)
-                    }
-                };
-            const fechaInicio = row.ges_fecha_inicio || row.cat_fecha_inicio || null;
-            const observaciones = row.ges_observaciones != null
-                ? row.ges_observaciones
-                : (row.cat_observaciones || null);
-            const estado = estadoPunto(documentos);
-            /** Avance por cumplimiento (evidencias), no por nivel de acción. */
-            const indicador = estado === 'cumple' ? 100 : (estado === 'parcial' ? 50 : 0);
-            return {
-                id: row.id,
-                numero_item: row.numero_item != null ? Number(row.numero_item) : null,
-                punto_norma: formatearPuntoNorma(row.punto_norma) || '',
-                descripcion: row.descripcion || '',
-                descripcion_html: row.descripcion_html || null,
-                tipo_evidencia: row.tipo_evidencia || null,
-                periodicidad: row.periodicidad || null,
-                accion_score: score,
-                acciones,
-                fecha_inicio: fechaInicio,
-                /** Fecha de terminación = día en que se subió la evidencia. */
-                fecha_terminacion: ultima,
-                responsable: normalizarResponsableGestion(row.responsable),
-                indicador_avance: indicador,
-                evidencia_requerida: row.evidencia_requerida || null,
-                observaciones,
-                formato_nombre: row.formato_nombre || null,
-                formato_archivo: row.formato_archivo || null,
-                formato_nombre_archivo: row.formato_nombre_archivo || null,
-                orden: row.orden,
-                ultima_evidencia: ultima,
-                estado,
-                imagenes: imagenesMap.get(row.id) || [],
-                documentos
-            };
-        }),
+        puntos: puntosEnriquecidos,
         documentos_generales: docsMap.filter((d) => !d.requisito_id)
     };
 }
@@ -2242,6 +2712,8 @@ module.exports = {
     reactivarGestionEmpresa,
     eliminarGestionEmpresaDefinitiva,
     actualizarPuntoGestion,
+    listarCandidatosLigue,
+    guardarLiguesPunto,
     listarHistorialEmpresa,
     obtenerHistorialDetalle,
     CARPETA_SISTEMA_DRIVE_ID

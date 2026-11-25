@@ -515,6 +515,33 @@ $rp-border: rgba(219, 39, 119, 0.14);
   gap: 0.45rem;
 }
 
+.rp-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+
+  h3 {
+    margin: 0;
+  }
+
+  &__filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+
+    .form-control {
+      min-width: 160px;
+      max-width: 220px;
+      border-radius: 9px;
+      border-color: rgba(219, 39, 119, 0.2);
+      font-size: 0.8rem;
+    }
+  }
+}
+
 .rp-hint {
   color: $rp-muted;
   font-size: 0.8rem;

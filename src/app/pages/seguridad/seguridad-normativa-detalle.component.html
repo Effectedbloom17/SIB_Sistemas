@@ -313,7 +313,19 @@
         <div class="arch-pair">
           <label class="arch-field arch-field--punto">
             <span>Punto de la norma</span>
-            <input type="text" [(ngModel)]="ed.punto_norma" [disabled]="guardandoPunto" maxlength="32">
+            <input #inpPunto
+                   type="text"
+                   inputmode="text"
+                   autocomplete="off"
+                   spellcheck="false"
+                   name="punto_norma_etiqueta"
+                   [ngModelOptions]="{standalone: true}"
+                   [ngModel]="ed.punto_norma"
+                   (ngModelChange)="onPuntoNormaChange($event)"
+                   (input)="onPuntoNormaInput($event)"
+                   [disabled]="guardandoPunto"
+                   maxlength="32"
+                   placeholder="Ej. 5.10, 7.10">
           </label>
           <label class="arch-field">
             <span>Periodicidad</span>

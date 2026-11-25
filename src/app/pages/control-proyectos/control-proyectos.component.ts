@@ -71,6 +71,8 @@ interface ProyectoTableroItem {
   responsableUsuarioIds?: number[];
   fechaInicio?: string;
   fechaCompromiso?: string;
+  /** Mensual | Trimestral | Cuatrimestral | Semestral */
+  duracionEstimada?: string;
   entregables?: string;
   observaciones?: string;
   prioridad: string;
@@ -97,10 +99,15 @@ interface FormRegistroProyecto {
   condicionRequerimiento: string;
   actividadesAccion: string;
   referenciaNormativa: string;
+  /** Responsable principal del proyecto (uno solo). */
   responsable: string;
   responsableUsuarioId: number | null;
+  /** Personas adicionales; no se confunden con el responsable principal. */
+  colaboradores: string[];
+  colaboradoresUsuarioIds: number[];
   fechaInicio: string;
   fechaCompromiso: string;
+  duracionEstimada: string;
   avance: number;
   entregables: string;
   prioridad: string;
@@ -325,6 +332,8 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
   private gestionGuardadoEnCola = false;
   busquedaProyectoDashboard = '';
   filtroResponsable = '';
+  /** Filtro lateral de Gestión por responsable principal. */
+  filtroResponsableGestion = '';
   filtroPrioridadDashboard = '';
   filtroEstatusActividades = '';
   filtroEstatusCronograma = '';
@@ -515,8 +524,10 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
   usuariosInternosNombres: string[] = [];
   registroEmpresaBusqueda = '';
   registroResponsableBusqueda = '';
+  registroColaboradorBusqueda = '';
   registroEmpresaDropdownAbierto = false;
   registroResponsableDropdownAbierto = false;
+  registroColaboradorDropdownAbierto = false;
   proyectoDashboardSeleccionadoClave: string | null = null;
   avancePromedioPortfolio = 0;
   resumenAvanceTarjetas: Array<{
@@ -575,6 +586,13 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     { value: 'En proceso', shortLabel: 'En proceso', hint: 'Activo', icon: 'fa-play-circle', tone: 'progress' },
     { value: 'En revisión', shortLabel: 'En revisión', hint: 'Revisión', icon: 'fa-search', tone: 'review' },
     { value: 'Concluido', shortLabel: 'Concluido', hint: 'Cerrado', icon: 'fa-check-circle', tone: 'done' }
+  ];
+
+  readonly opcionesDuracionEstimada = [
+    { value: 'Mensual', shortLabel: 'Mensual', hint: '1 mes', icon: 'fa-calendar', meses: 1 },
+    { value: 'Trimestral', shortLabel: 'Trimestral', hint: '3 meses', icon: 'fa-calendar-alt', meses: 3 },
+    { value: 'Cuatrimestral', shortLabel: 'Cuatrimestral', hint: '4 meses', icon: 'fa-calendar-week', meses: 4 },
+    { value: 'Semestral', shortLabel: 'Semestral', hint: '6 meses', icon: 'fa-calendar-check', meses: 6 }
   ];
 
   readonly prioridadesRegistro = ['Muy Prioritaria', 'Prioritaria', 'Media', 'Baja', 'Muy baja', 'Ninguna'];
@@ -748,10 +766,14 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     if (this.empresaDashboardDropdownAbierto && !target?.closest('.cp-company-combo')) {
       this.cerrarDropdownEmpresaDashboard();
     }
-    if (!this.registroEmpresaDropdownAbierto && !this.registroResponsableDropdownAbierto) {
+    if (
+      !this.registroEmpresaDropdownAbierto
+      && !this.registroResponsableDropdownAbierto
+      && !this.registroColaboradorDropdownAbierto
+    ) {
       return;
     }
-    if (target?.closest('.cp-registro-combobox')) {
+    if (target?.closest('.cp-registro-combobox') || target?.closest('.cp-registro-colabs')) {
       return;
     }
     this.cerrarComboboxesRegistro();
@@ -789,7 +811,11 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
       this.cerrarDropdownEmpresaDashboard();
       return;
     }
-    if (!this.registroEmpresaDropdownAbierto && !this.registroResponsableDropdownAbierto) {
+    if (
+      !this.registroEmpresaDropdownAbierto
+      && !this.registroResponsableDropdownAbierto
+      && !this.registroColaboradorDropdownAbierto
+    ) {
       return;
     }
     event.preventDefault();
@@ -1036,25 +1062,29 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
 
   private reconstruirGestionVista(): void {
     const q = this.normalizar(this.busquedaGestion);
-    const visibles = !q
-      ? this.proyectosGestion.map((proyecto, indice) => ({ proyecto, indice }))
-      : this.proyectosGestion
-        .map((proyecto, indice) => ({ proyecto, indice }))
-        .filter(({ proyecto }) =>
-          [
-            proyecto.folio,
-            proyecto.nombreProyecto,
-            proyecto.item,
-            proyecto.condicionRequerimiento,
-            proyecto.actividadesAccion,
-            proyecto.referenciaNormativa,
-            proyecto.responsable,
-            proyecto.entregables,
-            proyecto.observaciones,
-            proyecto.prioridad,
-            proyecto.estatus
-          ].some((campo) => this.normalizar(campo).includes(q))
-        );
+    const responsableFiltro = this.normalizar(this.filtroResponsableGestion);
+    const visibles = this.proyectosGestion
+      .map((proyecto, indice) => ({ proyecto, indice }))
+      .filter(({ proyecto }) => {
+        if (responsableFiltro) {
+          const principal = this.normalizar(this.responsablePrincipal(proyecto));
+          if (principal !== responsableFiltro) return false;
+        }
+        if (!q) return true;
+        return [
+          proyecto.folio,
+          proyecto.nombreProyecto,
+          proyecto.item,
+          proyecto.condicionRequerimiento,
+          proyecto.actividadesAccion,
+          proyecto.referenciaNormativa,
+          proyecto.responsable,
+          proyecto.entregables,
+          proyecto.observaciones,
+          proyecto.prioridad,
+          proyecto.estatus
+        ].some((campo) => this.normalizar(campo).includes(q));
+      });
 
     const grupos = new Map<string, GrupoGestionProyecto>();
     for (const { proyecto, indice } of visibles) {
@@ -3758,6 +3788,29 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     this.reconstruirGestionVista();
   }
 
+  /** Responsables principales de los proyectos cargados en Gestión (para el filtro lateral). */
+  get responsablesGestionFiltroDisponibles(): string[] {
+    const map = new Map<string, string>();
+    for (const p of this.proyectosGestion) {
+      const principal = this.responsablePrincipal(p);
+      const key = this.normalizar(principal);
+      if (!key || key === 'sin asignar') continue;
+      if (!map.has(key)) map.set(key, principal);
+    }
+    return Array.from(map.values()).sort((a, b) => a.localeCompare(b, 'es'));
+  }
+
+  seleccionarFiltroResponsableGestion(responsable: string): void {
+    this.filtroResponsableGestion = this.filtroResponsableGestion === responsable ? '' : responsable;
+    this.reconstruirGestionVista();
+  }
+
+  limpiarFiltroResponsableGestion(): void {
+    if (!this.filtroResponsableGestion) return;
+    this.filtroResponsableGestion = '';
+    this.reconstruirGestionVista();
+  }
+
   onBusquedaBacklogChange(): void {
     this.reconstruirBacklogAgrupado();
   }
@@ -4559,6 +4612,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
       responsableUsuarioIds: this.parseResponsableUsuarioIds(p.responsableUsuarioIds),
       fechaInicio: p.fechaInicio || undefined,
       fechaCompromiso: p.fechaCompromiso || undefined,
+      duracionEstimada: p.duracionEstimada || undefined,
       entregables: String(p.entregables || '').trim(),
       observaciones: String(p.observaciones || '').trim(),
       prioridad: p.prioridad || undefined,
@@ -4695,6 +4749,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     const id = Number(valor || 0);
     this.empresaSeleccionadaId = Number.isInteger(id) && id > 0 ? id : null;
     this.filtroResponsable = '';
+    this.filtroResponsableGestion = '';
     this.busquedaProyectoDashboard = '';
     this.actividadesDashboardPagina = 1;
     this.proyectosActivosPagina = 1;
@@ -4776,28 +4831,53 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
 
   get responsablesRegistroFiltrados(): string[] {
     const q = this.normalizar(this.registroResponsableBusqueda);
+    const excluidos = new Set(
+      (this.formRegistro.colaboradores || []).map((n) => this.normalizar(n))
+    );
+    const base = this.usuariosInternosNombres.filter((n) => !excluidos.has(this.normalizar(n)));
     if (!q || this.formRegistro.responsable === this.registroResponsableBusqueda) {
-      return this.usuariosInternosNombres;
+      return base;
     }
-    return this.usuariosInternosNombres.filter((n) => this.normalizar(n).includes(q));
+    return base.filter((n) => this.normalizar(n).includes(q));
+  }
+
+  get colaboradoresRegistroFiltrados(): string[] {
+    const q = this.normalizar(this.registroColaboradorBusqueda);
+    const principal = this.normalizar(this.formRegistro.responsable);
+    const ya = new Set((this.formRegistro.colaboradores || []).map((n) => this.normalizar(n)));
+    return this.usuariosInternosNombres.filter((n) => {
+      const key = this.normalizar(n);
+      if (!key || key === principal || ya.has(key)) return false;
+      if (!q) return true;
+      return key.includes(q);
+    });
   }
 
   abrirDropdownEmpresaRegistro(): void {
     this.registroResponsableDropdownAbierto = false;
+    this.registroColaboradorDropdownAbierto = false;
     this.registroEmpresaDropdownAbierto = true;
   }
 
   abrirDropdownResponsableRegistro(): void {
     this.registroEmpresaDropdownAbierto = false;
+    this.registroColaboradorDropdownAbierto = false;
     this.registroResponsableDropdownAbierto = true;
+  }
+
+  abrirDropdownColaboradorRegistro(): void {
+    this.registroEmpresaDropdownAbierto = false;
+    this.registroResponsableDropdownAbierto = false;
+    this.registroColaboradorDropdownAbierto = true;
   }
 
   cerrarComboboxesRegistro(blurActivo = false): void {
     this.registroEmpresaDropdownAbierto = false;
     this.registroResponsableDropdownAbierto = false;
+    this.registroColaboradorDropdownAbierto = false;
     if (!blurActivo) return;
     const activo = document.activeElement as HTMLElement | null;
-    if (activo?.closest?.('.cp-registro-combobox')) {
+    if (activo?.closest?.('.cp-registro-combobox') || activo?.closest?.('.cp-registro-colabs')) {
       activo.blur();
     }
   }
@@ -4805,6 +4885,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
   onBusquedaEmpresaRegistro(): void {
     this.registroEmpresaDropdownAbierto = true;
     this.registroResponsableDropdownAbierto = false;
+    this.registroColaboradorDropdownAbierto = false;
     if (this.formRegistro.empresaNombre && this.registroEmpresaBusqueda !== this.formRegistro.empresaNombre) {
       this.formRegistro.empresaId = null;
       this.formRegistro.empresaNombre = '';
@@ -4814,10 +4895,17 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
   onBusquedaResponsableRegistro(): void {
     this.registroResponsableDropdownAbierto = true;
     this.registroEmpresaDropdownAbierto = false;
+    this.registroColaboradorDropdownAbierto = false;
     if (this.formRegistro.responsable && this.registroResponsableBusqueda !== this.formRegistro.responsable) {
       this.formRegistro.responsable = '';
       this.formRegistro.responsableUsuarioId = null;
     }
+  }
+
+  onBusquedaColaboradorRegistro(): void {
+    this.registroColaboradorDropdownAbierto = true;
+    this.registroEmpresaDropdownAbierto = false;
+    this.registroResponsableDropdownAbierto = false;
   }
 
   seleccionarEmpresaRegistro(empresa: EmpresaControlProyecto | null): void {
@@ -4843,6 +4931,8 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     this.formRegistro.responsable = nombre;
     this.formRegistro.responsableUsuarioId = this.resolverUsuarioIdPorNombre(nombre);
     this.registroResponsableBusqueda = nombre;
+    // Si estaba como colaborador, quitarlo de esa lista.
+    this.quitarColaboradorRegistroPorNombre(nombre);
     this.cerrarComboboxesRegistro();
   }
 
@@ -4854,6 +4944,47 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     this.registroResponsableDropdownAbierto = true;
   }
 
+  agregarColaboradorRegistro(nombre: string): void {
+    const limpio = String(nombre || '').trim();
+    if (!limpio) return;
+    if (this.normalizar(limpio) === this.normalizar(this.formRegistro.responsable)) return;
+    const ya = (this.formRegistro.colaboradores || []).some(
+      (c) => this.normalizar(c) === this.normalizar(limpio)
+    );
+    if (ya) {
+      this.registroColaboradorBusqueda = '';
+      this.cerrarComboboxesRegistro();
+      return;
+    }
+    this.formRegistro.colaboradores = [...(this.formRegistro.colaboradores || []), limpio];
+    const id = this.resolverUsuarioIdPorNombre(limpio);
+    if (id && !(this.formRegistro.colaboradoresUsuarioIds || []).includes(id)) {
+      this.formRegistro.colaboradoresUsuarioIds = [...(this.formRegistro.colaboradoresUsuarioIds || []), id];
+    }
+    this.registroColaboradorBusqueda = '';
+    this.cerrarComboboxesRegistro();
+  }
+
+  quitarColaboradorRegistro(nombre: string, event?: Event): void {
+    event?.stopPropagation();
+    this.quitarColaboradorRegistroPorNombre(nombre);
+  }
+
+  private quitarColaboradorRegistroPorNombre(nombre: string): void {
+    const target = this.normalizar(nombre);
+    if (!target) return;
+    const idsAntes = [...(this.formRegistro.colaboradoresUsuarioIds || [])];
+    const nombresAntes = [...(this.formRegistro.colaboradores || [])];
+    const idx = nombresAntes.findIndex((c) => this.normalizar(c) === target);
+    if (idx < 0) return;
+    nombresAntes.splice(idx, 1);
+    const idQuitado = this.resolverUsuarioIdPorNombre(nombre);
+    this.formRegistro.colaboradores = nombresAntes;
+    this.formRegistro.colaboradoresUsuarioIds = idQuitado
+      ? idsAntes.filter((id) => id !== idQuitado)
+      : idsAntes.filter((_, i) => i !== idx);
+  }
+
   seleccionarPrioridadRegistro(valor: string): void {
     this.formRegistro.prioridad = valor;
   }
@@ -4861,6 +4992,40 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
   seleccionarEstatusRegistro(valor: string): void {
     this.formRegistro.estatus = valor;
     this.formRegistro.avance = this.avancePorEstatusActividad(valor);
+  }
+
+  seleccionarDuracionEstimadaRegistro(valor: string): void {
+    const actual = this.formRegistro.duracionEstimada;
+    this.formRegistro.duracionEstimada = actual === valor ? '' : valor;
+    this.aplicarDuracionEstimadaAFechaCompromiso();
+  }
+
+  onFechaInicioRegistroChange(): void {
+    this.aplicarDuracionEstimadaAFechaCompromiso();
+  }
+
+  /** Si hay inicio + duración, propone la fecha compromiso (sin forzar si el usuario ya la movió a mano tras cambiar). */
+  private aplicarDuracionEstimadaAFechaCompromiso(): void {
+    const inicio = String(this.formRegistro.fechaInicio || '').trim();
+    const meses = this.mesesDuracionEstimada(this.formRegistro.duracionEstimada);
+    if (!inicio || !meses) return;
+    const calculada = this.sumarMesesIso(inicio, meses);
+    if (calculada) this.formRegistro.fechaCompromiso = calculada;
+  }
+
+  mesesDuracionEstimada(valor: string | null | undefined): number {
+    const item = this.opcionesDuracionEstimada.find((d) => d.value === valor);
+    return item?.meses || 0;
+  }
+
+  private sumarMesesIso(fechaIso: string, meses: number): string {
+    const base = this.parsearFechaIso(fechaIso);
+    if (!base || !meses) return '';
+    const d = new Date(base.getFullYear(), base.getMonth() + meses, base.getDate());
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
   }
 
   etiquetaPrioridadRegistro(valor: string): string {
@@ -4875,10 +5040,50 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     return `${item.shortLabel} — ${item.hint}`;
   }
 
+  etiquetaDuracionEstimada(valor: string): string {
+    const item = this.opcionesDuracionEstimada.find((d) => d.value === valor);
+    if (!item) return valor ? `Duración: ${valor}` : 'Sin duración estimada';
+    return `${item.shortLabel} — ${item.hint}`;
+  }
+
   private sincronizarBusquedasRegistro(): void {
     this.registroEmpresaBusqueda = this.formRegistro.empresaNombre || '';
     this.registroResponsableBusqueda = this.formRegistro.responsable || '';
+    this.registroColaboradorBusqueda = '';
     this.cerrarComboboxesRegistro();
+  }
+
+  /** Compone el campo `responsable` (principal | colaboradores) y sus IDs alineados. */
+  private componerResponsablesDesdeForm(form: FormRegistroProyecto): {
+    responsable: string;
+    responsableUsuarioIds: number[];
+  } {
+    const principal = String(form.responsable || '').trim();
+    const colaboradores = (form.colaboradores || [])
+      .map((n) => String(n || '').trim())
+      .filter((n) => n && this.normalizar(n) !== this.normalizar(principal));
+    const nombres = principal ? [principal, ...colaboradores] : colaboradores;
+    const responsable = this.serializeResponsables(nombres) || 'Sin asignar';
+
+    const ids: number[] = [];
+    const seen = new Set<number>();
+    const pushId = (id: number | null | undefined) => {
+      if (!id || seen.has(id)) return;
+      seen.add(id);
+      ids.push(id);
+    };
+    pushId(form.responsableUsuarioId || this.resolverUsuarioIdPorNombre(principal));
+    for (let i = 0; i < colaboradores.length; i++) {
+      const desdeForm = form.colaboradoresUsuarioIds?.[i];
+      pushId(desdeForm || this.resolverUsuarioIdPorNombre(colaboradores[i]));
+    }
+    if (!ids.length) {
+      return {
+        responsable,
+        responsableUsuarioIds: this.resolverUsuarioIdsPorResponsables(responsable)
+      };
+    }
+    return { responsable, responsableUsuarioIds: ids };
   }
 
   get empresaSeleccionadaNombre(): string {
@@ -5590,6 +5795,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     this.guardandoRegistro = true;
     this.errorRegistro = '';
 
+    const equipo = this.componerResponsablesDesdeForm(this.formRegistro);
     this.backend.crearControlProyecto({
       empresaId: this.formRegistro.empresaId,
       empresaNombre: this.formRegistro.empresaNombre,
@@ -5599,12 +5805,11 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
       condicionRequerimiento: this.formRegistro.condicionRequerimiento.trim(),
       actividadesAccion: this.formRegistro.actividadesAccion.trim(),
       referenciaNormativa: this.formRegistro.referenciaNormativa.trim(),
-      responsable: this.formRegistro.responsable.trim(),
-      responsableUsuarioIds: this.formRegistro.responsableUsuarioId
-        ? [this.formRegistro.responsableUsuarioId]
-        : this.resolverUsuarioIdsPorResponsables(this.formRegistro.responsable.trim()),
+      responsable: equipo.responsable,
+      responsableUsuarioIds: equipo.responsableUsuarioIds,
       fechaInicio: this.formRegistro.fechaInicio || undefined,
       fechaCompromiso: this.formRegistro.fechaCompromiso || undefined,
+      duracionEstimada: this.formRegistro.duracionEstimada || undefined,
       entregables: this.formRegistro.entregables.trim(),
       prioridad: this.formRegistro.prioridad || undefined,
       estatus: this.formRegistro.estatus || undefined,
@@ -5641,8 +5846,11 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
       referenciaNormativa: '',
       responsable: '',
       responsableUsuarioId: null,
+      colaboradores: [],
+      colaboradoresUsuarioIds: [],
       fechaInicio: '',
       fechaCompromiso: '',
+      duracionEstimada: '',
       avance: 0,
       entregables: '',
       prioridad: 'Media',
@@ -5652,6 +5860,9 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
 
   private proyectoAFormRegistro(proyecto: ProyectoTableroItem): FormRegistroProyecto {
     const ids = this.parseResponsableUsuarioIds(proyecto.responsableUsuarioIds);
+    const lista = this.responsablesDe(proyecto);
+    const principal = lista[0] || '';
+    const colaboradores = lista.slice(1);
     return {
       empresaId: proyecto.empresaId || null,
       empresaNombre: proyecto.empresaNombre || '',
@@ -5661,10 +5872,13 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
       condicionRequerimiento: proyecto.condicionRequerimiento || '',
       actividadesAccion: proyecto.actividadesAccion || '',
       referenciaNormativa: proyecto.referenciaNormativa || '',
-      responsable: proyecto.responsable || '',
-      responsableUsuarioId: ids[0] || this.resolverUsuarioIdPorNombre(this.responsablePrincipal(proyecto)),
+      responsable: principal,
+      responsableUsuarioId: ids[0] || this.resolverUsuarioIdPorNombre(principal),
+      colaboradores,
+      colaboradoresUsuarioIds: ids.slice(1),
       fechaInicio: proyecto.fechaInicio || '',
       fechaCompromiso: proyecto.fechaCompromiso || '',
+      duracionEstimada: proyecto.duracionEstimada || '',
       avance: proyecto.avance,
       entregables: proyecto.entregables || '',
       prioridad: proyecto.prioridad || 'Media',
@@ -5692,7 +5906,8 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
       nombreProyecto: actualizado.nombreProyecto,
       responsable: actualizado.responsable,
       responsableUsuarioIds: actualizado.responsableUsuarioIds,
-      prioridad: actualizado.prioridad
+      prioridad: actualizado.prioridad,
+      duracionEstimada: actualizado.duracionEstimada || ''
     };
 
     for (const indice of indices) {
@@ -5712,10 +5927,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
   }
 
   private formRegistroAProyecto(base: ProyectoTableroItem, form: FormRegistroProyecto): ProyectoTableroItem {
-    const responsable = form.responsable.trim() || 'Sin asignar';
-    const ids = form.responsableUsuarioId
-      ? [form.responsableUsuarioId]
-      : this.resolverUsuarioIdsPorResponsables(responsable);
+    const equipo = this.componerResponsablesDesdeForm(form);
     return {
       ...base,
       empresaId: form.empresaId,
@@ -5726,10 +5938,11 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
       condicionRequerimiento: form.condicionRequerimiento.trim(),
       actividadesAccion: form.actividadesAccion.trim(),
       referenciaNormativa: form.referenciaNormativa.trim(),
-      responsable,
-      responsableUsuarioIds: ids,
+      responsable: equipo.responsable,
+      responsableUsuarioIds: equipo.responsableUsuarioIds,
       fechaInicio: form.fechaInicio,
       fechaCompromiso: form.fechaCompromiso,
+      duracionEstimada: form.duracionEstimada || '',
       avance: this.normalizarAvance(form.avance),
       entregables: form.entregables.trim(),
       prioridad: form.prioridad,
@@ -5792,6 +6005,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
       responsableUsuarioIds: this.parseResponsableUsuarioIds(p.responsableUsuarioIds),
       fechaInicio: this.fechaInputGestion(p.fechaInicio),
       fechaCompromiso: this.fechaInputGestion(p.fechaCompromiso),
+      duracionEstimada: String(p.duracionEstimada || '').trim(),
       prioridad: String(p.prioridad || '').trim(),
       estatus: String(p.estatus || '').trim(),
       avance: Number(p.avance) || 0,
@@ -6204,9 +6418,29 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     return this.responsablesDe(proyecto)[0] || 'Sin asignar';
   }
 
+  colaboradoresDe(proyecto: ProyectoTableroItem | null | undefined): string[] {
+    return this.responsablesDe(proyecto).slice(1);
+  }
+
+  colaboradoresCountGrupo(grupo: GrupoGestionProyecto | null | undefined): number {
+    const base = grupo?.actividades?.[0]?.proyecto;
+    return this.colaboradoresDe(base).length;
+  }
+
   actividadTieneResponsable(proyecto: ProyectoTableroItem, nombre: string): boolean {
     const target = this.normalizar(nombre);
     return this.responsablesDe(proyecto).some((r) => this.normalizar(r) === target);
+  }
+
+  actividadEsColaborador(proyecto: ProyectoTableroItem, nombre: string): boolean {
+    const target = this.normalizar(nombre);
+    return this.colaboradoresDe(proyecto).some((r) => this.normalizar(r) === target);
+  }
+
+  esResponsablePrincipalDe(proyecto: ProyectoTableroItem, nombre: string): boolean {
+    const principal = this.responsablePrincipal(proyecto);
+    if (!nombre || principal === 'Sin asignar') return false;
+    return this.normalizar(principal) === this.normalizar(nombre);
   }
 
   coincideFiltroResponsable(proyecto: { responsable?: string } | null | undefined, responsableFiltro: string): boolean {
@@ -6217,28 +6451,60 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     return lista.some((r) => this.normalizar(r) === target);
   }
 
-  toggleResponsableActividad(proyecto: ProyectoTableroItem, nombre: string): void {
-    if (!this.puedeEditarActividadGestion(proyecto, this.grupoGestionSeleccionado)) return;
-    const lista = this.responsablesDe(proyecto);
-    const ids = this.parseResponsableUsuarioIds(proyecto.responsableUsuarioIds);
-    const target = this.normalizar(nombre);
-    const idx = lista.findIndex((r) => this.normalizar(r) === target);
-    const usuarioId = this.resolverUsuarioIdPorNombre(nombre);
-    if (idx >= 0) {
-      lista.splice(idx, 1);
-      if (usuarioId) {
-        const idIdx = ids.indexOf(usuarioId);
-        if (idIdx >= 0) ids.splice(idIdx, 1);
-      }
-    } else {
-      lista.push(nombre);
-      if (usuarioId && !ids.includes(usuarioId)) ids.push(usuarioId);
-    }
+  private aplicarEquipoActividad(
+    proyecto: ProyectoTableroItem,
+    principal: string,
+    colaboradores: string[]
+  ): void {
+    const principalLimpio = String(principal || '').trim();
+    const cols = colaboradores
+      .map((n) => String(n || '').trim())
+      .filter((n) => n && this.normalizar(n) !== this.normalizar(principalLimpio));
+    const lista = principalLimpio ? [principalLimpio, ...cols] : cols;
     proyecto.responsable = this.serializeResponsables(lista) || 'Sin asignar';
-    proyecto.responsableUsuarioIds = ids.length
-      ? ids
-      : this.resolverUsuarioIdsPorResponsables(proyecto.responsable);
+    proyecto.responsableUsuarioIds = this.resolverUsuarioIdsPorResponsables(proyecto.responsable);
     this.marcarGestionCambios();
+  }
+
+  /** Cambia el responsable principal de la actividad; los demás quedan como colaboradores. */
+  setResponsablePrincipalActividad(proyecto: ProyectoTableroItem, nombre: string): void {
+    if (!this.puedeEditarActividadGestion(proyecto, this.grupoGestionSeleccionado)) return;
+    const actual = this.responsablePrincipal(proyecto);
+    if (this.normalizar(actual) === this.normalizar(nombre)) return;
+    const resto = this.responsablesDe(proyecto).filter(
+      (r) => this.normalizar(r) !== this.normalizar(nombre)
+    );
+    this.aplicarEquipoActividad(proyecto, nombre, resto);
+  }
+
+  /** Agrega/quita colaboradores sin tocar al responsable principal. */
+  toggleColaboradorActividad(proyecto: ProyectoTableroItem, nombre: string): void {
+    if (!this.puedeEditarActividadGestion(proyecto, this.grupoGestionSeleccionado)) return;
+    const principal = this.responsablePrincipal(proyecto);
+    if (this.normalizar(nombre) === this.normalizar(principal) && principal !== 'Sin asignar') {
+      return;
+    }
+    const cols = this.colaboradoresDe(proyecto);
+    const target = this.normalizar(nombre);
+    const idx = cols.findIndex((r) => this.normalizar(r) === target);
+    if (idx >= 0) cols.splice(idx, 1);
+    else cols.push(nombre);
+    const principalValido = principal !== 'Sin asignar' ? principal : '';
+    this.aplicarEquipoActividad(proyecto, principalValido, cols);
+  }
+
+  /** @deprecated Usar setResponsablePrincipalActividad / toggleColaboradorActividad */
+  toggleResponsableActividad(proyecto: ProyectoTableroItem, nombre: string): void {
+    const principal = this.responsablePrincipal(proyecto);
+    if (this.normalizar(nombre) === this.normalizar(principal) || principal === 'Sin asignar') {
+      this.setResponsablePrincipalActividad(proyecto, nombre);
+      return;
+    }
+    if (this.actividadEsColaborador(proyecto, nombre)) {
+      this.toggleColaboradorActividad(proyecto, nombre);
+      return;
+    }
+    this.toggleColaboradorActividad(proyecto, nombre);
   }
 
   get usuariosResponsablesGestionFiltrados(): string[] {
@@ -6333,6 +6599,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
         : this.resolverUsuarioIdsPorResponsables(base.responsable || ''),
       fechaInicio: base.fechaInicio || undefined,
       fechaCompromiso: base.fechaCompromiso || undefined,
+      duracionEstimada: base.duracionEstimada || undefined,
       entregables: '',
       observaciones: '',
       prioridad: base.prioridad || 'Media',
@@ -6407,6 +6674,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
           responsableUsuarioIds: this.parseResponsableUsuarioIds(p.responsableUsuarioIds),
           fechaInicio: p.fechaInicio || undefined,
           fechaCompromiso: p.fechaCompromiso || undefined,
+          duracionEstimada: p.duracionEstimada || undefined,
           entregables: String(p.entregables || '').trim(),
           observaciones: String(p.observaciones || '').trim(),
           prioridad: p.prioridad || undefined,
@@ -6604,6 +6872,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
           responsableUsuarioIds: this.parseResponsableUsuarioIds(p.responsableUsuarioIds),
           fechaInicio: p.fechaInicio || undefined,
           fechaCompromiso: p.fechaCompromiso || undefined,
+          duracionEstimada: p.duracionEstimada || undefined,
           entregables: String(p.entregables || '').trim(),
           observaciones: String(p.observaciones || '').trim(),
           prioridad: p.prioridad || undefined,
@@ -7009,6 +7278,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
       responsableUsuarioIds,
       fechaInicio: this.fechaInputGestion(item?.fechaInicio),
       fechaCompromiso: this.fechaInputGestion(item?.fechaCompromiso),
+      duracionEstimada: String(item?.duracionEstimada || item?.duracion_estimada || '').trim(),
       entregables: String(item?.entregables || '').trim(),
       observaciones: String(item?.observaciones || '').trim(),
       prioridad: String(item?.prioridad || '').trim() || 'Ninguna',
