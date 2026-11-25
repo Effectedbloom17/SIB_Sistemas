@@ -274,14 +274,18 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
   puntoActivo: PuntoGestion | null = null;
   subiendo = false;
   guardandoPunto = false;
-  /** Panel «Ligar punto de normativa». */
+  /** Panel «Ligar formatos» (comparte evidencias del punto actual con otros). */
   ligueAbierto = false;
   cargandoLigues = false;
+  /** True si hay al menos un PUT de ligues en vuelo. */
   guardandoLigues = false;
-  private ligueSavePendiente: number[] | null = null;
+  /** Último estado deseado por origen mientras su PUT sigue en vuelo. */
+  private ligueSavePendientePorOrigen = new Map<number, { asignacionId: number; ids: number[] }>();
+  /** Orígenes con PUT en vuelo (permite ligar en paralelo entre puntos distintos). */
+  private ligueSavesInFlight = new Set<number>();
   ligueBusqueda = '';
   ligueCandidatos: LigueCandidatoNorma[] = [];
-  /** IDs destino seleccionados en el panel (borrador). */
+  /** IDs destino seleccionados en el panel. */
   ligueSeleccion = new Set<number>();
   lecturaHtml: SafeHtml | null = null;
   imagenesSobrantes: ImagenPuntoLite[] = [];
@@ -970,7 +974,7 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
           if (requisitoId) {
             const mismoPunto = this.puntoActivo?.id === requisitoId;
             this.puntoActivo = this.detalle.puntos.find((p) => p.id === requisitoId) || null;
-            if (!mismoPunto) this.resetPanelLigue();
+            if (!mismoPunto) this.resetPanelLigueUi();
             if (!this.puntoActivo) {
               this.error = 'No se encontró el punto de la normativa.';
               this.lecturaHtml = null;
@@ -979,8 +983,13 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
             } else {
               this.observacionesDraft = this.puntoActivo.observaciones || '';
               this.prepararLecturaPunto(this.puntoActivo);
-              if (!this.ligueCandidatos.length) this.cargarPanelLigues();
-              else {
+              // No pisar la selección si hay un guardado en curso de este mismo origen.
+              const origenId = this.puntoActivo.id;
+              const saveEnCursoDeEste = this.ligueSavesInFlight.has(origenId);
+              const pendingDeEste = this.ligueSavePendientePorOrigen.has(origenId);
+              if (this.ligueAbierto && !this.ligueCandidatos.length) {
+                this.cargarPanelLigues();
+              } else if (!saveEnCursoDeEste && !pendingDeEste) {
                 this.ligueSeleccion = new Set(
                   (this.puntoActivo.ligues_destino || []).map((l) => l.requisito_id)
                 );
@@ -1132,14 +1141,18 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
-  private resetPanelLigue(): void {
+  /** Limpia solo la UI del panel; no cancela guardados pendientes de otro origen. */
+  private resetPanelLigueUi(): void {
     this.ligueAbierto = false;
     this.cargandoLigues = false;
-    this.guardandoLigues = false;
-    this.ligueSavePendiente = null;
     this.ligueBusqueda = '';
     this.ligueCandidatos = [];
     this.ligueSeleccion = new Set();
+  }
+
+  private resetPanelLigue(): void {
+    this.resetPanelLigueUi();
+    // No vaciar colas ni inflight: deben terminar de persistirse.
   }
 
   private mapearCandidatosLigue(res: any): LigueCandidatoNorma[] {
@@ -1163,23 +1176,40 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
       : [];
   }
 
+  private idsDestinoDesdeRespuesta(res: any, fallback: number[] = []): number[] {
+    const raw = Array.isArray(res?.destino_requisito_ids) ? res.destino_requisito_ids : fallback;
+    return raw
+      .map((id: any) => Number(id))
+      .filter((id: number) => Number.isFinite(id) && id > 0);
+  }
+
   private cargarPanelLigues(): void {
     if (!this.puntoActivo || !this.detalle) return;
+    const origenId = this.puntoActivo.id;
+    const asignacionId = this.detalle.asignacion.id;
     this.cargandoLigues = true;
-    this.backend.listarLiguesPuntoSeguridad(this.detalle.asignacion.id, this.puntoActivo.id)
+    this.backend.listarLiguesPuntoSeguridad(asignacionId, origenId)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res: any) => {
+          // Respuesta tardía de otro punto: ignorar.
+          if (this.puntoActivo?.id !== origenId) {
+            this.cargandoLigues = false;
+            this.cdr.markForCheck();
+            return;
+          }
           this.ligueCandidatos = this.mapearCandidatosLigue(res);
-          this.ligueSeleccion = new Set<number>(
-            (res?.destino_requisito_ids || [])
-              .map((id: any) => Number(id))
-              .filter((id: number) => Number.isFinite(id) && id > 0)
-          );
+          const saveEnCursoDeEste = this.ligueSavesInFlight.has(origenId);
+          const pendingDeEste = this.ligueSavePendientePorOrigen.has(origenId);
+          if (!saveEnCursoDeEste && !pendingDeEste) {
+            this.ligueSeleccion = new Set<number>(this.idsDestinoDesdeRespuesta(res));
+            this.sincronizarLiguesEnPunto(origenId, [...this.ligueSeleccion]);
+          }
           this.cargandoLigues = false;
           this.cdr.markForCheck();
         },
         error: (err: any) => {
+          if (this.puntoActivo?.id !== origenId) return;
           this.cargandoLigues = false;
           Swal.fire({
             icon: 'error',
@@ -1233,28 +1263,37 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
     return `${on}/${total}`;
   }
 
+  trackByLiguePuntoId(_index: number, cand: LigueCandidatoPunto): number {
+    return cand.id;
+  }
+
   estaLigueSeleccionado(requisitoId: number): boolean {
     return this.ligueSeleccion.has(requisitoId);
   }
 
-  /** Seleccionar/deseleccionar liga el formato al instante. */
+  /** Seleccionar/deseleccionar liga evidencias del punto actual hacia el destino. */
   toggleLigueDestino(requisitoId: number): void {
     if (!this.puntoActivo || !this.detalle) return;
+    const origenId = this.puntoActivo.id;
+    const asignacionId = this.detalle.asignacion.id;
+    const rid = Number(requisitoId);
+    if (!Number.isFinite(rid) || rid <= 0 || rid === origenId) return;
+
     const next = new Set(this.ligueSeleccion);
-    if (next.has(requisitoId)) next.delete(requisitoId);
-    else next.add(requisitoId);
+    if (next.has(rid)) next.delete(rid);
+    else next.add(rid);
     this.ligueSeleccion = next;
-    this.sincronizarLiguesEnPuntoActivo();
+    this.sincronizarLiguesEnPunto(origenId, [...next]);
     this.cdr.markForCheck();
-    this.persistirLiguesInmediato();
+    this.persistirLigues(asignacionId, origenId, [...next]);
   }
 
-  private sincronizarLiguesEnPuntoActivo(): void {
-    if (!this.puntoActivo) return;
+  private sincronizarLiguesEnPunto(origenId: number, destinoIds: number[]): void {
+    const idSet = new Set(destinoIds);
     const destinos: LigueDestinoItem[] = [];
     for (const norma of this.ligueCandidatos) {
       for (const p of norma.puntos) {
-        if (!this.ligueSeleccion.has(p.id)) continue;
+        if (!idSet.has(p.id)) continue;
         destinos.push({
           requisito_id: p.id,
           punto_norma: p.punto_norma,
@@ -1264,55 +1303,112 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
         });
       }
     }
-    this.puntoActivo.ligues_destino = destinos;
-    const enDetalle = this.detalle?.puntos?.find((p) => p.id === this.puntoActivo!.id);
+    if (this.puntoActivo?.id === origenId) {
+      this.puntoActivo.ligues_destino = destinos;
+    }
+    const enDetalle = this.detalle?.puntos?.find((p) => p.id === origenId);
     if (enDetalle) enDetalle.ligues_destino = destinos;
   }
 
-  private persistirLiguesInmediato(): void {
-    if (!this.puntoActivo || !this.detalle) return;
-    const ids = [...this.ligueSeleccion];
-    if (this.guardandoLigues) {
-      this.ligueSavePendiente = ids;
+  private actualizarEstadoGuardandoLigues(): void {
+    this.guardandoLigues = this.ligueSavesInFlight.size > 0;
+  }
+
+  private aplicarLiguesDestinoEnCache(
+    origenId: number,
+    guardados: number[],
+    res: any
+  ): void {
+    const enDetalle = this.detalle?.puntos?.find((p) => p.id === origenId);
+    if (!enDetalle) return;
+    const candidatos = Array.isArray(res?.candidatos)
+      ? this.mapearCandidatosLigue(res)
+      : this.ligueCandidatos;
+    enDetalle.ligues_destino = guardados.map((id) => {
+      const prev = (enDetalle.ligues_destino || []).find((l) => l.requisito_id === id);
+      if (prev) return prev;
+      for (const norma of candidatos) {
+        const hit = norma.puntos.find((p) => p.id === id);
+        if (hit) {
+          return {
+            requisito_id: hit.id,
+            punto_norma: hit.punto_norma,
+            normativa_id: norma.normativa_id,
+            normativa_codigo: norma.codigo,
+            normativa_titulo: norma.titulo
+          };
+        }
+      }
+      return {
+        requisito_id: id,
+        punto_norma: String(id),
+        normativa_id: null,
+        normativa_codigo: '',
+        normativa_titulo: ''
+      };
+    });
+    if (this.puntoActivo?.id === origenId) {
+      this.puntoActivo.ligues_destino = enDetalle.ligues_destino;
+    }
+  }
+
+  private persistirLigues(asignacionId: number, origenId: number, ids: number[]): void {
+    if (!asignacionId || !origenId) return;
+    const limpios = [...new Set(
+      ids.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0 && id !== origenId)
+    )];
+
+    if (this.ligueSavesInFlight.has(origenId)) {
+      // Conservar el último estado deseado de ESTE origen (clics rápidos / cambio de pantalla).
+      this.ligueSavePendientePorOrigen.set(origenId, { asignacionId, ids: limpios });
       return;
     }
-    this.guardandoLigues = true;
-    this.backend.guardarLiguesPuntoSeguridad(
-      this.detalle.asignacion.id,
-      this.puntoActivo.id,
-      ids
-    )
+
+    this.ligueSavesInFlight.add(origenId);
+    this.actualizarEstadoGuardandoLigues();
+    this.backend.guardarLiguesPuntoSeguridad(asignacionId, origenId, limpios)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res: any) => {
-          this.guardandoLigues = false;
-          if (this.ligueSavePendiente) {
-            const pending = this.ligueSavePendiente;
-            this.ligueSavePendiente = null;
-            this.ligueSeleccion = new Set(pending);
-            this.sincronizarLiguesEnPuntoActivo();
-            this.persistirLiguesInmediato();
-            this.cdr.markForCheck();
+          this.ligueSavesInFlight.delete(origenId);
+
+          const pending = this.ligueSavePendientePorOrigen.get(origenId);
+          if (pending) {
+            this.ligueSavePendientePorOrigen.delete(origenId);
+            if (this.puntoActivo?.id === origenId) {
+              this.ligueSeleccion = new Set(pending.ids);
+              this.sincronizarLiguesEnPunto(origenId, pending.ids);
+              this.cdr.markForCheck();
+            }
+            this.actualizarEstadoGuardandoLigues();
+            this.persistirLigues(pending.asignacionId, origenId, pending.ids);
             return;
           }
-          this.ligueSeleccion = new Set<number>(
-            (res?.destino_requisito_ids || ids)
-              .map((id: any) => Number(id))
-              .filter((id: number) => Number.isFinite(id) && id > 0)
-          );
-          if (Array.isArray(res?.candidatos)) {
-            this.ligueCandidatos = this.mapearCandidatosLigue(res);
+
+          const guardados = this.idsDestinoDesdeRespuesta(res, limpios);
+          if (this.puntoActivo?.id === origenId) {
+            this.ligueSeleccion = new Set(guardados);
+            if (Array.isArray(res?.candidatos)) {
+              this.ligueCandidatos = this.mapearCandidatosLigue(res);
+            }
+            this.sincronizarLiguesEnPunto(origenId, guardados);
+          } else {
+            this.aplicarLiguesDestinoEnCache(origenId, guardados, res);
           }
-          this.sincronizarLiguesEnPuntoActivo();
+          this.actualizarEstadoGuardandoLigues();
           this.cdr.markForCheck();
         },
         error: (err: any) => {
-          this.guardandoLigues = false;
-          this.ligueSavePendiente = null;
-          this.cargarPanelLigues();
+          this.ligueSavesInFlight.delete(origenId);
+          // Evitar bucle de reintentos ante error de servidor; el usuario puede volver a marcar.
+          this.ligueSavePendientePorOrigen.delete(origenId);
+          this.actualizarEstadoGuardandoLigues();
+          if (this.puntoActivo?.id === origenId && this.ligueAbierto) {
+            this.cargarPanelLigues();
+          }
           Swal.fire({
             icon: 'error',
-            title: 'No se ligó el formato',
+            title: 'No se ligaron los formatos',
             text: err?.error?.message || 'Intente de nuevo.',
             confirmButtonColor: '#b91c1c'
           });

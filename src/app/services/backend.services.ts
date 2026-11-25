@@ -3043,8 +3043,9 @@ export class BackendServices {
         return this.httpClient.get(`${this.baseUrl}/seguridad/asignacion`);
     }
 
-    listarEmpresasGestionSeguridad(): Observable<any> {
-        return this.httpClient.get(`${this.baseUrl}/seguridad/asignacion/empresas`);
+    listarEmpresasGestionSeguridad(paraSeleccionPuntos = false): Observable<any> {
+        const q = paraSeleccionPuntos ? '?para=seleccion-puntos' : '';
+        return this.httpClient.get(`${this.baseUrl}/seguridad/asignacion/empresas${q}`);
     }
 
     obtenerEmpresaGestionSeguridad(empresaId: number, categoriaId?: string | null): Observable<any> {

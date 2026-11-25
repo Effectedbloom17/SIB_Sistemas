@@ -4558,6 +4558,24 @@ button.ges-req-card {
   margin-top: 0.55rem;
 }
 
+.ges-ligue__hint {
+  margin: 0 0 0.45rem;
+  color: #78716c;
+  font-size: 0.68rem;
+  line-height: 1.35;
+
+  strong { color: #57534e; font-weight: 800; }
+}
+
+.ges-ligue__saving {
+  margin: 0.4rem 0 0;
+  color: #7f1d1d;
+  font-size: 0.68rem;
+  font-weight: 700;
+
+  i { margin-right: 0.25rem; }
+}
+
 .ges-ligue__search {
   display: flex;
   align-items: center;

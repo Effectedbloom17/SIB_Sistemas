@@ -509,8 +509,13 @@ export class SidebarComponent implements OnInit, OnDestroy {
         return !esEmpresa;
       }
 
-      // Seguridad · Normativas / Asignación / Gestión: todos los perfiles excepto empresa
-      if (item.path === '/seguridad/normativas' || item.path.startsWith('/seguridad/')) {
+      // Seguridad · Catálogo Normativas: solo administradores / root
+      if (item.path === '/seguridad/normativas') {
+        return this.authService.esAdministradorOSuperior();
+      }
+
+      // Seguridad · Asignación / Gestión: todos los perfiles excepto empresa
+      if (item.path.startsWith('/seguridad/')) {
         const esEmpresa = userRoles.some(role => role.toLowerCase() === 'empresa') || userRole === 'empresa';
         return !esEmpresa;
       }

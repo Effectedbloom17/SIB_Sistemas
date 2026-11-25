@@ -12,20 +12,20 @@ import { SeguridadGestionComponent } from './seguridad-gestion.component';
 const routes: Routes = [
   {
     path: '',
-    redirectTo: 'normativas',
+    redirectTo: 'asignacion',
     pathMatch: 'full'
   },
   {
     path: 'normativas',
     component: SeguridadNormativasComponent,
     canActivate: [RoleGuard],
-    data: { roles: [] }
+    data: { roles: ['root', 'administrador'] }
   },
   {
     path: 'normativas/:id',
     component: SeguridadNormativaDetalleComponent,
     canActivate: [RoleGuard],
-    data: { roles: [] }
+    data: { roles: ['root', 'administrador'] }
   },
   {
     path: 'asignacion',

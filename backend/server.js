@@ -27036,7 +27036,10 @@ app.delete('/api/seguridad/asignacion/documentos/:docId', authMiddleware, denyEm
 app.get('/api/seguridad/asignacion/empresas', authMiddleware, denyEmpresa, async (req, res) => {
     try {
         await poolNormativasReady;
-        const empresas = await seguridadAsignacionService.listarEmpresasGestion(poolNormativas, req.user);
+        const paraSeleccion = String(req.query.para || '').trim().toLowerCase() === 'seleccion-puntos';
+        const empresas = paraSeleccion
+            ? await seguridadAsignacionService.listarEmpresasSeleccionPuntos(poolNormativas, pool, req.user)
+            : await seguridadAsignacionService.listarEmpresasGestion(poolNormativas, req.user);
         res.json({ success: true, empresas });
     } catch (error) {
         responderErrorSeguridadAsignacion(res, error, 'Error al listar empresas en gestión');

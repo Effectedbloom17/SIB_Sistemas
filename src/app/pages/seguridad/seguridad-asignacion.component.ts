@@ -386,11 +386,11 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
     });
   }
 
-  /** Empresas donde el responsable tiene normativas a cargo (tablero estilo gestión). */
+  /** Empresas donde el responsable tiene normativas a cargo (publicadas o en borrador). */
   cargarEmpresasPuntos(): void {
     this.cargandoEmpresasPuntos = true;
     forkJoin({
-      gestion: this.backend.listarEmpresasGestionSeguridad(),
+      gestion: this.backend.listarEmpresasGestionSeguridad(true),
       empresas: this.backend.obtenerEmpresas().pipe(catchError(() => of({ empresas: [] })))
     })
       .pipe(takeUntil(this.destroy$))
@@ -661,16 +661,23 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
           this.marcarCambio();
           return;
         }
-        if (res?.borrador?.payload) {
+        const normasBorrador = Array.isArray(res?.borrador?.payload?.normas)
+          ? res.borrador.payload.normas
+          : [];
+        if (normasBorrador.length) {
           this.aplicarPayload(res.borrador.payload);
           this.guardadoPor = res.borrador.actualizado_por || '';
           this.guardadoEn = res.borrador.updated_at || null;
           this.estadoGuardado = 'guardado';
-          this.avisoRecuperado = 'Continuamos con el borrador guardado de esta empresa.';
+          this.avisoRecuperado = this.puedeEditarAsignacion
+            ? 'Continuamos con el borrador guardado de esta empresa.'
+            : 'Normativas a su cargo: organice los puntos y el avance se guarda solo.';
         } else if (res?.publicada?.normas?.length) {
           this.aplicarPayload(res.publicada);
           this.estadoGuardado = 'guardado';
-          this.avisoRecuperado = 'Esta empresa ya tiene normativas en gestión. Puede ajustarlas y volver a publicar.';
+          this.avisoRecuperado = this.puedeEditarAsignacion
+            ? 'Esta empresa ya tiene normativas en gestión. Puede ajustarlas y volver a publicar.'
+            : 'Normativas publicadas a su cargo. Puede ajustar los puntos marcados.';
         }
         this.aplicando = false;
         this.enfocarAsignacion();
@@ -1405,31 +1412,42 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
   }
 
   publicar(): void {
-    if (!this.puedeEditarAsignacion) {
-      this.avisarSoloLecturaAsignacion();
+    if (!this.empresa || this.publicando) return;
+
+    if (this.puedeEditarAsignacion) {
+      for (let i = 0; i <= 1; i++) {
+        if (!this.pasoValido(i)) {
+          this.paso = i;
+          this.avisarPaso(i);
+          return;
+        }
+      }
+    } else if (!this.pasoValido(1)) {
+      this.paso = 1;
+      this.avisarPaso(1);
       return;
     }
-    if (!this.empresa || this.publicando) return;
-      for (let i = 0; i <= 1; i++) {
-      if (!this.pasoValido(i)) {
-        this.paso = i;
-        this.avisarPaso(i);
-        return;
-      }
-    }
-    const retiradas = [...this.publicadasIds].filter((id) => !this.normas.some((n) => n.normativa_id === id)).length;
+
+    const esResponsable = !this.puedeEditarAsignacion;
+    const retiradas = esResponsable
+      ? 0
+      : [...this.publicadasIds].filter((id) => !this.normas.some((n) => n.normativa_id === id)).length;
     const extra = retiradas
       ? ` Se retirarán ${retiradas} normativa(s) que ya estaban en gestión y quedaron fuera.`
       : '';
-    const cicloTxt = this.nuevoCiclo
-      ? ` Ciclo ${this.anioCiclo}: se reinician fechas, evidencias del año y observaciones; se conserva el nivel de acción.`
-      : ` Quedará registrada en el historial ${this.anioCiclo}.`;
+    const cicloTxt = esResponsable
+      ? ` Sus ${this.normas.length} normativa(s) con puntos quedarán actualizadas en Gestión de Normativas.`
+      : (this.nuevoCiclo
+        ? ` Ciclo ${this.anioCiclo}: se reinician fechas, evidencias del año y observaciones; se conserva el nivel de acción.`
+        : ` Quedará registrada en el historial ${this.anioCiclo}.`);
     Swal.fire({
-      title: 'Publicar en Gestión de Normativas',
-      text: `Se asignarán ${this.normas.length} normativa(s) a ${this.empresa.nombre_empresa}.${extra}${cicloTxt} Se generará la matriz Word/PDF en Normativas ${this.anioCiclo}.`,
+      title: esResponsable ? 'Actualizar Gestión de Normativas' : 'Publicar en Gestión de Normativas',
+      text: esResponsable
+        ? `Se actualizarán ${this.normas.length} normativa(s) de ${this.empresa.nombre_empresa} con los puntos que marcó.${cicloTxt}`
+        : `Se asignarán ${this.normas.length} normativa(s) a ${this.empresa.nombre_empresa}.${extra}${cicloTxt} Se generará la matriz Word/PDF en Normativas ${this.anioCiclo}.`,
       icon: 'question',
       showCancelButton: true,
-      confirmButtonText: 'Publicar',
+      confirmButtonText: esResponsable ? 'Actualizar gestión' : 'Publicar',
       cancelButtonText: 'Seguir editando',
       confirmButtonColor: '#b91c1c'
     }).then((r) => {
@@ -1438,8 +1456,8 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
       this.abrirProgresoPublicacion();
       this.backend.publicarSeguridadAsignacion(this.empresa.empresa_id, this.armarPayload(), {
         anio: this.anioCiclo,
-        nuevo_ciclo: this.nuevoCiclo,
-        clonar_desde_anio: this.clonarDesdeAnio
+        nuevo_ciclo: esResponsable ? false : this.nuevoCiclo,
+        clonar_desde_anio: esResponsable ? null : this.clonarDesdeAnio
       })
         .pipe(takeUntil(this.destroy$))
         .subscribe({
@@ -1453,17 +1471,23 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
             this.clonarDesdeAnio = null;
             this.nuevoCiclo = false;
             this.historialSugerido = null;
+            this.publicadasIds = new Set([
+              ...this.publicadasIds,
+              ...this.normas.map((n) => n.normativa_id)
+            ]);
             const pdfsDescargados = this.descargarPdfsMatriz(Array.isArray(res?.pdfs) ? res.pdfs : []);
             const avisoMatriz = res?.matriz?.error
-              ? ` La asignación quedó publicada, pero la matriz Word/PDF no se generó: ${res.matriz.error}`
+              ? ` La asignación quedó en gestión, pero la matriz Word/PDF no se generó: ${res.matriz.error}`
               : (pdfsDescargados
                 ? ' Se descargó el PDF de la matriz de normativas.'
                 : '');
             setTimeout(() => {
               Swal.fire({
                 icon: 'success',
-                title: 'Asignación publicada',
-                html: `Guardada en el historial ${this.anioCiclo}. Ya puede cargar documentos en Gestión de Normativas.${avisoMatriz}`,
+                title: esResponsable ? 'Gestión actualizada' : 'Asignación publicada',
+                html: esResponsable
+                  ? `Los puntos quedaron en Gestión de Normativas. Ya puede cargar evidencias.${avisoMatriz}`
+                  : `Guardada en el historial ${this.anioCiclo}. Ya puede cargar documentos en Gestión de Normativas.${avisoMatriz}`,
                 confirmButtonText: 'Ir a gestión',
                 showCancelButton: true,
                 cancelButtonText: 'Quedarme aquí',

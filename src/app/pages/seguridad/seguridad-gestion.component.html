@@ -1016,6 +1016,10 @@
               </button>
 
               <div class="ges-ligue-board" *ngIf="ligueAbierto">
+                <p class="ges-ligue__hint">
+                  Marca los puntos donde deben verse las evidencias de <strong>este</strong> punto.
+                  Se guarda al instante.
+                </p>
                 <label class="ges-ligue__search">
                   <i class="fas fa-search" aria-hidden="true"></i>
                   <input type="search"
@@ -1045,10 +1049,10 @@
                       <div class="ges-ligue-pills">
                         <button type="button"
                                 class="ges-ligue-pill"
-                                *ngFor="let cand of cap.puntos"
+                                *ngFor="let cand of cap.puntos; trackBy: trackByLiguePuntoId"
                                 [class.is-on]="estaLigueSeleccionado(cand.id)"
                                 [attr.aria-pressed]="estaLigueSeleccionado(cand.id)"
-                                [title]="cand.formato_nombre || cand.descripcion || cand.punto_norma"
+                                [title]="(cand.formato_nombre ? cand.formato_nombre + ' · ' : '') + (cand.descripcion || cand.punto_norma)"
                                 (click)="toggleLigueDestino(cand.id)">
                           {{ cand.punto_norma }}
                         </button>
@@ -1056,6 +1060,9 @@
                     </div>
                   </section>
                 </div>
+                <p class="ges-ligue__saving" *ngIf="guardandoLigues">
+                  <i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Guardando ligues…
+                </p>
               </div>
             </article>
 

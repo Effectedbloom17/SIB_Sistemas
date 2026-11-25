@@ -632,16 +632,15 @@
       </button>
       <button type="button"
               class="btn asig-btn-primary"
-              *ngIf="paso === 2 && puedeEditarAsignacion"
+              *ngIf="paso === 2"
               (click)="publicar()"
               [disabled]="publicando">
         <i class="fas fa-spinner fa-spin" *ngIf="publicando"></i>
         <i class="fas fa-paper-plane" *ngIf="!publicando" aria-hidden="true"></i>
-        {{ publicando ? 'Publicando…' : 'Publicar en gestión' }}
+        {{ publicando
+          ? (puedeEditarAsignacion ? 'Publicando…' : 'Actualizando…')
+          : (puedeEditarAsignacion ? 'Publicar en gestión' : 'Actualizar gestión') }}
       </button>
-      <span class="asig-stat" *ngIf="paso === 2 && !puedeEditarAsignacion">
-        <i class="fas fa-check-circle" aria-hidden="true"></i> Avance guardado
-      </span>
     </footer>
     </ng-container>
   </div>

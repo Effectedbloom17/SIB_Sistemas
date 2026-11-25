@@ -94,7 +94,16 @@ export class RoleGuard implements CanActivate {
       return true;
     }
 
-    // Seguridad (catálogo normativas): todos los perfiles internos, excepto empresa.
+    // Seguridad · Catálogo Normativas: solo administradores / root.
+    if (state.url.includes('/seguridad/normativas')) {
+      if (!this.authService.esAdministradorOSuperior()) {
+        this.router.navigate(['/seguridad/asignacion']);
+        return false;
+      }
+      return true;
+    }
+
+    // Seguridad · Asignación / Gestión: todos los perfiles internos, excepto empresa.
     if (state.url.includes('/seguridad')) {
       const esEmpresa = userRoles.some(r => r.toLowerCase() === 'empresa') || (userRole && userRole.toLowerCase() === 'empresa');
       if (esEmpresa) {
