@@ -3021,6 +3021,15 @@ export class BackendServices {
         });
     }
 
+    /** Guarda normativas + responsables en BD (seg_asignacion), sin exigir puntos. */
+    guardarAsignacionSeguridad(empresaId: number, payload: unknown, anio?: number): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/seguridad/asignacion/guardar`, {
+            empresa_id: empresaId,
+            payload,
+            anio
+        });
+    }
+
     listarPuntosSeguridadAsignacion(normativaId: number): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/seguridad/asignacion/puntos/${normativaId}`);
     }

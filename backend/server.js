@@ -24863,6 +24863,7 @@ app.get('/api/historias-clinicas', async (req, res) => {
             'fecha_elaboracion',
             'matricula',
             'nombre',
+            'genero',
             'area',
             'personal_elaboro',
             'empresa_id',
@@ -26989,6 +26990,25 @@ app.get('/api/seguridad/asignacion/puntos/:normativaId', authMiddleware, denyEmp
     }
 });
 
+app.post('/api/seguridad/asignacion/guardar', authMiddleware, denyEmpresa, async (req, res) => {
+    try {
+        await poolNormativasReady;
+        const resultado = await seguridadAsignacionService.guardarAsignacion(
+            poolNormativas,
+            pool,
+            req.body || {},
+            req.user
+        );
+        res.json({
+            success: true,
+            message: `Asignación guardada para ${resultado.empresa_nombre}.`,
+            ...resultado
+        });
+    } catch (error) {
+        responderErrorSeguridadAsignacion(res, error, 'Error al guardar la asignación');
+    }
+});
+
 app.post('/api/seguridad/asignacion/publicar', authMiddleware, denyEmpresa, async (req, res) => {
     try {
         await poolNormativasReady;
@@ -27439,7 +27459,26 @@ app.get('/api/sgc/dashboard', requireAdminOrSgc, async (req, res) => {
             forzarRecarga,
             modo
         });
-        return res.json({ success: true, ...payload });
+
+        // Indicador resumen NOM-035 (calificación promedio) para la barra de KPIs SGC.
+        let riesgosPsicosociales = null;
+        try {
+            await rrhhRiesgosPsicosocialesService.asegurarTabla(pool);
+            const regs = await rrhhRiesgosPsicosocialesService.listar(pool, { tipo: 'factores' });
+            const ultimo = Array.isArray(regs) && regs.length ? regs[0] : null;
+            if (ultimo) {
+                riesgosPsicosociales = {
+                    calificacion_promedio: ultimo.resumen?.calificacion_promedio ?? null,
+                    nivel_riesgo: ultimo.resumen?.nivel_riesgo ?? null,
+                    personal_evaluado: ultimo.resumen?.personal_evaluado ?? null,
+                    periodo: ultimo.periodo || null
+                };
+            }
+        } catch (eNom) {
+            console.warn('[SGC dashboard] riesgos psicosociales:', eNom.message);
+        }
+
+        return res.json({ success: true, ...payload, riesgosPsicosociales });
     } catch (error) {
         handleError(res, error, 'No se pudo cargar el dashboard del SGC');
     }

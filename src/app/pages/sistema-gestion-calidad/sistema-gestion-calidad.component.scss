@@ -2248,8 +2248,8 @@ $sgc-surface: #f8fafb;
 }
 
 .sgc-kpi-bar--inferior {
-  width: min(62%, 620px);
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: min(82%, 860px);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .sgc-kpi-cell {
@@ -7088,12 +7088,17 @@ button.sgc-proyecto-row {
     padding-right: 0.55rem;
   }
 
-  // KPIs superiores e inferiores (3): 3 por fila
-  .sgc-kpi-bar--superior,
-  .sgc-kpi-bar--inferior {
+  // KPIs: superiores 3 · inferiores 4 (incluye Puntaje NOM-035)
+  .sgc-kpi-bar--superior {
     width: 100%;
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .sgc-kpi-bar--inferior {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .sgc-kpi-cell {

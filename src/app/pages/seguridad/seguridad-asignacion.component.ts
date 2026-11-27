@@ -184,6 +184,7 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
     left: number;
     width: number;
     flecha: number;
+    debajo: boolean;
     titulo: string;
     texto: string;
   } | null = null;
@@ -196,6 +197,7 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
   guardadoEn: string | null = null;
   avisoRecuperado = '';
   publicando = false;
+  guardandoAsignacion = false;
 
   /** Año del ciclo de asignación en curso. */
   anioCiclo = new Date().getFullYear();
@@ -212,6 +214,8 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
   private enVuelo = false;
   private cargaToken = 0;
   private aplicando = false;
+  /** True mientras se carga el estado del servidor; evita autosave vacío. */
+  private cargaEnCurso = false;
 
   constructor(
     private backend: BackendServices,
@@ -292,7 +296,13 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
 
   @HostListener('window:beforeunload')
   alSalir(): void {
-    if (!this.empresa || (this.estadoGuardado === 'guardado' && !this.sucio && !this.enVuelo)) return;
+    // DG/root: la asignación durable es «Guardar asignación» en BD; no depender de local.
+    if (this.puedeEditarAsignacion) return;
+    if (!this.empresa || this.cargaEnCurso) return;
+    if (this.estadoGuardado === 'guardado' && !this.sucio && !this.enVuelo) return;
+    const payload = this.armarPayload();
+    // No enviar borrador vacío al cerrar: puede pisar datos del servidor.
+    if (!payload.normas?.length) return;
     this.persistirLocal(true);
     const token = this.auth.getToken();
     if (!token) return;
@@ -305,7 +315,7 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
       },
       body: JSON.stringify({
         empresa_id: this.empresa.empresa_id,
-        payload: this.armarPayload()
+        payload
       })
     }).catch(() => undefined);
   }
@@ -632,9 +642,13 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
   private cargarEstado(empresaId: number): void {
     const token = ++this.cargaToken;
     const anio = new Date().getFullYear();
+    this.cargaEnCurso = true;
     this.backend.obtenerEstadoSeguridadAsignacion(empresaId, anio).pipe(takeUntil(this.destroy$)).subscribe({
       next: (res: any) => {
-        if (token !== this.cargaToken || this.empresa?.empresa_id !== empresaId) return;
+        if (token !== this.cargaToken || this.empresa?.empresa_id !== empresaId) {
+          if (token === this.cargaToken) this.cargaEnCurso = false;
+          return;
+        }
         this.anioCiclo = Number(res?.anio) || anio;
         this.publicadasIds = new Set((res?.publicada_ids || []).map((id: any) => Number(id)));
         this.historialSugerido = res?.historial_previo?.payload
@@ -651,35 +665,58 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
             }
           : null;
 
-        const local = this.leerLocal(empresaId);
-        this.aplicando = true;
-        if (local?.pendienteServidor) {
-          this.aplicarPayload(local.payload);
-          this.avisoRecuperado = 'Se recuperó el avance que no había llegado al servidor.';
-          this.aplicando = false;
-          this.enfocarAsignacion();
-          this.marcarCambio();
-          return;
-        }
         const normasBorrador = Array.isArray(res?.borrador?.payload?.normas)
           ? res.borrador.payload.normas
           : [];
-        if (normasBorrador.length) {
+        const normasPublicada = Array.isArray(res?.publicada?.normas) ? res.publicada.normas : [];
+        const servidorTieneDatos = normasBorrador.length > 0 || normasPublicada.length > 0;
+
+        // DG/root: prioriza siempre la BD (asignación publicada o borrador servidor).
+        // Responsables: pueden recuperar local pendiente con contenido.
+        if (this.puedeEditarAsignacion) {
+          this.borrarLocal(empresaId);
+        } else {
+          const local = this.leerLocal(empresaId);
+          const normasLocal = Array.isArray(local?.payload?.normas) ? local!.payload.normas : [];
+          if (local?.pendienteServidor && !normasLocal.length && servidorTieneDatos) {
+            this.borrarLocal(empresaId);
+          }
+        }
+
+        this.aplicando = true;
+        if (!this.puedeEditarAsignacion) {
+          const localUsable = this.leerLocal(empresaId);
+          const normasLocalUsable = Array.isArray(localUsable?.payload?.normas)
+            ? localUsable!.payload.normas
+            : [];
+          if (localUsable?.pendienteServidor && normasLocalUsable.length) {
+            this.aplicarPayload(localUsable.payload);
+            this.avisoRecuperado = 'Se recuperó el avance que no había llegado al servidor.';
+            this.aplicando = false;
+            this.cargaEnCurso = false;
+            this.enfocarAsignacion();
+            this.marcarCambio();
+            return;
+          }
+        }
+        // Preferir asignación ya guardada en seg_asignacion sobre borrador.
+        if (normasPublicada.length) {
+          this.aplicarPayload(res.publicada);
+          this.estadoGuardado = 'guardado';
+          this.avisoRecuperado = this.puedeEditarAsignacion
+            ? 'Asignación cargada desde la base de datos. Use «Guardar asignación» para actualizarla.'
+            : 'Normativas publicadas a su cargo. Puede ajustar los puntos marcados.';
+        } else if (normasBorrador.length) {
           this.aplicarPayload(res.borrador.payload);
           this.guardadoPor = res.borrador.actualizado_por || '';
           this.guardadoEn = res.borrador.updated_at || null;
           this.estadoGuardado = 'guardado';
           this.avisoRecuperado = this.puedeEditarAsignacion
-            ? 'Continuamos con el borrador guardado de esta empresa.'
+            ? 'Continuamos con el borrador del servidor. Pulse «Guardar asignación» para fijarla en BD.'
             : 'Normativas a su cargo: organice los puntos y el avance se guarda solo.';
-        } else if (res?.publicada?.normas?.length) {
-          this.aplicarPayload(res.publicada);
-          this.estadoGuardado = 'guardado';
-          this.avisoRecuperado = this.puedeEditarAsignacion
-            ? 'Esta empresa ya tiene normativas en gestión. Puede ajustarlas y volver a publicar.'
-            : 'Normativas publicadas a su cargo. Puede ajustar los puntos marcados.';
         }
         this.aplicando = false;
+        this.cargaEnCurso = false;
         this.enfocarAsignacion();
         if (this.puedeEditarAsignacion && res?.sugerir_historial && this.historialSugerido) {
           this.ofrecerHistorialPrevio();
@@ -688,14 +725,18 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
       error: () => {
         if (token !== this.cargaToken) return;
         const local = this.leerLocal(empresaId);
-        if (local) {
+        const normasLocal = Array.isArray(local?.payload?.normas) ? local!.payload.normas : [];
+        if (local && normasLocal.length) {
           this.aplicando = true;
           this.aplicarPayload(local.payload);
           this.aplicando = false;
           this.avisoRecuperado = 'Se recuperó el avance guardado en este equipo.';
+          this.cargaEnCurso = false;
           this.enfocarAsignacion();
           if (local.pendienteServidor) this.marcarCambio();
         } else {
+          if (local && !normasLocal.length) this.borrarLocal(empresaId);
+          this.cargaEnCurso = false;
           this.enfocarAsignacion();
         }
       }
@@ -1411,6 +1452,76 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
     return this.normas.reduce((sum, n) => sum + n.requisito_ids.length, 0);
   }
 
+  /** Persiste normativas + responsables en seg_asignacion (sin exigir puntos). */
+  guardarAsignacion(): void {
+    if (!this.empresa || this.guardandoAsignacion || !this.puedeEditarAsignacion) return;
+    if (!this.pasoValido(0)) {
+      this.avisarPaso(0);
+      return;
+    }
+
+    Swal.fire({
+      title: 'Guardar asignación',
+      html: `Se guardarán <strong>${this.normas.length}</strong> normativa(s) de
+        <strong>${this.escaparHtml(this.empresa.nombre_empresa)}</strong> con sus responsables
+        en la base de datos.<br><small style="color:#6b7280">Los consultores ya podrán verlas
+        en Selección de puntos. Los puntos se marcan después.</small>`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Guardar en BD',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#b91c1c'
+    }).then((r) => {
+      if (!r.isConfirmed || !this.empresa) return;
+      this.guardandoAsignacion = true;
+      this.estadoGuardado = 'guardando';
+      this.backend.guardarAsignacionSeguridad(
+        this.empresa.empresa_id,
+        this.armarPayload(),
+        this.anioCiclo
+      )
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res: any) => {
+            this.guardandoAsignacion = false;
+            this.sucio = false;
+            this.estadoGuardado = 'guardado';
+            this.guardadoEn = new Date().toISOString();
+            this.guardadoPor = res?.historial?.publicado_por || this.guardadoPor || 'guardado';
+            this.borrarLocal(this.empresa!.empresa_id);
+            this.publicadasIds = new Set([
+              ...this.publicadasIds,
+              ...this.normas.map((n) => n.normativa_id)
+            ]);
+            this.avisoRecuperado =
+              `Asignación guardada en BD (${this.normas.length} normativa(s)). Ya no depende del borrador local.`;
+            Swal.fire({
+              icon: 'success',
+              title: 'Asignación guardada',
+              html: `Quedó registrada para <strong>${this.escaparHtml(this.empresa!.nombre_empresa)}</strong>.
+                Pascual, Irvin u otros responsables ya pueden abrir Selección de puntos.`,
+              showCancelButton: true,
+              confirmButtonText: 'Continuar a puntos',
+              cancelButtonText: 'Quedarme aquí',
+              confirmButtonColor: '#b91c1c'
+            }).then((go) => {
+              if (go.isConfirmed) this.siguiente();
+            });
+          },
+          error: (err: any) => {
+            this.guardandoAsignacion = false;
+            this.estadoGuardado = 'error';
+            Swal.fire({
+              icon: 'error',
+              title: 'No se pudo guardar',
+              text: err?.error?.message || 'Revise normativas y responsables e intente de nuevo.',
+              confirmButtonColor: '#b91c1c'
+            });
+          }
+        });
+    });
+  }
+
   publicar(): void {
     if (!this.empresa || this.publicando) return;
 
@@ -1674,7 +1785,7 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
   }
 
   private marcarCambio(): void {
-    if (this.aplicando || !this.empresa || !this.puedeGestionarPuntos) return;
+    if (this.aplicando || this.cargaEnCurso || !this.empresa || !this.puedeGestionarPuntos) return;
     this.sucio = true;
     this.estadoGuardado = 'pendiente';
     this.persistirLocal(true);
@@ -1999,20 +2110,50 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
     }
   }
 
+  /** Límites del área visible (contenido, no sidebar) para no cortar el tip. */
+  private areaVisibleTip(ancla: HTMLElement): { left: number; right: number; top: number; bottom: number } {
+    const panel = (ancla.closest('.asig-panel, .main-content, .page-content') as HTMLElement | null)
+      || (document.querySelector('.main-content') as HTMLElement | null);
+    if (panel) {
+      const r = panel.getBoundingClientRect();
+      return {
+        left: Math.max(0, r.left),
+        right: Math.min(window.innerWidth, r.right),
+        top: Math.max(0, r.top),
+        bottom: Math.min(window.innerHeight, r.bottom)
+      };
+    }
+    return { left: 0, right: window.innerWidth, top: 0, bottom: window.innerHeight };
+  }
+
   private mostrarFloatTip(ancla: HTMLElement, titulo: string, texto: string, anchoMax: number): void {
     const rect = ancla.getBoundingClientRect();
-    const margen = 14;
-    const width = Math.min(anchoMax, window.innerWidth - margen * 2);
+    const margen = 12;
+    const area = this.areaVisibleTip(ancla);
+    const leftMin = area.left + margen;
+    const leftMax = area.right - margen;
+    const usable = Math.max(160, leftMax - leftMin);
+    const width = Math.min(anchoMax, usable);
     const centro = rect.left + rect.width / 2;
     let left = centro - width / 2;
-    if (left < margen) left = margen;
-    if (left + width > window.innerWidth - margen) left = window.innerWidth - margen - width;
+    if (left < leftMin) left = leftMin;
+    if (left + width > leftMax) left = Math.max(leftMin, leftMax - width);
     const flecha = Math.max(16, Math.min(width - 16, centro - left));
+
+    // Preferir arriba; si no cabe, abrir debajo del punto.
+    const altoAprox = 118;
+    const espacioArriba = rect.top - area.top;
+    const debajo = espacioArriba < altoAprox + margen;
+    const top = debajo
+      ? Math.min(area.bottom - margen, rect.bottom + 10)
+      : Math.max(area.top + margen, rect.top - 8);
+
     this.resumenFloatTip = {
-      top: Math.max(margen, rect.top - 8),
+      top,
       left,
       width,
       flecha,
+      debajo,
       titulo,
       texto
     };
@@ -2073,11 +2214,22 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
   }
 
   private persistirLocal(pendiente: boolean): void {
-    if (!this.empresa) return;
+    if (!this.empresa || this.cargaEnCurso) return;
+    // Asignadores: no usar localStorage; la fuente de verdad es la BD.
+    if (this.puedeEditarAsignacion) {
+      this.borrarLocal(this.empresa.empresa_id);
+      return;
+    }
+    const payload = this.armarPayload();
+    // No cachear borradores vacíos: al reabrir podrían pisar el servidor.
+    if (!payload.normas?.length) {
+      this.borrarLocal(this.empresa.empresa_id);
+      return;
+    }
     const data: BorradorLocal = {
       pendienteServidor: pendiente,
       savedAt: Date.now(),
-      payload: this.armarPayload()
+      payload
     };
     try {
       localStorage.setItem(this.claveLocal(this.empresa.empresa_id), JSON.stringify(data));
@@ -2103,12 +2255,20 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
   }
 
   private flush(): void {
-    if (!this.empresa || !this.sucio || this.enVuelo) return;
+    if (!this.empresa || !this.sucio || this.enVuelo || this.cargaEnCurso) return;
+    const payload = this.armarPayload();
+    // Nunca subir autosave vacío: el backend también lo ignora, pero evitamos la ida.
+    if (!payload.normas?.length) {
+      this.sucio = false;
+      this.borrarLocal(this.empresa.empresa_id);
+      this.estadoGuardado = this.normas.length ? 'pendiente' : 'limpio';
+      return;
+    }
     this.sucio = false;
     this.enVuelo = true;
     this.estadoGuardado = 'guardando';
     const empresaId = this.empresa.empresa_id;
-    this.backend.guardarBorradorSeguridadAsignacion(empresaId, this.armarPayload())
+    this.backend.guardarBorradorSeguridadAsignacion(empresaId, payload)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res: any) => {
@@ -2116,6 +2276,14 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
           if (this.empresa?.empresa_id !== empresaId) return;
           if (this.sucio) {
             this.flush();
+            return;
+          }
+          // Si el servidor conservó el borrador previo, no marcar local como sincronizado vacío.
+          if (res?.conservado) {
+            this.borrarLocal(empresaId);
+            this.estadoGuardado = 'guardado';
+            this.guardadoEn = res?.updated_at || this.guardadoEn;
+            this.guardadoPor = res?.actualizado_por || this.guardadoPor;
             return;
           }
           this.persistirLocal(false);

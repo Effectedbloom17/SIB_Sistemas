@@ -1,11 +1,12 @@
-<div class="header header-bg-image seg-hero pb-5 pt-4 pt-md-5 d-flex align-items-center position-relative overflow-hidden">
+<div class="header header-bg-image seg-hero seg-hero--seleccion pb-5 pt-4 pt-md-5 d-flex align-items-center position-relative overflow-hidden">
   <div class="container-fluid d-flex align-items-center justify-content-center position-relative seg-hero__inner">
     <div class="row w-100 text-center">
       <div class="col-12">
         <div class="d-flex flex-column align-items-center justify-content-center">
           <div class="seg-hero-icon icon icon-shape text-white rounded-circle shadow mb-2">
-            <i class="fas fa-tasks" aria-hidden="true"></i>
+            <i class="fas" [ngClass]="puedeEditarAsignacion ? 'fa-tasks' : 'fa-list-ol'" aria-hidden="true"></i>
           </div>
+          <span class="seg-hero-mode">{{ puedeEditarAsignacion ? 'Modo asignación' : 'Modo selección' }}</span>
           <p class="text-white mb-1 seg-hero-tagline">Seguridad e Higiene</p>
           <h1 class="text-white mb-0 seg-hero-title">{{ tituloHero }}</h1>
         </div>
@@ -14,14 +15,15 @@
   </div>
 </div>
 
-<div class="container-fluid seg-main-wrap mt--5">
-  <div class="seg-panel asig-panel">
-    <!-- Responsables: empresas a cargo (estilo gestión) -->
+<div class="container-fluid seg-main-wrap mt--5 asig-shell">
+  <div class="seg-panel asig-panel asig-panel--seleccion">
+    <!-- Responsables: empresas a cargo -->
     <ng-container *ngIf="muestraTableroEmpresas">
       <div class="pto-emp-strip">
         <div class="pto-emp-strip__lead">
+          <span class="asig-mode-chip"><i class="fas fa-list-ol" aria-hidden="true"></i> Selección de puntos</span>
           <h2>Empresas a cargo</h2>
-          <p>Normativas que Dirección General le asignó para organizar sus puntos</p>
+          <p>Elija qué puntos de cada normativa aplican. Aquí no se cargan evidencias.</p>
         </div>
         <div class="pto-emp-strip__stats" *ngIf="!cargandoEmpresasPuntos && empresasPuntos.length">
           <div class="pto-emp-kpi"><span>{{ empresasPuntos.length }}</span><em>Empresas</em></div>
@@ -601,6 +603,7 @@
 
       <div class="resumen-float-tip"
            *ngIf="resumenFloatTip as tip"
+           [class.is-below]="tip.debajo"
            [style.top.px]="tip.top"
            [style.left.px]="tip.left"
            [style.width.px]="tip.width"
@@ -627,7 +630,19 @@
           <i class="fas fa-list-ol" aria-hidden="true"></i> {{ totalPuntosMarcados() }}
         </span>
       </div>
-      <button type="button" class="btn asig-btn-primary" *ngIf="paso < 2" (click)="siguiente()">
+      <button type="button"
+              class="btn asig-btn-primary"
+              *ngIf="paso === 0 && puedeEditarAsignacion"
+              (click)="guardarAsignacion()"
+              [disabled]="guardandoAsignacion">
+        <i class="fas fa-spinner fa-spin" *ngIf="guardandoAsignacion" aria-hidden="true"></i>
+        <i class="fas fa-save" *ngIf="!guardandoAsignacion" aria-hidden="true"></i>
+        {{ guardandoAsignacion ? 'Guardando…' : 'Guardar asignación' }}
+      </button>
+      <button type="button"
+              class="btn asig-btn-primary"
+              *ngIf="paso === 1 || (paso === 0 && !puedeEditarAsignacion)"
+              (click)="siguiente()">
         Continuar <i class="fas fa-arrow-right" aria-hidden="true"></i>
       </button>
       <button type="button"

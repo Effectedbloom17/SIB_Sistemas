@@ -9,6 +9,39 @@ $asig-line: #e5e7eb;
   overflow: visible;
 }
 
+.asig-panel--seleccion {
+  border-color: rgba(190, 18, 60, 0.16);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 14px 36px rgba(159, 18, 57, 0.07);
+  background:
+    linear-gradient(180deg, #fff 0%, #fffafb 100%);
+}
+
+.asig-mode-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.45rem;
+  padding: 0.28rem 0.65rem;
+  border-radius: 999px;
+  background: rgba(190, 18, 60, 0.08);
+  border: 1px solid rgba(190, 18, 60, 0.18);
+  color: #9f1239;
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+
+  i { font-size: 0.72rem; }
+}
+
+.asig-shell {
+  max-width: 1440px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 .asig-hist {
   display: flex;
   flex-wrap: wrap;
@@ -220,14 +253,17 @@ $asig-line: #e5e7eb;
   }
 }
 
-/* Tablero de empresas para responsables (estilo gestión) */
+/* Tablero de empresas · modo selección */
 .pto-emp-strip {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
   justify-content: space-between;
   gap: 0.85rem 1.25rem;
-  padding: 1.25rem 1.35rem 0.7rem;
+  padding: 1.15rem 1.35rem 0.7rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.88) 0%, rgba(255, 241, 242, 0.55) 100%);
+  border-bottom: 1px solid rgba(190, 18, 60, 0.12);
 
   &__lead {
     h2 {
@@ -2294,6 +2330,7 @@ $asig-line: #e5e7eb;
   position: fixed;
   z-index: 12000;
   transform: translateY(-100%);
+  max-width: min(22rem, calc(100vw - 2rem));
   background: #fff;
   color: #292524;
   border: 1px solid #e7e5e4;
@@ -2302,6 +2339,25 @@ $asig-line: #e5e7eb;
   text-align: left;
   pointer-events: none;
   box-shadow: 0 18px 36px rgba(17, 24, 39, 0.16), 0 0 0 1px rgba(127, 29, 29, 0.04);
+
+  &.is-below {
+    transform: none;
+
+    &::before,
+    &::after {
+      top: auto;
+      bottom: 100%;
+      border-top-color: transparent;
+    }
+
+    &::before { border-bottom-color: #e7e5e4; }
+
+    &::after {
+      margin-top: 0;
+      margin-bottom: -1.5px;
+      border-bottom-color: #fff;
+    }
+  }
 
   strong {
     display: block;

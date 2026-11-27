@@ -534,6 +534,31 @@ async function guardarBorrador(pool, empresaId, payload, usuario) {
 
     const entrada = sanitizarPayload(payload);
     let limpio = entrada;
+    const ctx = contextoUsuario(usuario);
+
+    const [borradorRows] = await pool.query(
+        'SELECT payload, updated_at, actualizado_por FROM seg_asignacion_borrador WHERE empresa_id = ? LIMIT 1',
+        [id]
+    );
+    const existente = borradorRows[0] ? leerPayload(borradorRows[0].payload) : null;
+    const normasExistentes = Array.isArray(existente?.normas) ? existente.normas : [];
+    const normasEntrada = Array.isArray(entrada.normas) ? entrada.normas : [];
+
+    // Evita que un autosave vacío (p. ej. localStorage stale o carrera al cargar)
+    // borre un borrador con normativas ya asignadas.
+    if (!normasEntrada.length && normasExistentes.length) {
+        console.warn(
+            `[SEG-ASIGNACION] Borrador vacío ignorado para empresa ${id} ` +
+            `(había ${normasExistentes.length} norma(s); usuario ${ctx.nombre || ctx.usuario_id || '?'})`
+        );
+        return {
+            empresa_id: id,
+            updated_at: aIso(borradorRows[0]?.updated_at),
+            actualizado_por: borradorRows[0]?.actualizado_por || ctx.nombre,
+            conservado: true,
+            motivo: 'borrador_vacio_ignorado'
+        };
+    }
 
     if (!esAsignadorNormativas(usuario)) {
         const uid = idUsuarioSeguridad(usuario);
@@ -541,13 +566,9 @@ async function guardarBorrador(pool, empresaId, payload, usuario) {
             throw httpError(403, 'Solo Dirección General o el superadministrador pueden editar la asignación.');
         }
 
-        const [borradorRows] = await pool.query(
-            'SELECT payload FROM seg_asignacion_borrador WHERE empresa_id = ? LIMIT 1',
-            [id]
-        );
-        const base = borradorRows[0]
-            ? leerPayload(borradorRows[0].payload)
-            : (await payloadPublicado(pool, id)) || { paso: 0, normas: [] };
+        const base = existente
+            || (await payloadPublicado(pool, id))
+            || { paso: 0, normas: [] };
 
         const propias = new Set(
             (base.normas || [])
@@ -579,7 +600,6 @@ async function guardarBorrador(pool, empresaId, payload, usuario) {
         limpio = sanitizarPayload(limpio);
     }
 
-    const ctx = contextoUsuario(usuario);
     const json = JSON.stringify(limpio);
     if (json.length > 4_000_000) {
         throw httpError(400, 'El borrador es demasiado grande.');
@@ -1563,6 +1583,181 @@ async function publicarPuntosResponsable(pool, poolMain, body, usuario) {
     }
 }
 
+/**
+ * Guarda la asignación DG (normativas + responsables) en seg_asignacion
+ * sin exigir puntos. Es el ancla durable antes de que el responsable marque puntos.
+ */
+async function guardarAsignacion(pool, poolMain, body, usuario) {
+    await asegurarTablas(pool);
+    if (!esAsignadorNormativas(usuario)) {
+        throw httpError(403, 'Solo Dirección General o el superadministrador pueden guardar la asignación.');
+    }
+
+    const empresaId = entero(body?.empresa_id);
+    if (!empresaId) throw httpError(400, 'Seleccione una empresa.');
+
+    const [empresas] = await poolMain.query(
+        'SELECT empresa_id, nombre_empresa FROM empresa WHERE empresa_id = ? AND activo = TRUE LIMIT 1',
+        [empresaId]
+    );
+    if (!empresas.length) throw httpError(404, 'La empresa no está disponible.');
+    const empresaNombre = String(empresas[0].nombre_empresa || '').trim().slice(0, 255);
+
+    const anio = anioCiclo(body?.anio);
+    const payload = sanitizarPayload(body?.payload || body);
+    if (!payload.normas.length) {
+        throw httpError(400, 'Seleccione al menos una normativa.');
+    }
+
+    const normaIds = payload.normas.map((n) => n.normativa_id);
+    const [normasDb] = await pool.query(
+        `SELECT id, codigo FROM seg_normativa WHERE id IN (?) AND estado != 'archivada'`,
+        [normaIds]
+    );
+    if (normasDb.length !== normaIds.length) {
+        throw httpError(400, 'Alguna normativa ya no está en el catálogo.');
+    }
+
+    const preparados = [];
+    for (const norma of payload.normas) {
+        if (!norma.empleados?.length) {
+            const codigo = normasDb.find((n) => n.id === norma.normativa_id)?.codigo || 'seleccionada';
+            throw httpError(400, `Asigne un responsable a ${codigo}.`);
+        }
+        const empleados = await validarResponsables(poolMain, norma.empleados);
+        preparados.push({
+            normativa_id: norma.normativa_id,
+            empleados,
+            requisito_ids: Array.isArray(norma.requisito_ids) ? norma.requisito_ids : [],
+            puntos: Array.isArray(norma.puntos) ? norma.puntos : []
+        });
+    }
+
+    const ctx = contextoUsuario(usuario);
+    const conn = await pool.getConnection();
+    try {
+        await conn.beginTransaction();
+        const asignacionIds = [];
+
+        for (const norma of preparados) {
+            const [existentes] = await conn.query(
+                `SELECT id FROM seg_asignacion WHERE empresa_id = ? AND normativa_id = ? LIMIT 1`,
+                [empresaId, norma.normativa_id]
+            );
+            let asignacionId;
+            if (existentes.length) {
+                asignacionId = existentes[0].id;
+                await conn.query(
+                    `UPDATE seg_asignacion
+                     SET empresa_nombre = ?, estado = 'activa', desactivada = 0,
+                         publicado_por = ?, publicado_en = NOW(), anio_ciclo = ?
+                     WHERE id = ?`,
+                    [empresaNombre, ctx.nombre, anio, asignacionId]
+                );
+            } else {
+                const [ins] = await conn.query(
+                    `INSERT INTO seg_asignacion
+                     (empresa_id, empresa_nombre, normativa_id, estado, publicado_por, publicado_en, anio_ciclo)
+                     VALUES (?, ?, ?, 'activa', ?, NOW(), ?)`,
+                    [empresaId, empresaNombre, norma.normativa_id, ctx.nombre, anio]
+                );
+                asignacionId = ins.insertId;
+            }
+            asignacionIds.push(asignacionId);
+
+            await conn.query('DELETE FROM seg_asignacion_responsable WHERE asignacion_id = ?', [asignacionId]);
+            for (const emp of norma.empleados) {
+                await conn.query(
+                    `INSERT INTO seg_asignacion_responsable
+                     (asignacion_id, empleado_id, empleado_nombre, empleado_puesto, orden)
+                     VALUES (?, ?, ?, ?, ?)`,
+                    [asignacionId, emp.empleado_id, emp.nombre, emp.puesto || null, emp.orden]
+                );
+            }
+
+            // Conserva puntos ya marcados; solo inserta los del payload si vienen.
+            if (norma.requisito_ids.length) {
+                const [prevPts] = await conn.query(
+                    `SELECT requisito_id, accion_score, fecha_inicio, observaciones, indicador_avance
+                     FROM seg_asignacion_punto WHERE asignacion_id = ?`,
+                    [asignacionId]
+                );
+                const prevMap = new Map(prevPts.map((p) => [Number(p.requisito_id), p]));
+                const scoresPayload = new Map(
+                    (norma.puntos || []).map((p) => [Number(p.requisito_id), p.accion_score])
+                );
+                await conn.query('DELETE FROM seg_asignacion_punto WHERE asignacion_id = ?', [asignacionId]);
+                const valores = norma.requisito_ids.map((reqId) => {
+                    const prev = prevMap.get(Number(reqId));
+                    const score = scoresPayload.get(Number(reqId))
+                        ?? normalizarAccionScore(prev?.accion_score);
+                    return [
+                        asignacionId,
+                        reqId,
+                        score,
+                        prev?.fecha_inicio || null,
+                        prev?.indicador_avance ?? null,
+                        prev?.observaciones || null
+                    ];
+                });
+                await conn.query(
+                    `INSERT INTO seg_asignacion_punto
+                     (asignacion_id, requisito_id, accion_score, fecha_inicio, indicador_avance, observaciones)
+                     VALUES ?`,
+                    [valores]
+                );
+            }
+        }
+
+        await conn.query(
+            `UPDATE seg_asignacion
+             SET estado = 'archivada'
+             WHERE empresa_id = ? AND estado = 'activa' AND normativa_id NOT IN (?)`,
+            [empresaId, normaIds]
+        );
+
+        // Mantiene borrador alineado (sin vaciar) como espejo de la asignación guardada.
+        const payloadGuardado = sanitizarPayload({
+            ...payload,
+            paso: Math.max(Number(payload.paso) || 0, 1),
+            vista: payload.vista || 'compacta'
+        });
+        await conn.query(
+            `INSERT INTO seg_asignacion_borrador (empresa_id, payload, actualizado_por, usuario_id)
+             VALUES (?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE
+               payload = VALUES(payload),
+               actualizado_por = VALUES(actualizado_por),
+               usuario_id = VALUES(usuario_id)`,
+            [empresaId, JSON.stringify(payloadGuardado), ctx.nombre, ctx.usuario_id || null]
+        );
+
+        const historial = await upsertSnapshotHistorial(conn, {
+            empresaId,
+            empresaNombre,
+            anio,
+            usuario,
+            origen: 'publicacion'
+        });
+
+        await conn.commit();
+        return {
+            empresa_id: empresaId,
+            empresa_nombre: empresaNombre,
+            asignaciones: asignacionIds.length,
+            normativa_ids: normaIds,
+            anio,
+            historial,
+            modo: 'asignacion'
+        };
+    } catch (error) {
+        await conn.rollback();
+        throw error;
+    } finally {
+        conn.release();
+    }
+}
+
 async function publicar(pool, poolMain, body, usuario) {
     await asegurarTablas(pool);
     if (!esAsignadorNormativas(usuario)) {
@@ -1811,7 +2006,9 @@ function agruparEmpresas(asignaciones) {
                 normativas_abiertas: 0,
                 normativas_desactivadas: 0,
                 ultima_gestion: null,
-                categoriasMap: new Map()
+                categoriasMap: new Map(),
+                responsablesMap: new Map(),
+                normasResumen: []
             };
             mapa.set(item.empresa_id, emp);
         }
@@ -1826,6 +2023,22 @@ function agruparEmpresas(asignaciones) {
         if (fechaItem && (!emp.ultima_gestion || String(fechaItem) > String(emp.ultima_gestion))) {
             emp.ultima_gestion = fechaItem;
         }
+
+        const resps = Array.isArray(item.responsables) ? item.responsables : [];
+        for (const r of resps) {
+            const rid = Number(r.empleado_id || 0);
+            if (!rid || emp.responsablesMap.has(rid)) continue;
+            emp.responsablesMap.set(rid, {
+                empleado_id: rid,
+                nombre: String(r.nombre || '').trim() || `Empleado ${rid}`
+            });
+        }
+        emp.normasResumen.push({
+            codigo: String(item.codigo || '').trim() || `Norma ${item.normativa_id || ''}`,
+            titulo: String(item.titulo || '').trim(),
+            responsables: resps.length,
+            desactivada: !!item.desactivada
+        });
 
         const catId = item.categoria_id || 'otras';
         let cat = emp.categoriasMap.get(catId);
@@ -1855,6 +2068,7 @@ function agruparEmpresas(asignaciones) {
                 .sort((a, b) => a.categoria_id.localeCompare(b.categoria_id, 'es'));
             const desactivada = emp.normativas > 0
                 && emp.normativas_desactivadas === emp.normativas;
+            const responsablesLista = Array.from(emp.responsablesMap.values());
             return {
                 empresa_id: emp.empresa_id,
                 empresa_nombre: emp.empresa_nombre,
@@ -1864,6 +2078,9 @@ function agruparEmpresas(asignaciones) {
                 normativas: emp.normativas,
                 normativas_cerradas: emp.normativas_cerradas,
                 normativas_abiertas: emp.normativas_abiertas,
+                responsables: responsablesLista.length,
+                responsables_lista: responsablesLista.slice(0, 6),
+                normas_resumen: emp.normasResumen.slice(0, 8),
                 ultima_gestion: emp.ultima_gestion,
                 avance: pct(emp.puntos_con_evidencia, emp.puntos_asignados),
                 desactivada,
@@ -3031,6 +3248,7 @@ module.exports = {
     eliminarBorrador,
     obtenerEstado,
     listarPuntos,
+    guardarAsignacion,
     publicar,
     listarGestion,
     listarEmpresasGestion,

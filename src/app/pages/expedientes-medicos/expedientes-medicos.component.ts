@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, DoCheck, Renderer2, ElementRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, DoCheck, Renderer2, ElementRef, ChangeDetectorRef } from '@angular/core';
 import { AuthService } from 'src/app/services/auth.service';
 import { BackendServices } from 'src/app/services/backend.services';
 import { environment } from 'src/environments/environment';
@@ -14,6 +14,19 @@ import {
 import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import JSZip from 'jszip';
+import { firstValueFrom } from 'rxjs';
+
+export interface EmHcDraftMeta {
+  id: string;
+  updatedAt: string;
+  empresaId: number | string | null;
+  empresaNombre: string;
+  pacienteNombre: string;
+  tipoHistoria: string;
+  pasoActual: number;
+  estado: any;
+}
 
 @Component({
   selector: 'app-expedientes-medicos',
@@ -23,13 +36,73 @@ import jsPDF from 'jspdf';
 export class ExpedientesMedicosComponent implements OnInit, OnDestroy, DoCheck {
 
   private mainContentEl: HTMLElement | null = null;
-  private ultimaVistaAplicadaScroll: 'empresas' | 'menu' | 'formulario' | 'preview' | 'historial' | '' = '';
+  private ultimaVistaAplicadaScroll: 'empresas' | 'menu' | 'formulario' | 'preview' | 'historial' | 'borradores' | '' = '';
+  private pdfProgressTimer: ReturnType<typeof setInterval> | null = null;
 
-  vistaActual: 'empresas' | 'menu' | 'formulario' | 'preview' | 'historial' = 'empresas';
+  vistaActual: 'empresas' | 'menu' | 'formulario' | 'preview' | 'historial' | 'borradores' = 'empresas';
   guardando: boolean = false;
   historiasClinicas: any[] = [];
   historiasFiltradas: any[] = [];
   cargandoHistorial: boolean = false;
+  borradoresLocales: EmHcDraftMeta[] = [];
+  borradorActivoId: string | null = null;
+  modoSeleccionZip = false;
+  idsZipSeleccionados: number[] = [];
+  descargandoZipExpedientes = false;
+  private draftAutosaveTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly DRAFT_STORAGE_KEY = 'biznaga_em_hc_drafts_v1';
+  private readonly DRAFT_MAX_SLOTS = 4;
+
+  /** Título del hero según la vista activa */
+  get tituloHero(): string {
+    if (this.vistaActual === 'menu') {
+      return 'Panel de control · Historia Clínica';
+    }
+    if (this.vistaActual === 'historial') {
+      return 'Registros clínicos';
+    }
+    if (this.vistaActual === 'borradores') {
+      return 'Formularios sin guardar';
+    }
+    if (this.vistaActual === 'formulario' || this.vistaActual === 'preview') {
+      return 'Formulario Clinico';
+    }
+    return 'Expedientes Médicos';
+  }
+
+  /** Icono del hero distinto por apartado */
+  get iconoHero(): string {
+    switch (this.vistaActual) {
+      case 'menu':
+        return 'fas fa-th-large';
+      case 'historial':
+        return 'fas fa-folder-open';
+      case 'borradores':
+        return 'fas fa-save';
+      case 'formulario':
+        return 'fas fa-clipboard-list';
+      case 'preview':
+        return 'fas fa-file-alt';
+      default:
+        return 'fas fa-hospital-user';
+    }
+  }
+
+  get slotsBorradores(): Array<EmHcDraftMeta | null> {
+    const slots: Array<EmHcDraftMeta | null> = [...this.borradoresLocales];
+    while (slots.length < this.DRAFT_MAX_SLOTS + 1) {
+      slots.push(null);
+    }
+    return slots.slice(0, this.DRAFT_MAX_SLOTS + 1);
+  }
+
+  get empresasConExpediente(): any[] {
+    return this.empresasFiltradas.filter(e => Number(e?.historias_totales || 0) > 0);
+  }
+
+  get empresasSinExpediente(): any[] {
+    return this.empresasFiltradas.filter(e => Number(e?.historias_totales || 0) <= 0);
+  }
   origenPreview: 'formulario' | 'historial' = 'formulario';
   editandoHistoriaId: number | null = null;
   modoEdicionDesdeHistorial: boolean = false;
@@ -245,7 +318,8 @@ export class ExpedientesMedicosComponent implements OnInit, OnDestroy, DoCheck {
     private authService: AuthService,
     private backendServices: BackendServices,
     private renderer: Renderer2,
-    private elRef: ElementRef
+    private elRef: ElementRef,
+    private cdr: ChangeDetectorRef
   ) { }
 
   ngOnInit(): void {
@@ -257,6 +331,7 @@ export class ExpedientesMedicosComponent implements OnInit, OnDestroy, DoCheck {
     this.inicializarFormulario();
     this.cargarDatosDoctor();
     this.cargarEmpresas();
+    this.refrescarBorradoresLocales();
     this.actualizarEstadoScrollPorVista();
   }
 
@@ -266,9 +341,20 @@ export class ExpedientesMedicosComponent implements OnInit, OnDestroy, DoCheck {
     }
 
     this.sincronizarObservacionesDiagnosticoConsolidadas();
+    if (this.vistaActual === 'formulario') {
+      this.programarAutosaveBorrador();
+    }
   }
 
   ngOnDestroy(): void {
+    if (this.vistaActual === 'formulario') {
+      this.guardarBorradorLocal(true);
+    }
+    if (this.draftAutosaveTimer) {
+      clearTimeout(this.draftAutosaveTimer);
+      this.draftAutosaveTimer = null;
+    }
+    this.detenerProgresoPdf();
     // Quitar el tema azul al salir de la página (solo si no es doctor)
     if (this.mainContentEl && !this.esDoctorPrincipal) {
       this.renderer.removeClass(this.mainContentEl, 'doctor-theme');
@@ -279,9 +365,16 @@ export class ExpedientesMedicosComponent implements OnInit, OnDestroy, DoCheck {
 
   private actualizarEstadoScrollPorVista(): void {
     this.ultimaVistaAplicadaScroll = this.vistaActual;
-    // Permitir scroll en todas las vistas para que el footer sea visible
+    // Scroll de página (sin contenedor interno que recorte el expediente)
     this.renderer.removeStyle(document.body, 'overflow');
     this.renderer.removeStyle(document.documentElement, 'overflow');
+    this.renderer.setStyle(document.body, 'overflow-y', 'auto');
+    this.renderer.setStyle(document.documentElement, 'overflow-y', 'auto');
+    if (this.mainContentEl) {
+      this.renderer.setStyle(this.mainContentEl, 'overflow', 'visible');
+      this.renderer.setStyle(this.mainContentEl, 'height', 'auto');
+      this.renderer.setStyle(this.mainContentEl, 'max-height', 'none');
+    }
   }
 
   actualizarObservacionesDiagnosticoConsolidadas(): void {
@@ -583,6 +676,7 @@ export class ExpedientesMedicosComponent implements OnInit, OnDestroy, DoCheck {
 
   seleccionarEmpresa(empresa: any): void {
     this.empresaSeleccionada = empresa;
+    this.refrescarBorradoresLocales();
     this.vistaActual = 'menu';
   }
 
@@ -2058,32 +2152,468 @@ export class ExpedientesMedicosComponent implements OnInit, OnDestroy, DoCheck {
   }
 
   abrirFormulario(): void {
+    this.refrescarBorradoresLocales();
+    if (this.borradoresLocales.length > 0) {
+      this.vistaActual = 'borradores';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    this.iniciarFormularioNuevo();
+  }
+
+  iniciarFormularioNuevo(): void {
     this.inicializarFormulario();
     this.editandoHistoriaId = null;
     this.modoEdicionDesdeHistorial = false;
     this.folioOrigenEdicion = '';
     this.historiaActualId = null;
     this.historiaSoloLecturaDesdeHistorial = false;
+    this.borradorActivoId = null;
     this.pasoActual = 1;
     this.maxPasoAlcanzado = 1;
     this.vistaActual = 'formulario';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  abrirBorrador(draft: EmHcDraftMeta): void {
+    if (!draft?.estado) {
+      return;
+    }
+    this.restaurarEstadoFormulario(draft.estado);
+    this.borradorActivoId = draft.id;
+    this.editandoHistoriaId = null;
+    this.modoEdicionDesdeHistorial = false;
+    this.folioOrigenEdicion = '';
+    this.historiaActualId = null;
+    this.historiaSoloLecturaDesdeHistorial = false;
+    this.vistaActual = 'formulario';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  eliminarBorradorSlot(draft: EmHcDraftMeta, event?: Event): void {
+    if (event) {
+      event.stopPropagation();
+    }
+    this.eliminarBorradorLocal(draft.id);
+    this.refrescarBorradoresLocales();
+  }
+
+  volverAlMenuDesdeBorradores(): void {
+    this.vistaActual = 'menu';
   }
 
   volverAlMenu(): void {
+    this.guardarBorradorLocal(true);
+    this.vistaActual = 'menu';
+  }
+
+  descargarZipGeneral(): void {
+    if (!this.historiasClinicas.length || this.descargandoZipExpedientes) {
+      return;
+    }
+    this.modoSeleccionZip = false;
+    this.idsZipSeleccionados = [];
+    const ids = this.historiasClinicas.map((h: any) => Number(h.id)).filter((id: number) => !!id);
+    this.descargarExpedientesZip(ids, 'general');
+  }
+
+  descargarZipEspecificos(): void {
+    if (!this.historiasClinicas.length || this.descargandoZipExpedientes) {
+      return;
+    }
+
+    if (!this.modoSeleccionZip) {
+      this.modoSeleccionZip = true;
+      this.idsZipSeleccionados = [];
+      return;
+    }
+
+    this.descargarExpedientesZip([...this.idsZipSeleccionados], 'especifico');
+  }
+
+  cancelarSeleccionZip(): void {
+    this.modoSeleccionZip = false;
+    this.idsZipSeleccionados = [];
+  }
+
+  estaZipSeleccionado(id: number): boolean {
+    return this.idsZipSeleccionados.includes(Number(id));
+  }
+
+  toggleZipSeleccionado(id: number, event: Event): void {
+    const checked = !!(event.target as HTMLInputElement)?.checked;
+    const numId = Number(id);
+    if (checked) {
+      if (!this.idsZipSeleccionados.includes(numId)) {
+        this.idsZipSeleccionados = [...this.idsZipSeleccionados, numId];
+      }
+    } else {
+      this.idsZipSeleccionados = this.idsZipSeleccionados.filter(x => x !== numId);
+    }
+  }
+
+  todosZipSeleccionados(): boolean {
+    const visibles = this.historiasFiltradas.map((h: any) => Number(h.id)).filter((id: number) => !!id);
+    return visibles.length > 0 && visibles.every(id => this.idsZipSeleccionados.includes(id));
+  }
+
+  toggleTodosZip(event: Event): void {
+    const checked = !!(event.target as HTMLInputElement)?.checked;
+    const visibles = this.historiasFiltradas.map((h: any) => Number(h.id)).filter((id: number) => !!id);
+    if (checked) {
+      const set = new Set([...this.idsZipSeleccionados, ...visibles]);
+      this.idsZipSeleccionados = Array.from(set);
+    } else {
+      this.idsZipSeleccionados = this.idsZipSeleccionados.filter(id => !visibles.includes(id));
+    }
+  }
+
+  async descargarExpedientesZip(idsEntrada?: number[], modo: 'general' | 'especifico' = 'general'): Promise<void> {
+    let ids = (idsEntrada || []).map(Number).filter(Boolean);
+
+    if (!ids.length) {
+      Swal.fire({
+        title: 'Sin selección',
+        text: 'Selecciona al menos un expediente para descargar.',
+        icon: 'warning',
+        confirmButtonColor: '#0f3661'
+      });
+      return;
+    }
+
+    this.descargandoZipExpedientes = true;
+    const vistaAnterior = this.vistaActual;
+    const historiaAnteriorId = this.historiaActualId;
+    const soloLecturaAnterior = this.historiaSoloLecturaDesdeHistorial;
+    const origenAnterior = this.origenPreview;
+
+    this.abrirProgresoZip(modo, ids.length);
+
+    const zip = new JSZip();
+    const errores: string[] = [];
+    const usados = new Set<string>();
+
+    try {
+      for (let i = 0; i < ids.length; i++) {
+        const id = ids[i];
+        const pctPdf = 8 + Math.round(((i + 0.35) / ids.length) * 62);
+        this.actualizarProgresoZip(
+          pctPdf,
+          `Generando PDF ${i + 1} de ${ids.length}…`,
+          'pdfs'
+        );
+
+        try {
+          const resp: any = await firstValueFrom(this.backendServices.obtenerHistoriaClinica(id));
+          if (!resp?.success || !resp.historia) {
+            throw new Error('No se pudo cargar');
+          }
+
+          this.historiaActualId = id;
+          this.historiaSoloLecturaDesdeHistorial = true;
+          this.cargarHistoriaEnFormulario(resp.historia);
+          this.aplicarDefaultsAntecedentesLaboralesSiVacio();
+          this.origenPreview = 'historial';
+          this.vistaActual = 'preview';
+          this.cdr.detectChanges();
+          await new Promise(resolve => setTimeout(resolve, 350));
+
+          const generado = await this.generarPdfBlobDesdeDomActual();
+          let nombre = generado.nombre || `Historia_Clinica_${id}.pdf`;
+          if (usados.has(nombre)) {
+            const base = nombre.replace(/\.pdf$/i, '');
+            nombre = `${base}_${id}.pdf`;
+          }
+          usados.add(nombre);
+          zip.file(nombre, generado.blob);
+        } catch (err) {
+          console.error('Error PDF expediente', id, err);
+          errores.push(String(id));
+        }
+      }
+
+      if (usados.size === 0) {
+        throw new Error('No se generó ningún PDF');
+      }
+
+      this.actualizarProgresoZip(78, 'Empaquetando expedientes en ZIP…', 'zip');
+      const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+      const empresa = (this.empresaSeleccionada?.nombre_empresa || 'empresa')
+        .replace(/[<>:"/\\|?*]+/g, ' ')
+        .replace(/\s+/g, '_')
+        .trim()
+        .substring(0, 50);
+      const fecha = obtenerFechaHoyLocal();
+
+      this.actualizarProgresoZip(90, 'Descargando archivo ZIP…', 'descarga');
+      this.descargarBlobLocal(zipBlob, `Expedientes_Medicos_${empresa || 'empresa'}_${fecha}.zip`);
+      this.cerrarProgresoZip(100, 'ZIP listo');
+      await new Promise(resolve => setTimeout(resolve, 420));
+      Swal.close();
+
+      if (errores.length) {
+        await Swal.fire({
+          title: 'ZIP con incidencias',
+          text: `Se generó el ZIP, pero fallaron ${errores.length} expediente(s).`,
+          icon: 'warning',
+          confirmButtonColor: '#0f3661'
+        });
+      } else {
+        await Swal.fire({
+          title: 'ZIP listo',
+          text: `Se descargaron ${usados.size} expediente(s) en PDF.`,
+          icon: 'success',
+          timer: 2600,
+          showConfirmButton: false
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      this.detenerProgresoPdf();
+      Swal.close();
+      await Swal.fire({
+        title: 'Error',
+        text: 'No se pudo generar el ZIP de expedientes médicos.',
+        icon: 'error',
+        confirmButtonColor: '#0f3661'
+      });
+    } finally {
+      this.descargandoZipExpedientes = false;
+      this.modoSeleccionZip = false;
+      this.idsZipSeleccionados = [];
+      this.historiaActualId = historiaAnteriorId;
+      this.historiaSoloLecturaDesdeHistorial = soloLecturaAnterior;
+      this.origenPreview = origenAnterior;
+      this.vistaActual = vistaAnterior === 'preview' ? 'historial' : vistaAnterior;
+      this.cdr.detectChanges();
+    }
+  }
+
+  private abrirProgresoZip(modo: 'general' | 'especifico', total: number): void {
+    this.detenerProgresoPdf();
+    const titulo = modo === 'especifico' ? 'Generando ZIP específico' : 'Generando ZIP general';
+    const msgInicial = modo === 'especifico'
+      ? `Preparando ${total} expediente(s) seleccionado(s)…`
+      : `Preparando ${total} expediente(s) de la empresa…`;
+
     Swal.fire({
-      title: '¿Salir del formulario?',
-      text: 'Los datos no guardados se perderán.',
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#0f3661',
-      cancelButtonColor: '#A8A9A2',
-      confirmButtonText: 'Sí, salir',
-      cancelButtonText: 'Cancelar'
-    }).then((result) => {
-      if (result.isConfirmed) {
-        this.vistaActual = 'menu';
+      title: '',
+      html: `
+        <div class="hc-pdf">
+          <div class="hc-pdf__hero">
+            <div class="hc-pdf__ring-wrap">
+              <div id="hc-pdf-ring" class="hc-pdf__ring"></div>
+              <div class="hc-pdf__ring-core">
+                <i class="fas fa-file-archive" aria-hidden="true"></i>
+              </div>
+            </div>
+            <div class="hc-pdf__titles">
+              <span class="hc-pdf__eyebrow">Médicos · Expedientes</span>
+              <strong>${titulo}</strong>
+              <p id="hc-pdf-msg">${msgInicial}</p>
+            </div>
+          </div>
+
+          <div class="hc-pdf__meter">
+            <div class="hc-pdf__track">
+              <div id="hc-pdf-bar" class="hc-pdf__bar" style="width:6%"></div>
+              <div id="hc-pdf-fill" class="hc-pdf__glow" style="width:6%"></div>
+            </div>
+            <div class="hc-pdf__meta">
+              <span>Progreso</span>
+              <b id="hc-pdf-pct">6%</b>
+            </div>
+          </div>
+
+          <ol class="hc-pdf__steps">
+            <li data-hc-pdf-step="preparar" class="is-active"><i class="fas fa-clipboard-list"></i><span>Preparar</span></li>
+            <li data-hc-pdf-step="pdfs"><i class="fas fa-file-medical"></i><span>PDFs</span></li>
+            <li data-hc-pdf-step="zip"><i class="fas fa-file-archive"></i><span>ZIP</span></li>
+            <li data-hc-pdf-step="descarga"><i class="fas fa-download"></i><span>Descarga</span></li>
+            <li data-hc-pdf-step="fin"><i class="fas fa-check"></i><span>Listo</span></li>
+          </ol>
+        </div>
+      `,
+      customClass: {
+        popup: 'hc-pdf-swal',
+        htmlContainer: 'hc-pdf-swal__html'
+      },
+      width: 460,
+      padding: '1.15rem 1.2rem 1.25rem',
+      background: '#fff',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showConfirmButton: false,
+      didOpen: () => {
+        this.actualizarProgresoZip(6, msgInicial, 'preparar');
       }
     });
+  }
+
+  private actualizarProgresoZip(pct: number, msg?: string, stepKey?: string): void {
+    const bar = document.getElementById('hc-pdf-bar');
+    const fill = document.getElementById('hc-pdf-fill');
+    const label = document.getElementById('hc-pdf-msg');
+    const pctLabel = document.getElementById('hc-pdf-pct');
+    const ring = document.getElementById('hc-pdf-ring');
+    const etapasKeys = ['preparar', 'pdfs', 'zip', 'descarga', 'fin'];
+    let actualIdx = 0;
+    if (stepKey) {
+      const idx = etapasKeys.indexOf(stepKey);
+      if (idx >= 0) actualIdx = idx;
+    } else {
+      const etapasMin = [0, 8, 78, 90, 100];
+      for (let i = 0; i < etapasMin.length; i++) {
+        if (pct >= etapasMin[i]) actualIdx = i;
+      }
+    }
+    if (bar) bar.style.width = `${pct}%`;
+    if (fill) fill.style.width = `${pct}%`;
+    if (label && msg) label.textContent = msg;
+    if (pctLabel) pctLabel.textContent = `${Math.round(pct)}%`;
+    if (ring) {
+      const deg = Math.round((pct / 100) * 360);
+      const color = pct >= 100 ? '#0284c7' : '#0b6988';
+      ring.style.background = `conic-gradient(${color} ${deg}deg, #f1f5f9 ${deg}deg)`;
+    }
+    document.querySelectorAll('[data-hc-pdf-step]').forEach((nodo) => {
+      const el = nodo as HTMLElement;
+      const key = el.getAttribute('data-hc-pdf-step') || '';
+      const idx = etapasKeys.indexOf(key);
+      el.classList.toggle('is-done', idx >= 0 && (pct >= 100 || idx < actualIdx));
+      el.classList.toggle('is-active', pct < 100 && key === etapasKeys[actualIdx]);
+    });
+  }
+
+  private cerrarProgresoZip(pct = 100, msg = 'ZIP listo'): void {
+    this.detenerProgresoPdf();
+    this.actualizarProgresoZip(pct, msg, 'fin');
+  }
+
+  private descargarBlobLocal(blob: Blob, nombre: string): void {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = nombre;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  }
+
+  private async generarPdfBlobDesdeDomActual(): Promise<{ blob: Blob; nombre: string }> {
+    const element = document.getElementById('historia-clinica-print');
+    if (!element) {
+      throw new Error('Documento no disponible');
+    }
+
+    const originalMaxWidth = element.style.maxWidth;
+    const originalBoxShadow = element.style.boxShadow;
+    const originalBorderRadius = element.style.borderRadius;
+    element.style.maxWidth = '210mm';
+    element.style.boxShadow = 'none';
+    element.style.borderRadius = '0';
+
+    const nombreArchivo = this.construirNombrePdfHistoriaClinica(this.historiaActualId);
+    const elementRect = element.getBoundingClientRect();
+    const rows = element.querySelectorAll('table.hc-table tr');
+    const breakPositionsDom: number[] = [];
+    rows.forEach((row: Element) => {
+      breakPositionsDom.push(row.getBoundingClientRect().bottom - elementRect.top);
+    });
+    element.querySelectorAll('table.hc-table').forEach((tbl: Element) => {
+      breakPositionsDom.push(tbl.getBoundingClientRect().bottom - elementRect.top);
+    });
+    const uniqueBreaks = [...new Set(breakPositionsDom)].sort((a, b) => a - b);
+    const forcedBreaksDom: number[] = [];
+    element.querySelectorAll('.hc-forced-page-break').forEach((marker: Element) => {
+      const top = marker.getBoundingClientRect().top - elementRect.top;
+      if (top > 1) {
+        forcedBreaksDom.push(top);
+      }
+    });
+
+    const captureScale = 2;
+    try {
+      const canvas = await html2canvas(element, {
+        scale: captureScale,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        imageTimeout: 0,
+        scrollX: -window.scrollX,
+        scrollY: -window.scrollY,
+        windowWidth: element.scrollWidth,
+        windowHeight: element.scrollHeight
+      });
+
+      const pdf = new jsPDF('p', 'mm', 'letter');
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 5;
+      const usableWidth = pageWidth - (margin * 2);
+      const usableHeight = pageHeight - (margin * 2);
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+      const ratio = usableWidth / imgWidth;
+      const maxSliceHeight = usableHeight / ratio;
+      const canvasBreaks = uniqueBreaks.map(v => v * captureScale);
+      const forcedBreaks = forcedBreaksDom.map(v => v * captureScale);
+
+      let yOffset = 0;
+      let pageNum = 0;
+      while (yOffset < imgHeight - 1) {
+        const targetEnd = Math.min(yOffset + maxSliceHeight, imgHeight);
+        let sliceEnd = targetEnd;
+        if (targetEnd < imgHeight) {
+          let best = -1;
+          for (let i = canvasBreaks.length - 1; i >= 0; i--) {
+            if (canvasBreaks[i] <= targetEnd && canvasBreaks[i] > yOffset + maxSliceHeight * 0.35) {
+              best = canvasBreaks[i];
+              break;
+            }
+          }
+          const nextForced = forcedBreaks.find(v => v > yOffset + 2 && v <= targetEnd);
+          if (nextForced !== undefined) {
+            sliceEnd = nextForced as number;
+          } else if (best > 0) {
+            sliceEnd = best;
+          }
+        }
+        if (sliceEnd <= yOffset) {
+          sliceEnd = Math.min(targetEnd, imgHeight);
+          if (sliceEnd <= yOffset) {
+            break;
+          }
+        }
+
+        const sliceHeight = sliceEnd - yOffset;
+        const pageCanvas = document.createElement('canvas');
+        pageCanvas.width = imgWidth;
+        pageCanvas.height = sliceHeight;
+        const ctx = pageCanvas.getContext('2d');
+        if (ctx) {
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+          ctx.drawImage(canvas, 0, yOffset, imgWidth, sliceHeight, 0, 0, imgWidth, sliceHeight);
+        }
+        const pageImgData = pageCanvas.toDataURL('image/jpeg', 0.92);
+        if (pageNum > 0) {
+          pdf.addPage();
+        }
+        pdf.addImage(pageImgData, 'JPEG', margin, margin, usableWidth, sliceHeight * ratio);
+        yOffset = sliceEnd;
+        pageNum++;
+      }
+
+      const blob = pdf.output('blob');
+      return { blob, nombre: nombreArchivo };
+    } finally {
+      element.style.maxWidth = originalMaxWidth;
+      element.style.boxShadow = originalBoxShadow;
+      element.style.borderRadius = originalBorderRadius;
+    }
   }
 
   guardarFormulario(): void {
@@ -2256,6 +2786,7 @@ export class ExpedientesMedicosComponent implements OnInit, OnDestroy, DoCheck {
     this.modoEdicionDesdeHistorial = false;
     this.folioOrigenEdicion = '';
     this.historiaSoloLecturaDesdeHistorial = false;
+    this.limpiarBorradorActivoTrasGuardado();
 
     if (this.origenPreview === 'historial') {
       this.historiaActualId = null;
@@ -2267,6 +2798,158 @@ export class ExpedientesMedicosComponent implements OnInit, OnDestroy, DoCheck {
     this.pasoActual = 1;
     this.maxPasoAlcanzado = 1;
     this.vistaActual = 'menu';
+  }
+
+  private abrirProgresoPdf(modo: 'descarga' | 'drive' | 'imprimir'): void {
+    this.detenerProgresoPdf();
+    let pct = 4;
+    const accionLabel = modo === 'drive' ? 'Drive' : (modo === 'imprimir' ? 'Imprimir' : 'Descarga');
+    const accionMsg = modo === 'drive'
+      ? 'Subiendo PDF a Google Drive…'
+      : (modo === 'imprimir' ? 'Preparando documento para impresión…' : 'Descargando PDF…');
+    const titulo = modo === 'drive'
+      ? 'Generando y subiendo PDF'
+      : (modo === 'imprimir' ? 'Preparando impresión' : 'Generando PDF');
+    const etapas = [
+      { min: 0, key: 'preparar', msg: 'Preparando documento clínico…' },
+      { min: 16, key: 'captura', msg: 'Capturando historia clínica…' },
+      { min: 38, key: 'paginas', msg: 'Organizando páginas del documento…' },
+      { min: 58, key: 'pdf', msg: 'Armando archivo PDF…' },
+      { min: 78, key: 'accion', msg: accionMsg },
+      { min: 92, key: 'fin', msg: 'Finalizando…' }
+    ];
+    const mensajeDe = (valor: number) => {
+      let actual = etapas[0];
+      for (const e of etapas) {
+        if (valor >= e.min) actual = e;
+      }
+      return actual;
+    };
+    const pintar = (valor: number, msgOverride?: string) => {
+      const etapa = mensajeDe(valor);
+      const bar = document.getElementById('hc-pdf-bar');
+      const fill = document.getElementById('hc-pdf-fill');
+      const label = document.getElementById('hc-pdf-msg');
+      const pctLabel = document.getElementById('hc-pdf-pct');
+      const ring = document.getElementById('hc-pdf-ring');
+      if (bar) bar.style.width = `${valor}%`;
+      if (fill) fill.style.width = `${valor}%`;
+      if (label) label.textContent = msgOverride || etapa.msg;
+      if (pctLabel) pctLabel.textContent = `${Math.round(valor)}%`;
+      if (ring) {
+        const deg = Math.round((valor / 100) * 360);
+        ring.style.background = `conic-gradient(#0b6988 ${deg}deg, #f1f5f9 ${deg}deg)`;
+      }
+      document.querySelectorAll('[data-hc-pdf-step]').forEach((nodo) => {
+        const el = nodo as HTMLElement;
+        const key = el.getAttribute('data-hc-pdf-step') || '';
+        const idx = etapas.findIndex((e) => e.key === key);
+        const actualIdx = etapas.findIndex((e) => e.key === etapa.key);
+        el.classList.toggle('is-done', idx >= 0 && idx < actualIdx);
+        el.classList.toggle('is-active', key === etapa.key);
+      });
+    };
+
+    Swal.fire({
+      title: '',
+      html: `
+        <div class="hc-pdf">
+          <div class="hc-pdf__hero">
+            <div class="hc-pdf__ring-wrap">
+              <div id="hc-pdf-ring" class="hc-pdf__ring"></div>
+              <div class="hc-pdf__ring-core">
+                <i class="fas fa-file-medical" aria-hidden="true"></i>
+              </div>
+            </div>
+            <div class="hc-pdf__titles">
+              <span class="hc-pdf__eyebrow">Médicos · Expedientes</span>
+              <strong>${titulo}</strong>
+              <p id="hc-pdf-msg">Preparando documento clínico…</p>
+            </div>
+          </div>
+
+          <div class="hc-pdf__meter">
+            <div class="hc-pdf__track">
+              <div id="hc-pdf-bar" class="hc-pdf__bar" style="width:4%"></div>
+              <div id="hc-pdf-fill" class="hc-pdf__glow" style="width:4%"></div>
+            </div>
+            <div class="hc-pdf__meta">
+              <span>Progreso</span>
+              <b id="hc-pdf-pct">4%</b>
+            </div>
+          </div>
+
+          <ol class="hc-pdf__steps">
+            <li data-hc-pdf-step="preparar" class="is-active"><i class="fas fa-clipboard-list"></i><span>Preparar</span></li>
+            <li data-hc-pdf-step="captura"><i class="fas fa-camera"></i><span>Captura</span></li>
+            <li data-hc-pdf-step="paginas"><i class="fas fa-copy"></i><span>Páginas</span></li>
+            <li data-hc-pdf-step="pdf"><i class="fas fa-file-pdf"></i><span>PDF</span></li>
+            <li data-hc-pdf-step="accion"><i class="fas ${modo === 'drive' ? 'fa-cloud-upload-alt' : (modo === 'imprimir' ? 'fa-print' : 'fa-download')}"></i><span>${accionLabel}</span></li>
+            <li data-hc-pdf-step="fin"><i class="fas fa-check"></i><span>Listo</span></li>
+          </ol>
+        </div>
+      `,
+      customClass: {
+        popup: 'hc-pdf-swal',
+        htmlContainer: 'hc-pdf-swal__html'
+      },
+      width: 460,
+      padding: '1.15rem 1.2rem 1.25rem',
+      background: '#fff',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showConfirmButton: false,
+      didOpen: () => {
+        pintar(pct);
+        this.pdfProgressTimer = setInterval(() => {
+          const paso = pct < 40 ? 3.2 : pct < 70 ? 2.1 : 1.05;
+          pct = Math.min(94, pct + paso);
+          pintar(pct);
+        }, 420);
+      }
+    });
+  }
+
+  private actualizarProgresoPdf(pct: number, msg?: string): void {
+    const bar = document.getElementById('hc-pdf-bar');
+    const fill = document.getElementById('hc-pdf-fill');
+    const label = document.getElementById('hc-pdf-msg');
+    const pctLabel = document.getElementById('hc-pdf-pct');
+    const ring = document.getElementById('hc-pdf-ring');
+    const etapasKeys = ['preparar', 'captura', 'paginas', 'pdf', 'accion', 'fin'];
+    const etapasMin = [0, 16, 38, 58, 78, 92];
+    let actualIdx = 0;
+    for (let i = 0; i < etapasMin.length; i++) {
+      if (pct >= etapasMin[i]) actualIdx = i;
+    }
+    if (bar) bar.style.width = `${pct}%`;
+    if (fill) fill.style.width = `${pct}%`;
+    if (label && msg) label.textContent = msg;
+    if (pctLabel) pctLabel.textContent = `${Math.round(pct)}%`;
+    if (ring) {
+      const deg = Math.round((pct / 100) * 360);
+      const color = pct >= 100 ? '#0284c7' : '#0b6988';
+      ring.style.background = `conic-gradient(${color} ${deg}deg, #f1f5f9 ${deg}deg)`;
+    }
+    document.querySelectorAll('[data-hc-pdf-step]').forEach((nodo) => {
+      const el = nodo as HTMLElement;
+      const key = el.getAttribute('data-hc-pdf-step') || '';
+      const idx = etapasKeys.indexOf(key);
+      el.classList.toggle('is-done', idx >= 0 && (pct >= 100 || idx < actualIdx));
+      el.classList.toggle('is-active', pct < 100 && key === etapasKeys[actualIdx]);
+    });
+  }
+
+  private cerrarProgresoPdf(pct = 100, msg = 'Listo'): void {
+    this.detenerProgresoPdf();
+    this.actualizarProgresoPdf(pct, msg);
+  }
+
+  private detenerProgresoPdf(): void {
+    if (this.pdfProgressTimer) {
+      clearInterval(this.pdfProgressTimer);
+      this.pdfProgressTimer = null;
+    }
   }
 
   private procesarPDFHistoria(opciones: { descargarLocal: boolean; subirDrive: boolean; finalizarFlujoAlCompletar?: boolean; imprimirDirecto?: boolean }): void {
@@ -2286,18 +2969,10 @@ export class ExpedientesMedicosComponent implements OnInit, OnDestroy, DoCheck {
       return;
     }
 
-    const textoGeneracion = opciones.subirDrive
-      ? 'Por favor espera mientras se genera el documento para subirlo a Drive.'
-      : (opciones.imprimirDirecto
-        ? 'Por favor espera mientras se prepara el documento para impresión.'
-        : 'Por favor espera mientras se genera el documento para descargarlo.');
-
-    Swal.fire({
-      title: 'Generando PDF...',
-      text: textoGeneracion,
-      allowOutsideClick: false,
-      didOpen: () => { Swal.showLoading(); }
-    });
+    const modoProgreso: 'descarga' | 'drive' | 'imprimir' = opciones.subirDrive
+      ? 'drive'
+      : (opciones.imprimirDirecto ? 'imprimir' : 'descarga');
+    this.abrirProgresoPdf(modoProgreso);
 
     // Guardar estilos originales del elemento
     const originalMaxWidth = element.style.maxWidth;
@@ -2339,6 +3014,7 @@ export class ExpedientesMedicosComponent implements OnInit, OnDestroy, DoCheck {
     });
 
     const captureScale = 3;
+    this.actualizarProgresoPdf(18, 'Capturando historia clínica…');
 
     html2canvas(element, {
       scale: captureScale,
@@ -2357,6 +3033,7 @@ export class ExpedientesMedicosComponent implements OnInit, OnDestroy, DoCheck {
       element.style.boxShadow = originalBoxShadow;
       element.style.borderRadius = originalBorderRadius;
 
+      this.actualizarProgresoPdf(42, 'Organizando páginas del documento…');
       const pdf = new jsPDF('p', 'mm', 'letter');
 
       const pageWidth = pdf.internal.pageSize.getWidth();
@@ -2376,6 +3053,8 @@ export class ExpedientesMedicosComponent implements OnInit, OnDestroy, DoCheck {
       const forcedCanvasBreaks = [...new Set(forcedBreaksDom.map(pos => Math.round(pos * captureScale)))]
         .sort((a, b) => a - b);
 
+      this.actualizarProgresoPdf(62, 'Armando archivo PDF…');
+
       // Si cabe en una página
       if (scaledHeight <= usableHeight) {
         const imgData = canvas.toDataURL('image/jpeg', 0.97);
@@ -2386,20 +3065,22 @@ export class ExpedientesMedicosComponent implements OnInit, OnDestroy, DoCheck {
         let yOffset = 0;
         let pageNum = 0;
 
+        // Solo respetar un corte forzado si la hoja ya está razonablemente llena.
+        // Si apenas hay contenido (p. ej. solo "OBSERVACIONES"), se omite el salto
+        // para no dejar una página casi vacía antes de Enfermedades / Diagnóstico.
+        const minFillForForcedBreak = 0.55;
+
         while (yOffset < imgHeight) {
           const targetEnd = yOffset + maxSliceHeight;
           let sliceEnd: number;
           const nextForcedBreak = forcedCanvasBreaks.find((pos: number) => pos > yOffset + 2);
           const forcedBreakInRange = nextForcedBreak !== undefined && nextForcedBreak <= targetEnd;
-          const forcedBreakBeforeImageEnd = nextForcedBreak !== undefined && nextForcedBreak < (imgHeight - 2);
+          const forcedBreakFillRatio = forcedBreakInRange
+            ? ((nextForcedBreak as number) - yOffset) / maxSliceHeight
+            : 0;
+          const honorForcedBreak = forcedBreakInRange && forcedBreakFillRatio >= minFillForForcedBreak;
 
-          if (targetEnd >= imgHeight) {
-            // Última página: aún respetar cortes forzados si existen
-            sliceEnd = forcedBreakBeforeImageEnd ? nextForcedBreak as number : imgHeight;
-          } else if (forcedBreakInRange) {
-            // Priorizar corte forzado para que la siguiente sección inicie en hoja nueva
-            sliceEnd = nextForcedBreak as number;
-          } else {
+          const pickSmartBreak = (): number => {
             // Buscar el último punto de corte seguro que quepa en la página
             // pero que llene al menos 25 % de la hoja (evitar páginas muy vacías)
             const minEnd = yOffset + maxSliceHeight * 0.25;
@@ -2410,7 +3091,43 @@ export class ExpedientesMedicosComponent implements OnInit, OnDestroy, DoCheck {
                 break;
               }
             }
-            sliceEnd = bestBreak > 0 ? bestBreak : targetEnd; // fallback: corte fijo
+            return bestBreak > 0 ? bestBreak : targetEnd;
+          };
+
+          if (targetEnd >= imgHeight) {
+            // Última página: solo cortar forzado si la hoja quedaría suficientemente llena
+            if (honorForcedBreak) {
+              sliceEnd = nextForcedBreak as number;
+            } else {
+              sliceEnd = imgHeight;
+            }
+          } else if (honorForcedBreak) {
+            sliceEnd = nextForcedBreak as number;
+          } else {
+            sliceEnd = pickSmartBreak();
+
+            // Si omitimos un corte forzado por baja ocupación, no cortar en el
+            // mismo punto (dejaria p. ej. solo "OBSERVACIONES" en una hoja).
+            if (forcedBreakInRange && nextForcedBreak !== undefined) {
+              const fillAtCut = (sliceEnd - yOffset) / maxSliceHeight;
+              const cutNearSkippedForced =
+                Math.abs(sliceEnd - (nextForcedBreak as number)) < (maxSliceHeight * 0.08);
+
+              if (cutNearSkippedForced && fillAtCut < minFillForForcedBreak) {
+                const minEndAfterForced = Math.max(
+                  (nextForcedBreak as number) + 2,
+                  yOffset + maxSliceHeight * 0.25
+                );
+                let bestAfter = -1;
+                for (let i = canvasBreaks.length - 1; i >= 0; i--) {
+                  if (canvasBreaks[i] <= targetEnd && canvasBreaks[i] > minEndAfterForced) {
+                    bestAfter = canvasBreaks[i];
+                    break;
+                  }
+                }
+                sliceEnd = bestAfter > 0 ? bestAfter : targetEnd;
+              }
+            }
           }
 
           // Salvaguarda para evitar bucles infinitos por redondeo
@@ -2449,6 +3166,7 @@ export class ExpedientesMedicosComponent implements OnInit, OnDestroy, DoCheck {
 
       if (opciones.imprimirDirecto) {
         try {
+          this.cerrarProgresoPdf(100, 'Abriendo impresión…');
           if (typeof (pdf as any).autoPrint === 'function') {
             (pdf as any).autoPrint();
           }
@@ -2467,6 +3185,7 @@ export class ExpedientesMedicosComponent implements OnInit, OnDestroy, DoCheck {
           }
         } catch (printErr) {
           console.error('Error al preparar impresión PDF:', printErr);
+          this.detenerProgresoPdf();
           Swal.close();
           Swal.fire({
             icon: 'error',
@@ -2479,30 +3198,29 @@ export class ExpedientesMedicosComponent implements OnInit, OnDestroy, DoCheck {
       }
 
       if (opciones.descargarLocal) {
+        this.actualizarProgresoPdf(82, 'Descargando PDF…');
         pdf.save(nombreArchivo);
       }
 
       if (!opciones.subirDrive) {
-        Swal.close();
-        if (opciones.descargarLocal) {
-          Swal.fire({
-            icon: 'success',
-            title: 'PDF descargado',
-            text: `El archivo "${nombreArchivo}" se descargó correctamente.`,
-            timer: 2800,
-            showConfirmButton: false
-          });
-        }
+        this.cerrarProgresoPdf(100, 'PDF listo');
+        setTimeout(() => {
+          Swal.close();
+          if (opciones.descargarLocal) {
+            Swal.fire({
+              icon: 'success',
+              title: 'PDF descargado',
+              text: `El archivo "${nombreArchivo}" se descargó correctamente.`,
+              timer: 2800,
+              showConfirmButton: false
+            });
+          }
+        }, 280);
         return;
       }
 
       // ── Subir PDF a Google Drive (carpeta Expedientes_medicos) ──
-      Swal.fire({
-        title: 'Subiendo a Google Drive...',
-        text: 'Guardando expediente médico en la nube.',
-        allowOutsideClick: false,
-        didOpen: () => { Swal.showLoading(); }
-      });
+      this.actualizarProgresoPdf(84, 'Subiendo PDF a Google Drive…');
 
       // Obtener el PDF como ArrayBuffer y convertir a base64
       const pdfArrayBuffer = pdf.output('arraybuffer');
@@ -2519,49 +3237,53 @@ export class ExpedientesMedicosComponent implements OnInit, OnDestroy, DoCheck {
         nombreArchivo
       ).subscribe({
         next: (resp: any) => {
-          Swal.close();
-          if (resp.success) {
-            const nombreArchivoFinal = resp?.nombre_archivo || nombreArchivo;
-            if (opciones.finalizarFlujoAlCompletar) {
-              Swal.fire({
-                icon: 'success',
-                title: '¡Finalizado!',
-                html: `El archivo "<b>${nombreArchivoFinal}</b>" se subió a Google Drive, se registró en la base de datos y la historia quedó finalizada.`,
-                confirmButtonColor: '#38512F',
-                confirmButtonText: 'Aceptar'
-              }).then(() => {
-                this.cerrarFlujoFinalizacionPreview();
-              });
-            } else if (opciones.descargarLocal) {
-              Swal.fire({
-                icon: 'success',
-                title: 'PDF generado y guardado',
-                html: `El archivo "<b>${nombreArchivoFinal}</b>" se descargó y se guardó en Google Drive (Expedientes_medicos).`,
-                timer: 3500,
-                showConfirmButton: false
-              });
+          this.cerrarProgresoPdf(100, 'PDF subido');
+          setTimeout(() => {
+            Swal.close();
+            if (resp.success) {
+              const nombreArchivoFinal = resp?.nombre_archivo || nombreArchivo;
+              if (opciones.finalizarFlujoAlCompletar) {
+                Swal.fire({
+                  icon: 'success',
+                  title: '¡Finalizado!',
+                  html: `El archivo "<b>${nombreArchivoFinal}</b>" se subió a Google Drive, se registró en la base de datos y la historia quedó finalizada.`,
+                  confirmButtonColor: '#38512F',
+                  confirmButtonText: 'Aceptar'
+                }).then(() => {
+                  this.cerrarFlujoFinalizacionPreview();
+                });
+              } else if (opciones.descargarLocal) {
+                Swal.fire({
+                  icon: 'success',
+                  title: 'PDF generado y guardado',
+                  html: `El archivo "<b>${nombreArchivoFinal}</b>" se descargó y se guardó en Google Drive (Expedientes_medicos).`,
+                  timer: 3500,
+                  showConfirmButton: false
+                });
+              } else {
+                Swal.fire({
+                  icon: 'success',
+                  title: 'PDF subido',
+                  html: `El archivo "<b>${nombreArchivoFinal}</b>" se subió a Google Drive y se registró en la base de datos.`,
+                  timer: 3200,
+                  showConfirmButton: false
+                });
+              }
             } else {
               Swal.fire({
-                icon: 'success',
-                title: 'PDF subido',
-                html: `El archivo "<b>${nombreArchivoFinal}</b>" se subió a Google Drive y se registró en la base de datos.`,
-                timer: 3200,
-                showConfirmButton: false
+                icon: 'warning',
+                title: opciones.descargarLocal ? 'PDF descargado' : 'No se pudo finalizar',
+                text: opciones.descargarLocal
+                  ? 'El PDF se descargó pero no se pudo subir a Google Drive.'
+                  : 'No se pudo subir el PDF a Google Drive. Intenta nuevamente.',
+                confirmButtonColor: '#38512F'
               });
             }
-          } else {
-            Swal.fire({
-              icon: 'warning',
-              title: opciones.descargarLocal ? 'PDF descargado' : 'No se pudo finalizar',
-              text: opciones.descargarLocal
-                ? 'El PDF se descargó pero no se pudo subir a Google Drive.'
-                : 'No se pudo subir el PDF a Google Drive. Intenta nuevamente.',
-              confirmButtonColor: '#38512F'
-            });
-          }
+          }, 280);
         },
         error: (err) => {
           console.error('Error al subir PDF a Drive:', err);
+          this.detenerProgresoPdf();
           Swal.close();
           Swal.fire({
             icon: 'warning',
@@ -2581,6 +3303,7 @@ export class ExpedientesMedicosComponent implements OnInit, OnDestroy, DoCheck {
       element.style.borderRadius = originalBorderRadius;
 
       console.error('Error al generar PDF:', err);
+      this.detenerProgresoPdf();
       Swal.close();
       Swal.fire('Error', 'Ocurrió un error al generar el PDF. Intenta de nuevo.', 'error');
     });
@@ -3272,6 +3995,7 @@ export class ExpedientesMedicosComponent implements OnInit, OnDestroy, DoCheck {
           this.editandoHistoriaId = null;
           this.modoEdicionDesdeHistorial = false;
           this.folioOrigenEdicion = '';
+          this.limpiarBorradorActivoTrasGuardado();
           Swal.fire({
             title: esActualizacion ? '¡Actualizado!' : '¡Guardado!',
             text: esActualizacion
@@ -3354,6 +4078,7 @@ export class ExpedientesMedicosComponent implements OnInit, OnDestroy, DoCheck {
               this.editandoHistoriaId = null;
               this.modoEdicionDesdeHistorial = false;
               this.folioOrigenEdicion = '';
+              this.limpiarBorradorActivoTrasGuardado();
               Swal.fire({
                 title: '¡Guardado!',
                 text: esClonadoDesdeHistorial
@@ -3753,7 +4478,46 @@ export class ExpedientesMedicosComponent implements OnInit, OnDestroy, DoCheck {
   // --- Estadísticas ---
 
   contarPorTipo(tipo: string): number {
-    return this.historiasClinicas.filter(h => h.tipo_historia === tipo).length;
+    const objetivo = this.normalizarTipoHistoria(tipo);
+    return this.historiasClinicas.filter((h: any) =>
+      this.normalizarTipoHistoria(h?.tipo_historia) === objetivo
+    ).length;
+  }
+
+  private normalizarTipoHistoria(tipo: any): string {
+    const valor = String(tipo || '').trim().toLowerCase();
+    if (valor === 'periodico' || valor === 'periódico' || valor === 'subsecuente') {
+      return 'periodico';
+    }
+    if (valor === 'ingreso') return 'ingreso';
+    if (valor === 'egreso') return 'egreso';
+    if (valor === 'especial') return 'especial';
+    return valor;
+  }
+
+  private obtenerGeneroHistoria(historia: any): string {
+    return String(
+      historia?.genero ??
+      historia?.sexo ??
+      historia?.genero_texto ??
+      ''
+    ).trim().toLowerCase();
+  }
+
+  contarPorGenero(genero: string): number {
+    const objetivo = String(genero || '').trim().toLowerCase();
+    return this.historiasClinicas.filter((h: any) => {
+      const valor = this.obtenerGeneroHistoria(h)
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+      if (objetivo === 'masculino') {
+        return valor === 'masculino' || valor === 'hombre' || valor === 'm' || valor.startsWith('mascul');
+      }
+      if (objetivo === 'femenino') {
+        return valor === 'femenino' || valor === 'mujer' || valor === 'f' || valor.startsWith('femen');
+      }
+      return valor === objetivo;
+    }).length;
   }
 
   // --- Etiquetas y estilos por tipo ---
@@ -4106,5 +4870,227 @@ export class ExpedientesMedicosComponent implements OnInit, OnDestroy, DoCheck {
 
   formatFechaElaboracion(fecha: unknown): string {
     return formatearFechaDdmmaaaa(fecha);
+  }
+
+  formatFechaBorrador(fechaIso: string): string {
+    return formatearFechaDdmmaaaa(fechaIso) || fechaIso;
+  }
+
+  // =====================================================
+  // BORRADORES LOCALES (dispositivo)
+  // =====================================================
+
+  private programarAutosaveBorrador(): void {
+    if (this.draftAutosaveTimer) {
+      clearTimeout(this.draftAutosaveTimer);
+    }
+    this.draftAutosaveTimer = setTimeout(() => {
+      this.guardarBorradorLocal(false);
+    }, 1200);
+  }
+
+  private capturarEstadoFormulario(): any {
+    return {
+      pasoActual: this.pasoActual,
+      maxPasoAlcanzado: this.maxPasoAlcanzado,
+      formulario: JSON.parse(JSON.stringify(this.formulario || {})),
+      antecedentesLaborales: JSON.parse(JSON.stringify(this.antecedentesLaborales || [])),
+      observacionesLaborales: this.observacionesLaborales,
+      heredoFamiliares: JSON.parse(JSON.stringify(this.heredoFamiliares || {})),
+      heredoFamiliaresMadre: this.heredoFamiliaresMadre,
+      heredoFamiliaresPadre: this.heredoFamiliaresPadre,
+      observacionesHeredoFamiliares: this.observacionesHeredoFamiliares,
+      tabaquismo: JSON.parse(JSON.stringify(this.tabaquismo || {})),
+      alcoholismo: JSON.parse(JSON.stringify(this.alcoholismo || {})),
+      otrasDrogas: JSON.parse(JSON.stringify(this.otrasDrogas || {})),
+      ejercicio: JSON.parse(JSON.stringify(this.ejercicio || {})),
+      sueno: JSON.parse(JSON.stringify(this.sueno || {})),
+      tareasDomesticas: this.tareasDomesticas,
+      actividadesTiempoLibre: this.actividadesTiempoLibre,
+      tipoSanguineo: this.tipoSanguineo,
+      vacunas: JSON.parse(JSON.stringify(this.vacunas || {})),
+      habitosHigiene: JSON.parse(JSON.stringify(this.habitosHigiene || {})),
+      tatuajes: JSON.parse(JSON.stringify(this.tatuajes || {})),
+      indiceTabaquico: this.indiceTabaquico,
+      observacionesNoPatologicos: this.observacionesNoPatologicos,
+      indiceHacinamiento: this.indiceHacinamiento,
+      clasificacionHacinamiento: this.clasificacionHacinamiento,
+      enfermedadesInfantiles: JSON.parse(JSON.stringify(this.enfermedadesInfantiles || {})),
+      problemasVista: JSON.parse(JSON.stringify(this.problemasVista || {})),
+      problemasAuditivos: JSON.parse(JSON.stringify(this.problemasAuditivos || {})),
+      observacionesPatologicos: this.observacionesPatologicos,
+      enfermedades: JSON.parse(JSON.stringify(this.enfermedades || {})),
+      cirugias: this.cirugias,
+      tieneCirugias: this.tieneCirugias,
+      transfusiones: this.transfusiones,
+      tieneTransfusiones: this.tieneTransfusiones,
+      traumaticos: this.traumaticos,
+      tieneTraumaticos: this.tieneTraumaticos,
+      ingresosHospitalarios: this.ingresosHospitalarios,
+      tieneIngresosHospitalarios: this.tieneIngresosHospitalarios,
+      ginecoObstetricos: JSON.parse(JSON.stringify(this.ginecoObstetricos || {})),
+      exploracionFisica: JSON.parse(JSON.stringify(this.exploracionFisica || {})),
+      organosSistemas: JSON.parse(JSON.stringify(this.organosSistemas || [])),
+      paraclinicos: JSON.parse(JSON.stringify(this.paraclinicos || {})),
+      diagnosticos: JSON.parse(JSON.stringify(this.diagnosticos || [])),
+      observacionesDiagnostico: this.observacionesDiagnostico,
+      personalElaboroHistoria: this.personalElaboroHistoria,
+      cedulaProfesional: this.cedulaProfesional
+    };
+  }
+
+  private restaurarEstadoFormulario(estado: any): void {
+    if (!estado) {
+      return;
+    }
+    this.pasoActual = Number(estado.pasoActual) || 1;
+    this.maxPasoAlcanzado = Number(estado.maxPasoAlcanzado) || this.pasoActual;
+    this.formulario = { ...(estado.formulario || {}) };
+    this.antecedentesLaborales = Array.isArray(estado.antecedentesLaborales) ? estado.antecedentesLaborales : [];
+    if (!this.antecedentesLaborales.length) {
+      this.agregarFilaLaboral();
+    }
+    this.observacionesLaborales = estado.observacionesLaborales || '';
+    this.heredoFamiliares = { ...(estado.heredoFamiliares || {}) };
+    this.heredoFamiliaresMadre = estado.heredoFamiliaresMadre || '';
+    this.heredoFamiliaresPadre = estado.heredoFamiliaresPadre || '';
+    this.observacionesHeredoFamiliares = estado.observacionesHeredoFamiliares || '';
+    this.tabaquismo = { ...(estado.tabaquismo || {}) };
+    this.alcoholismo = { ...(estado.alcoholismo || {}) };
+    this.otrasDrogas = { ...(estado.otrasDrogas || {}) };
+    this.ejercicio = { ...(estado.ejercicio || {}) };
+    this.sueno = { ...(estado.sueno || {}) };
+    this.tareasDomesticas = estado.tareasDomesticas || '';
+    this.actividadesTiempoLibre = estado.actividadesTiempoLibre || '';
+    this.tipoSanguineo = estado.tipoSanguineo || '';
+    this.vacunas = { ...(estado.vacunas || {}) };
+    this.habitosHigiene = { ...(estado.habitosHigiene || {}) };
+    this.tatuajes = { ...(estado.tatuajes || {}) };
+    this.indiceTabaquico = estado.indiceTabaquico || '';
+    this.observacionesNoPatologicos = estado.observacionesNoPatologicos || '';
+    this.indiceHacinamiento = estado.indiceHacinamiento || '';
+    this.clasificacionHacinamiento = estado.clasificacionHacinamiento || '';
+    this.enfermedadesInfantiles = { ...(estado.enfermedadesInfantiles || {}) };
+    this.problemasVista = { ...(estado.problemasVista || {}) };
+    this.problemasAuditivos = { ...(estado.problemasAuditivos || {}) };
+    this.observacionesPatologicos = estado.observacionesPatologicos || '';
+    this.enfermedades = { ...(estado.enfermedades || {}) };
+    this.cirugias = estado.cirugias || '';
+    this.tieneCirugias = !!estado.tieneCirugias;
+    this.transfusiones = estado.transfusiones || '';
+    this.tieneTransfusiones = !!estado.tieneTransfusiones;
+    this.traumaticos = estado.traumaticos || '';
+    this.tieneTraumaticos = !!estado.tieneTraumaticos;
+    this.ingresosHospitalarios = estado.ingresosHospitalarios || '';
+    this.tieneIngresosHospitalarios = !!estado.tieneIngresosHospitalarios;
+    this.ginecoObstetricos = { ...(estado.ginecoObstetricos || {}) };
+    this.exploracionFisica = { ...(estado.exploracionFisica || {}) };
+    if (Array.isArray(estado.organosSistemas) && estado.organosSistemas.length) {
+      this.organosSistemas = estado.organosSistemas;
+    }
+    this.paraclinicos = { ...(estado.paraclinicos || {}) };
+    this.diagnosticos = Array.isArray(estado.diagnosticos) ? estado.diagnosticos : [];
+    if (!this.diagnosticos.length) {
+      this.agregarDiagnostico();
+    }
+    this.observacionesDiagnostico = estado.observacionesDiagnostico || '';
+    this.personalElaboroHistoria = estado.personalElaboroHistoria || '';
+    this.cedulaProfesional = estado.cedulaProfesional || '';
+    this.errores = {};
+    this.intentoGuardar = false;
+  }
+
+  private leerBorradoresRaw(): EmHcDraftMeta[] {
+    try {
+      const raw = localStorage.getItem(this.DRAFT_STORAGE_KEY);
+      if (!raw) {
+        return [];
+      }
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  private escribirBorradoresRaw(drafts: EmHcDraftMeta[]): void {
+    try {
+      localStorage.setItem(this.DRAFT_STORAGE_KEY, JSON.stringify(drafts));
+    } catch (err) {
+      console.warn('No se pudo guardar el borrador local:', err);
+    }
+  }
+
+  refrescarBorradoresLocales(): void {
+    const empresaId = this.empresaSeleccionada?.empresa_id ?? null;
+    this.borradoresLocales = this.leerBorradoresRaw()
+      .filter(d => empresaId == null || d.empresaId == null || String(d.empresaId) === String(empresaId))
+      .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))
+      .slice(0, this.DRAFT_MAX_SLOTS);
+  }
+
+  private formularioTieneProgreso(): boolean {
+    const f = this.formulario || {};
+    return !!(
+      (f.nombre && String(f.nombre).trim()) ||
+      (f.matricula && String(f.matricula).trim()) ||
+      (f.area && String(f.area).trim()) ||
+      this.pasoActual > 1 ||
+      this.maxPasoAlcanzado > 1
+    );
+  }
+
+  guardarBorradorLocal(forzar: boolean = false): void {
+    if (!forzar && !this.formularioTieneProgreso()) {
+      return;
+    }
+    if (!this.formularioTieneProgreso()) {
+      return;
+    }
+
+    const drafts = this.leerBorradoresRaw();
+    const id = this.borradorActivoId || `draft_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    this.borradorActivoId = id;
+
+    const meta: EmHcDraftMeta = {
+      id,
+      updatedAt: new Date().toISOString(),
+      empresaId: this.empresaSeleccionada?.empresa_id ?? null,
+      empresaNombre: this.empresaSeleccionada?.nombre_empresa || '',
+      pacienteNombre: (this.formulario?.nombre || '').trim() || 'Sin nombre',
+      tipoHistoria: this.formulario?.tipoHistoria || 'ingreso',
+      pasoActual: this.pasoActual,
+      estado: this.capturarEstadoFormulario()
+    };
+
+    const idx = drafts.findIndex(d => d.id === id);
+    if (idx >= 0) {
+      drafts[idx] = meta;
+    } else {
+      drafts.unshift(meta);
+    }
+
+    const trimmed = drafts
+      .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))
+      .slice(0, this.DRAFT_MAX_SLOTS);
+
+    this.escribirBorradoresRaw(trimmed);
+    this.refrescarBorradoresLocales();
+  }
+
+  private eliminarBorradorLocal(id: string): void {
+    const drafts = this.leerBorradoresRaw().filter(d => d.id !== id);
+    this.escribirBorradoresRaw(drafts);
+    if (this.borradorActivoId === id) {
+      this.borradorActivoId = null;
+    }
+  }
+
+  private limpiarBorradorActivoTrasGuardado(): void {
+    if (this.borradorActivoId) {
+      this.eliminarBorradorLocal(this.borradorActivoId);
+    }
+    this.borradorActivoId = null;
+    this.refrescarBorradoresLocales();
   }
 }

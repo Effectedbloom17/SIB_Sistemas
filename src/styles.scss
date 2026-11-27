@@ -776,6 +776,232 @@ $header-plexus-svg: url("data:image/svg+xml,%3Csvg width='420' height='280' view
   }
 }
 
+/* Generar PDF · Expedientes Médicos — progreso moderno (azul módulo) */
+.swal2-popup.hc-pdf-swal {
+  width: min(460px, 94vw) !important;
+  border-radius: 22px !important;
+  border: 1px solid rgba(11, 105, 136, 0.14) !important;
+  background:
+    radial-gradient(120% 90% at 12% -20%, rgba(11, 105, 136, 0.16), transparent 52%),
+    radial-gradient(90% 70% at 100% 0%, rgba(186, 230, 253, 0.45), transparent 46%),
+    #ffffff !important;
+  box-shadow:
+    0 0 0 1px rgba(15, 23, 42, 0.03),
+    0 28px 64px rgba(15, 54, 97, 0.18) !important;
+  padding: 1.15rem 1.2rem 1.25rem !important;
+}
+
+.swal2-popup.hc-pdf-swal .swal2-title {
+  display: none !important;
+}
+
+.swal2-popup.hc-pdf-swal .swal2-html-container,
+.swal2-popup.hc-pdf-swal .hc-pdf-swal__html {
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  text-align: left !important;
+  color: #1f2937 !important;
+}
+
+.hc-pdf {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.hc-pdf__hero {
+  display: flex;
+  align-items: center;
+  gap: 0.95rem;
+}
+
+.hc-pdf__ring-wrap {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  flex: 0 0 64px;
+}
+
+.hc-pdf__ring {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: conic-gradient(#0b6988 14deg, #f1f5f9 14deg);
+  transition: background 0.35s ease;
+  animation: hc-pdf-pulse 1.8s ease-in-out infinite;
+}
+
+.hc-pdf__ring-core {
+  position: absolute;
+  inset: 7px;
+  border-radius: 50%;
+  background: #fff;
+  display: grid;
+  place-items: center;
+  box-shadow: inset 0 0 0 1px rgba(11, 105, 136, 0.12);
+  color: #0b6988;
+  font-size: 1.15rem;
+}
+
+.hc-pdf__titles {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.hc-pdf__eyebrow {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #0b6988;
+  margin-bottom: 0.2rem;
+}
+
+.hc-pdf__titles strong {
+  display: block;
+  font-size: 1.12rem;
+  font-weight: 750;
+  color: #111827;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.hc-pdf__titles p {
+  margin: 0.35rem 0 0;
+  font-size: 0.86rem;
+  line-height: 1.4;
+  color: #57534e;
+  min-height: 2.4em;
+}
+
+.hc-pdf__meter {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.hc-pdf__track {
+  position: relative;
+  height: 12px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+}
+
+.hc-pdf__bar {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #0f3661 0%, #0b6988 48%, #38bdf8 100%);
+  box-shadow: 0 0 12px rgba(11, 105, 136, 0.35);
+  transition: width 0.35s ease;
+}
+
+.hc-pdf__glow {
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, transparent, rgba(56, 189, 248, 0.35));
+  filter: blur(6px);
+  opacity: 0.85;
+  transition: width 0.35s ease;
+  pointer-events: none;
+}
+
+.hc-pdf__meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.74rem;
+  color: #78716c;
+}
+
+.hc-pdf__meta b {
+  font-variant-numeric: tabular-nums;
+  color: #0f3661;
+  font-size: 0.86rem;
+}
+
+.hc-pdf__steps {
+  list-style: none;
+  margin: 0;
+  padding: 0.55rem 0.35rem 0.15rem;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.3rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+.hc-pdf__steps li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.28rem;
+  padding: 0.4rem 0.15rem;
+  border-radius: 12px;
+  color: #94a3b8;
+  font-size: 0.62rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.hc-pdf__steps li i {
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  font-size: 0.68rem;
+  color: inherit;
+  transition: inherit;
+}
+
+.hc-pdf__steps li.is-active {
+  color: #0f3661;
+  background: rgba(186, 230, 253, 0.55);
+  transform: translateY(-1px);
+}
+
+.hc-pdf__steps li.is-active i {
+  background: #fff;
+  border-color: #7dd3fc;
+  color: #0b6988;
+  box-shadow: 0 4px 10px rgba(11, 105, 136, 0.18);
+}
+
+.hc-pdf__steps li.is-done {
+  color: #0369a1;
+}
+
+.hc-pdf__steps li.is-done i {
+  background: #e0f2fe;
+  border-color: #bae6fd;
+  color: #0284c7;
+}
+
+@keyframes hc-pdf-pulse {
+  0%, 100% { filter: drop-shadow(0 0 0 rgba(11, 105, 136, 0)); }
+  50% { filter: drop-shadow(0 0 8px rgba(11, 105, 136, 0.3)); }
+}
+
+@media (max-width: 480px) {
+  .hc-pdf__steps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .hc-pdf__hero {
+    align-items: flex-start;
+  }
+}
+
 /* Recuperar cambios sin guardar — SGC */
 .swal2-popup.swal2-sgc-draft {
   width: min(420px, 92vw) !important;
@@ -2315,6 +2541,28 @@ $header-plexus-svg: url("data:image/svg+xml,%3Csvg width='420' height='280' view
     }
   }
 
+  // Expedientes Médicos: hero compacto (sin hueco bajo el título)
+  .header-bg-image.em-hero {
+    min-height: 0 !important;
+    height: auto !important;
+    padding: 4.75rem 0 3.25rem !important;
+    align-items: flex-end !important;
+
+    .icon-shape.em-hero__icon {
+      width: 2.75rem !important;
+      height: 2.75rem !important;
+      margin-bottom: 0.55rem !important;
+
+      i { font-size: 1.15rem !important; }
+    }
+
+    h1.em-hero__title {
+      font-size: 1.85rem !important;
+      font-weight: 700 !important;
+      letter-spacing: -0.4px !important;
+    }
+  }
+
   // ── Footer: navy con plexus ────────────────────────────
   .footer-custom {
     background: linear-gradient(135deg, #091e36 0%, #0d2d52 100%) !important;
@@ -2390,6 +2638,18 @@ $header-plexus-svg: url("data:image/svg+xml,%3Csvg width='420' height='280' view
   // ── Layout: footer pegado al fondo ────────────────────
   .page-content {
     flex: 1 1 auto !important;
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  // Expediente completo a alto natural; scroll de página
+  app-expedientes-medicos,
+  app-expedientes-medicos .preview-wrapper,
+  app-expedientes-medicos .preview-stage,
+  app-expedientes-medicos .hc-document {
+    overflow: visible !important;
+    max-height: none !important;
+    height: auto !important;
   }
 
   // ── Cards: blanco, sombra suave ───────────────────────
@@ -2515,7 +2775,55 @@ $header-plexus-svg: url("data:image/svg+xml,%3Csvg width='420' height='280' view
   }
 
   // ── Progress ─────────────────────────────────────────
-  .progress-bar { background-color: #2563eb !important; }
+  .progress-bar {
+    background-color: #0b6988 !important;
+    background-image: linear-gradient(135deg, #0f3661 0%, #0b6988 100%) !important;
+  }
+
+  // Hero título sin borde / caja extra
+  .em-hero,
+  .em-hero__title,
+  .header-bg-image h1 {
+    border: none !important;
+    border-bottom: none !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+    text-decoration: none !important;
+  }
+
+  .em-back-btn {
+    color: #0f3661 !important;
+  }
+
+  .em-choice-card__title,
+  .em-form-title {
+    color: #0f3661 !important;
+  }
+
+  .em-empresas-card__title,
+  .em-empresa-card__name,
+  .em-empresa-card__cta,
+  .em-empresa-card__loc,
+  .em-menu-card__company,
+  .em-historial-count,
+  .em-hc-meter__num,
+  .em-hc-meter__label,
+  .em-choice-card__cta {
+    color: #0f3661 !important;
+  }
+
+  .em-empresa-card__loc i,
+  .em-hc-meter__label {
+    color: #0b6988 !important;
+  }
+
+  .em-empresa-card__bar-fill {
+    background: linear-gradient(135deg, #0f3661 0%, #0b6988 100%) !important;
+  }
+
+  .filtros-historial__date {
+    color: #0f3661 !important;
+  }
 }
 
 /* =========================================================
@@ -3041,6 +3349,10 @@ body.visor-fullscreen-open {
     }
   }
 
+  .header-bg-image.em-hero {
+    min-height: 0 !important;
+  }
+
   h1, .h1 { font-size: 1.85rem; }
   h2, .h2 { font-size: 1.45rem; }
   h3, .h3 { font-size: 1.2rem; }
@@ -3111,6 +3423,10 @@ body.visor-fullscreen-open {
     }
   }
 
+  .header-bg-image.em-hero {
+    min-height: 0 !important;
+  }
+
   .card-header {
     padding: 1rem 1rem !important;
   }
@@ -3149,6 +3465,11 @@ body.visor-fullscreen-open {
       font-size: 1.2rem !important;
     }
   }
+
+  .header-bg-image.em-hero {
+    min-height: 0 !important;
+    padding: 4.2rem 0 2.6rem !important;
+  }
 }
 
 @media (min-width: 769px) and (max-width: 1024px) {
@@ -3158,6 +3479,10 @@ body.visor-fullscreen-open {
     h1 {
       font-size: 1.7rem !important;
     }
+  }
+
+  .header-bg-image.em-hero {
+    min-height: 0 !important;
   }
 }
 

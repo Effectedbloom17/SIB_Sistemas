@@ -208,6 +208,20 @@ export class RiesgosPsicosocialesComponent implements OnInit, OnDestroy {
     return map[n] || '#64748b';
   }
 
+  textoRango(r: { min?: number; max?: number | null }): string {
+    if (r == null) return '—';
+    if (r.max == null) return `Mayor de ${r.min}`;
+    return `${r.min} – ${r.max}`;
+  }
+
+  rangoDeNivel(nivel?: string | null): string {
+    const n = String(nivel || '').toUpperCase().replace(/\s+/g, ' ').trim();
+    const item = (this.rangosRef || []).find((x: any) =>
+      String(x.nivel || '').toUpperCase().replace(/\s+/g, ' ').trim() === n
+    );
+    return item ? this.textoRango(item) : '—';
+  }
+
   cargarDashboard(): void {
     this.cargando = true;
     this.errorCarga = '';

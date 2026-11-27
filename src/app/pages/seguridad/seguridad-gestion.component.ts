@@ -79,6 +79,13 @@ interface CategoriaAvance {
   normativas: number;
 }
 
+interface NormaResumenEmpresa {
+  codigo: string;
+  titulo?: string;
+  responsables: number;
+  desactivada?: boolean;
+}
+
 interface EmpresaResumen {
   empresa_id: number;
   empresa_nombre: string;
@@ -89,6 +96,11 @@ interface EmpresaResumen {
   normativas: number;
   normativas_cerradas?: number;
   normativas_abiertas?: number;
+  /** Responsables únicos en todas las normativas de la empresa. */
+  responsables?: number;
+  responsables_lista?: Array<{ empleado_id: number; nombre: string }>;
+  /** Vista corta de normativas con conteo de responsables por norma. */
+  normas_resumen?: NormaResumenEmpresa[];
   /** Soft-delete: oculta a no-root; el superadmin puede reactivar o borrar. */
   desactivada?: boolean;
   /** Última publicación o cambio en la gestión de normativas de la empresa. */

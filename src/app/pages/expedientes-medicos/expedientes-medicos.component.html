@@ -1,35 +1,34 @@
-<div class="header header-bg-image em-hero pb-4 pt-3 pt-md-4 d-flex align-items-center position-relative overflow-hidden no-print">
+<div class="header header-bg-image em-hero d-flex align-items-center position-relative overflow-hidden no-print">
   
-  <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative em-hero__inner">
     <div class="row w-100 text-center">
       <div class="col-12">
         <div class="d-flex flex-column align-items-center justify-content-center">
-          <div class="icon icon-shape text-white rounded-circle shadow mb-2 em-hero__icon"
-               style="background: rgba(255,255,255,0.15); font-size: 1.8rem;">
-            <i class="fas fa-file-medical"></i>
+          <div class="icon icon-shape text-white rounded-circle shadow em-hero__icon">
+            <i [class]="iconoHero"></i>
           </div>
-          <h1 class="text-white mb-0 em-hero__title" style="font-weight: 700; font-size: 2.2rem; letter-spacing: -0.5px;">Expedientes Médicos</h1>
+          <h1 class="text-white mb-0 em-hero__title">{{ tituloHero }}</h1>
         </div>
       </div>
     </div>
   </div>
 </div>
 
-<div class="container-fluid mt--3 em-main" style="position: relative; z-index: 10; margin-bottom: 2rem;">
+<div class="container-fluid em-main" style="position: relative; z-index: 10; margin-bottom: 2rem;">
   <div class="row justify-content-center">
     <div class="col-xl-11">
 
       <!-- =====================================================
            VISTA SELECTOR DE EMPRESAS
            ===================================================== -->
-      <div *ngIf="vistaActual === 'empresas'" class="card shadow-lg border-0 em-empresas-card" style="border-radius: 15px; overflow: hidden; background-color: #fff;">
+      <div *ngIf="vistaActual === 'empresas'" class="card shadow-lg border-0 em-empresas-card em-view-enter" style="border-radius: 15px; overflow: hidden; background-color: #fff;">
         
         <!-- Header -->
         <div class="card-header border-0 em-empresas-card__header" style="padding: 1.5rem 2rem;">
           <div class="row align-items-center mb-3 em-empresas-card__title-row">
             <div class="col-lg-8 col-md-6">
               <h6 class="text-uppercase text-muted ls-1 mb-1" style="font-size: 0.85rem; font-weight: 600; letter-spacing: 1px;">Gestión</h6>
-              <h2 class="mb-0 em-empresas-card__title" style="color: #38512F; font-weight: 700; font-size: 1.5rem;">Seleccionar Empresa ({{ empresasFiltradas.length }})</h2>
+              <h2 class="mb-0 em-empresas-card__title">Seleccionar Empresa ({{ empresasFiltradas.length }})</h2>
             </div>
             <div class="col-lg-5 col-md-7 col-sm-10 ml-auto em-empresas-card__search-col">
               <div class="top-nav-med d-flex align-items-center">
@@ -60,152 +59,294 @@
             <p class="text-muted mt-2 mb-0">No hay empresas registradas</p>
           </div>
 
-          <!-- Grid de Empresas -->
-          <div *ngIf="!cargandoEmpresas && empresasFiltradas.length > 0" class="em-empresas-grid px-4 py-3">
-            <div *ngFor="let empresa of empresasFiltradas; let i = index" class="em-empresa-col">
-              <div class="card h-100 shadow-sm border-0 empresa-card" 
-                   style="border-radius: 12px; cursor: pointer; transition: all 0.3s ease;"
-                   (click)="seleccionarEmpresa(empresa)">
-                <div class="card-body">
-                  <div class="d-flex align-items-center mb-3 em-empresa-card__head">
-                    <span *ngIf="!getLogoEmpresaUrl(empresa)"
-                        class="avatar rounded-circle mr-3 shadow-sm text-white d-flex align-items-center justify-content-center em-empresa-card__avatar"
-                        style="width: 50px; height: 50px; min-width: 50px; min-height: 50px; flex-shrink: 0; font-size: 1.1rem; background: linear-gradient(135deg, #38512F 0%, #5a7456 100%);">
-                      {{ getInicialesEmpresa(empresa.nombre_empresa) }}
-                    </span>
-                    <img *ngIf="getLogoEmpresaUrl(empresa)"
-                         [src]="getLogoEmpresaUrl(empresa)"
-                         [alt]="empresa.nombre_empresa"
-                         class="mr-3 shadow-sm bg-white em-empresa-card__avatar"
-                         style="width: 50px; height: 50px; min-width: 50px; min-height: 50px; flex-shrink: 0; object-fit: contain; border-radius: 50%; padding: 0.35rem;"
-                         (error)="onLogoEmpresaError(empresa)">
-                    <div class="flex-grow-1 min-width-0">
-                      <h5 class="mb-0 font-weight-bold em-empresa-card__name" style="color: #38512F;">{{ empresa.nombre_empresa }}</h5>
-                      <small class="text-muted d-block em-empresa-card__rfc">RFC: {{ empresa.rfc }}</small>
-                      <small class="text-muted em-empresa-card__loc" *ngIf="empresa.ciudad || empresa.estado">
-                        <i class="fas fa-map-marker-alt mr-1"></i>{{ empresa.ciudad || '' }}{{ empresa.ciudad && empresa.estado ? ', ' : '' }}{{ empresa.estado || '' }}
-                      </small>
-                    </div>
-                  </div>
-                  
-                  <!-- Conteo de historias -->
-                  <div class="mb-2 em-empresa-card__progress">
-                    <div class="d-flex justify-content-between mb-1">
-                      <small class="text-muted">Historias clínicas</small>
-                      <small class="font-weight-bold">{{ empresa.historias_totales || 0 }}</small>
-                    </div>
-                    <div class="progress" style="height: 6px; border-radius: 3px;">
-                      <div class="progress-bar" 
-                           [style.width.%]="empresa.historias_totales > 0 ? 100 : 0"
-                           style="transition: width 0.3s ease; background: linear-gradient(135deg, #38512F 0%, #5a7456 100%);"></div>
-                    </div>
-                  </div>
+          <ng-container *ngIf="!cargandoEmpresas && empresasFiltradas.length > 0">
+            <!-- Empresas con expediente médico -->
+            <div class="em-empresas-section" *ngIf="empresasConExpediente.length > 0">
+              <div class="em-empresas-section__head px-4 pt-3 pb-1">
+                <span class="em-empresas-section__label">Con expediente médico</span>
+                <h3 class="em-empresas-section__title">Empresas con expedientes médicos ({{ empresasConExpediente.length }})</h3>
+              </div>
+              <div class="em-empresas-grid px-4 py-3">
+                <div *ngFor="let empresa of empresasConExpediente" class="em-empresa-col">
+                  <div class="card h-100 shadow-sm border-0 empresa-card"
+                       (click)="seleccionarEmpresa(empresa)">
+                    <div class="card-body">
+                      <div class="d-flex align-items-center mb-3 em-empresa-card__head">
+                        <span *ngIf="!getLogoEmpresaUrl(empresa)"
+                            class="avatar rounded-circle mr-3 shadow-sm text-white d-flex align-items-center justify-content-center em-empresa-card__avatar em-empresa-card__avatar--fallback">
+                          {{ getInicialesEmpresa(empresa.nombre_empresa) }}
+                        </span>
+                        <img *ngIf="getLogoEmpresaUrl(empresa)"
+                             [src]="getLogoEmpresaUrl(empresa)"
+                             [alt]="empresa.nombre_empresa"
+                             class="mr-3 shadow-sm bg-white em-empresa-card__avatar em-empresa-card__avatar--img"
+                             (error)="onLogoEmpresaError(empresa)">
+                        <div class="flex-grow-1 min-width-0">
+                          <h5 class="mb-0 font-weight-bold em-empresa-card__name">{{ empresa.nombre_empresa }}</h5>
+                          <small class="em-empresa-card__loc" *ngIf="empresa.ciudad || empresa.estado">
+                            <i class="fas fa-map-marker-alt mr-1"></i>{{ empresa.ciudad || '' }}{{ empresa.ciudad && empresa.estado ? ', ' : '' }}{{ empresa.estado || '' }}
+                          </small>
+                        </div>
+                      </div>
 
-                  <div class="text-right">
-                    <span class="font-weight-bold em-empresa-card__cta" style="font-size: 0.85rem; color: #38512F;">
-                      Ver expedientes <i class="fas fa-arrow-right ml-1"></i>
-                    </span>
+                      <div class="em-empresa-card__foot">
+                        <div class="em-hc-meter" [attr.title]="(empresa.historias_totales || 0) + ' expedientes médicos'">
+                          <span class="em-hc-meter__icon" aria-hidden="true">
+                            <i class="fas fa-folder-open"></i>
+                          </span>
+                          <span class="em-hc-meter__body">
+                            <b class="em-hc-meter__num">{{ empresa.historias_totales || 0 }}</b>
+                            <span class="em-hc-meter__label">Expedientes</span>
+                          </span>
+                        </div>
+                        <span class="em-empresa-card__cta">
+                          Ver expedientes <i class="fas fa-arrow-right ml-1"></i>
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
+
+            <!-- Empresas sin expediente médico -->
+            <div class="em-empresas-section em-empresas-section--sin" *ngIf="empresasSinExpediente.length > 0">
+              <div class="em-empresas-section__head px-4 pt-2 pb-1">
+                <span class="em-empresas-section__label">Sin expediente médico</span>
+                <h3 class="em-empresas-section__title">Empresas sin expedientes médicos ({{ empresasSinExpediente.length }})</h3>
+              </div>
+              <div class="em-empresas-grid px-4 py-3">
+                <div *ngFor="let empresa of empresasSinExpediente" class="em-empresa-col">
+                  <div class="card h-100 shadow-sm border-0 empresa-card empresa-card--empty"
+                       (click)="seleccionarEmpresa(empresa)">
+                    <div class="card-body">
+                      <div class="d-flex align-items-center mb-3 em-empresa-card__head">
+                        <span *ngIf="!getLogoEmpresaUrl(empresa)"
+                            class="avatar rounded-circle mr-3 shadow-sm text-white d-flex align-items-center justify-content-center em-empresa-card__avatar em-empresa-card__avatar--fallback">
+                          {{ getInicialesEmpresa(empresa.nombre_empresa) }}
+                        </span>
+                        <img *ngIf="getLogoEmpresaUrl(empresa)"
+                             [src]="getLogoEmpresaUrl(empresa)"
+                             [alt]="empresa.nombre_empresa"
+                             class="mr-3 shadow-sm bg-white em-empresa-card__avatar em-empresa-card__avatar--img"
+                             (error)="onLogoEmpresaError(empresa)">
+                        <div class="flex-grow-1 min-width-0">
+                          <h5 class="mb-0 font-weight-bold em-empresa-card__name">{{ empresa.nombre_empresa }}</h5>
+                          <small class="em-empresa-card__loc" *ngIf="empresa.ciudad || empresa.estado">
+                            <i class="fas fa-map-marker-alt mr-1"></i>{{ empresa.ciudad || '' }}{{ empresa.ciudad && empresa.estado ? ', ' : '' }}{{ empresa.estado || '' }}
+                          </small>
+                        </div>
+                      </div>
+
+                      <div class="em-empresa-card__foot">
+                        <div class="em-hc-meter em-hc-meter--empty" title="Sin expedientes médicos">
+                          <span class="em-hc-meter__icon" aria-hidden="true">
+                            <i class="fas fa-folder-open"></i>
+                          </span>
+                          <span class="em-hc-meter__body">
+                            <b class="em-hc-meter__num">0</b>
+                            <span class="em-hc-meter__label">Expedientes</span>
+                          </span>
+                        </div>
+                        <span class="em-empresa-card__cta">
+                          Ver expedientes <i class="fas fa-arrow-right ml-1"></i>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </ng-container>
 
         </div>
       </div>
 
 
       <!-- =====================================================
-           VISTA PRINCIPAL: Botones de acción (después de seleccionar empresa)
+           VISTA PRINCIPAL: Panel de control (después de seleccionar empresa)
            ===================================================== -->
-      <div *ngIf="vistaActual === 'menu'" class="card shadow-lg border-0" style="border-radius: 15px; overflow: hidden; background-color: #fff;">
+      <div *ngIf="vistaActual === 'menu'" class="card shadow-lg border-0 em-menu-card em-view-enter" style="border-radius: 15px; overflow: hidden; background-color: #fff;">
         
         <!-- Header -->
-        <div class="card-header border-0" style="padding: 1.5rem 2rem;">
+        <div class="card-header border-0 em-menu-card__header" style="padding: 1.5rem 2rem;">
           <div class="row align-items-center">
             <div class="col">
-              <button class="btn btn-link p-0 text-muted mb-2" (click)="volverAEmpresas()" style="font-size: 0.9rem;">
-                <i class="fas fa-arrow-left mr-1"></i> Volver a empresas
+              <button type="button" class="em-back-btn mb-3" (click)="volverAEmpresas()">
+                <i class="fas fa-arrow-left"></i>
+                <span>Volver a empresas</span>
               </button>
-              <div class="d-flex align-items-center mb-2">
+              <div class="d-flex align-items-center">
                 <img *ngIf="getLogoEmpresaUrl()"
                      [src]="getLogoEmpresaUrl()"
                      [alt]="empresaSeleccionada?.nombre_empresa"
-                     class="mr-3 shadow-sm bg-white"
-                     style="width: 50px; height: 50px; min-width: 50px; min-height: 50px; flex-shrink: 0; object-fit: contain; border-radius: 50%; padding: 0.35rem;"
+                     class="mr-3 shadow-sm bg-white em-menu-card__logo"
                      (error)="onLogoEmpresaError()">
                 <div>
-                  <h2 class="mb-0" style="color: #38512F; font-weight: 700; font-size: 1.5rem;">{{ empresaSeleccionada?.nombre_empresa }}</h2>
-                  <h6 class="text-uppercase text-muted ls-1 mb-0 mt-1" style="font-size: 0.85rem; font-weight: 600; letter-spacing: 1px;">
-                    Historia Clínica
-                  </h6>
+                  <h2 class="mb-0 em-menu-card__company">{{ empresaSeleccionada?.nombre_empresa }}</h2>
+                  <p class="mb-0 em-menu-card__subtitle">
+                    Elige un expediente nuevo o abre las carpetas del historial clínico.
+                  </p>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Contenido: dos botones de acción -->
-        <div class="card-body em-menu-body" style="padding: 1.5rem 2rem;">
-          <div class="row justify-content-center py-2 em-menu-actions">
-            
-            <!-- Tarjeta Iniciar Formulario -->
-            <div class="col-lg-4 col-md-6 mb-4 em-menu-action-col">
-              <div class="card h-100 shadow-sm border-0 accion-card" 
-                   style="border-radius: 15px; cursor: pointer; transition: all 0.3s ease;"
-                   (click)="abrirFormulario()">
-                <div class="card-body text-center py-4">
-                  <div class="icon icon-shape text-white rounded-circle shadow-lg mb-3 mx-auto"
-                       style="width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #38512F 0%, #5a7456 100%);">
-                    <i class="fas fa-file-medical-alt" style="font-size: 1.5rem;"></i>
+        <!-- Expediente (Nuevo) | Carpetas (Historial) -->
+        <div class="card-body em-menu-body" style="padding: 1.25rem 2rem 2rem;">
+          <div class="em-choice-grid">
+            <button type="button" class="em-choice-card em-choice-card--nuevo" (click)="abrirFormulario()">
+              <span class="em-choice-card__accent" aria-hidden="true"></span>
+              <div class="em-choice-card__top">
+                <span class="em-choice-card__badge">Alta</span>
+                <span class="em-choice-card__hint">Expediente nuevo</span>
+              </div>
+              <div class="em-choice-card__media">
+                <div class="em-illus em-illus--clipboard" aria-hidden="true">
+                  <div class="em-clip-board">
+                    <div class="em-clip-metal">
+                      <span class="em-clip-metal__ring"></span>
+                      <span class="em-clip-metal__bar"></span>
+                    </div>
+                    <div class="em-clip-sheet">
+                      <div class="em-clip-cross"><i class="fas fa-plus"></i></div>
+                      <div class="em-clip-photo"></div>
+                      <div class="em-clip-lines">
+                        <span></span><span></span><span></span>
+                        <span class="em-clip-lines__short"></span>
+                      </div>
+                      <div class="em-clip-blocks">
+                        <span></span><span></span><span></span>
+                      </div>
+                      <div class="em-clip-bands">
+                        <span class="em-clip-bands__a"></span>
+                        <span class="em-clip-bands__b"></span>
+                      </div>
+                    </div>
                   </div>
-                  <h4 class="mb-2" style="color: #38512F; font-weight: 700;">Iniciar Formulario</h4>
-                  <p class="text-muted mb-0" style="font-size: 0.875rem;">Registrar un nuevo examen médico</p>
                 </div>
               </div>
-            </div>
+              <div class="em-choice-card__copy">
+                <span class="em-choice-card__title">Nuevo Formulario</span>
+                <span class="em-choice-card__desc">Registrar un nuevo examen médico en el expediente</span>
+              </div>
+              <span class="em-choice-card__cta">
+                Continuar <i class="fas fa-arrow-right"></i>
+              </span>
+            </button>
 
-            <!-- Tarjeta Historial -->
-            <div class="col-lg-4 col-md-6 mb-4 em-menu-action-col">
-              <div class="card h-100 shadow-sm border-0 accion-card" 
-                   style="border-radius: 15px; cursor: pointer; transition: all 0.3s ease;"
-                   (click)="verHistorial()">
-                <div class="card-body text-center py-4">
-                  <div class="icon icon-shape text-white rounded-circle shadow-lg mb-3 mx-auto"
-                       style="width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #768D6B 0%, #8fa382 100%);">
-                    <i class="fas fa-history" style="font-size: 1.5rem;"></i>
+            <button type="button" class="em-choice-card em-choice-card--historial" (click)="verHistorial()">
+              <span class="em-choice-card__accent" aria-hidden="true"></span>
+              <div class="em-choice-card__top">
+                <span class="em-choice-card__badge">Archivo</span>
+                <span class="em-choice-card__hint">Consulta y descarga</span>
+              </div>
+              <div class="em-choice-card__media">
+                <div class="em-illus em-illus--folders" aria-hidden="true">
+                  <div class="em-binder em-binder--1">
+                    <span class="em-binder__hole em-binder__hole--top"></span>
+                    <span class="em-binder__label"></span>
+                    <span class="em-binder__hole em-binder__hole--bot"></span>
                   </div>
-                  <h4 class="mb-2" style="color: #38512F; font-weight: 700;">Historial</h4>
-                  <p class="text-muted mb-0" style="font-size: 0.875rem;">Ver registros médicos anteriores</p>
+                  <div class="em-binder em-binder--2">
+                    <span class="em-binder__hole em-binder__hole--top"></span>
+                    <span class="em-binder__label"></span>
+                    <span class="em-binder__hole em-binder__hole--bot"></span>
+                  </div>
+                  <div class="em-binder em-binder--3">
+                    <span class="em-binder__hole em-binder__hole--top"></span>
+                    <span class="em-binder__label"></span>
+                    <span class="em-binder__hole em-binder__hole--bot"></span>
+                  </div>
+                  <div class="em-binder em-binder--4">
+                    <span class="em-binder__hole em-binder__hole--top"></span>
+                    <span class="em-binder__label"></span>
+                    <span class="em-binder__hole em-binder__hole--bot"></span>
+                  </div>
                 </div>
               </div>
-            </div>
-
+              <div class="em-choice-card__copy">
+                <span class="em-choice-card__title">Historial de expedientes</span>
+                <span class="em-choice-card__desc">Consultar registros médicos anteriores</span>
+              </div>
+              <span class="em-choice-card__cta">
+                Abrir historial <i class="fas fa-arrow-right"></i>
+              </span>
+            </button>
           </div>
         </div>
 
+      </div>
+
+      <!-- =====================================================
+           VISTA BORRADORES LOCALES (slots tipo menú de archivos)
+           ===================================================== -->
+      <div *ngIf="vistaActual === 'borradores'" class="card shadow-lg border-0 em-drafts-card em-view-enter" style="border-radius: 15px; overflow: hidden; background-color: #fff;">
+        <div class="card-header border-0" style="padding: 1.5rem 2rem 0.75rem;">
+          <button type="button" class="em-back-btn mb-3" (click)="volverAlMenuDesdeBorradores()">
+            <i class="fas fa-arrow-left"></i>
+            <span>Volver al menú</span>
+          </button>
+          <h2 class="mb-1 em-drafts-card__title">Formularios sin guardar</h2>
+          <p class="mb-0 em-drafts-card__help">
+            Selecciona un borrador guardado en este dispositivo o inicia una nueva historia clínica.
+          </p>
+        </div>
+        <div class="card-body" style="padding: 1.25rem 2rem 2rem;">
+          <div class="em-draft-slots">
+            <button type="button"
+                    class="em-draft-slot"
+                    *ngFor="let slot of slotsBorradores"
+                    [class.em-draft-slot--filled]="!!slot"
+                    [class.em-draft-slot--empty]="!slot"
+                    (click)="slot ? abrirBorrador(slot) : iniciarFormularioNuevo()">
+              <ng-container *ngIf="slot; else slotNuevo">
+                <div class="em-draft-slot__preview">
+                  <i class="fas fa-notes-medical"></i>
+                  <span class="em-draft-slot__date">{{ formatFechaBorrador(slot.updatedAt) }}</span>
+                  <span class="em-draft-slot__name">{{ slot.pacienteNombre }}</span>
+                  <span class="em-draft-slot__meta">{{ getTipoHistoriaLabel(slot.tipoHistoria) }} · Paso {{ slot.pasoActual }}</span>
+                </div>
+                <span class="em-draft-slot__delete"
+                      role="button"
+                      tabindex="0"
+                      title="Eliminar borrador"
+                      (click)="eliminarBorradorSlot(slot, $event)"
+                      (keydown.enter)="eliminarBorradorSlot(slot, $event)">
+                  <i class="fas fa-times"></i>
+                </span>
+              </ng-container>
+              <ng-template #slotNuevo>
+                <div class="em-draft-slot__empty">
+                  <i class="fas fa-file-medical"></i>
+                  <span>Nueva historia</span>
+                </div>
+              </ng-template>
+            </button>
+          </div>
+        </div>
       </div>
 
       <!-- =====================================================
            VISTA FORMULARIO: Historia Clínica
            ===================================================== -->
-      <div *ngIf="vistaActual === 'formulario'" class="card hc-form-card shadow-lg border-0">
+      <div *ngIf="vistaActual === 'formulario'" class="card hc-form-card shadow-lg border-0 em-view-enter">
         
         <!-- Header del formulario -->
         <div class="card-header border-0" style="padding: 1.5rem 2rem 1rem;">
-          <div class="row align-items-center">
-            <div class="col">
-              <button class="btn btn-link p-0 text-muted mb-2" (click)="volverAlMenu()" style="font-size: 0.9rem;">
-                <i class="fas fa-arrow-left mr-1"></i> Volver al menú
-              </button>
-              <h6 class="text-uppercase text-muted ls-1 mb-1" style="font-size: 0.85rem; font-weight: 600; letter-spacing: 1px;">
-                {{ modoEdicionDesdeHistorial ? 'Editar y guardar como nuevo' : (editandoHistoriaId ? 'Editar registro' : 'Nuevo registro') }}
-              </h6>
-              <h2 class="mb-0" style="color: #38512F; font-weight: 700; font-size: 1.5rem;">Historia Clínica</h2>
-              <small *ngIf="modoEdicionDesdeHistorial" class="text-muted d-block mt-1" style="font-size: 0.8rem;">
-                Basada en {{ folioOrigenEdicion }}. Al finalizar se creará un folio nuevo sin modificar la historia original.
-              </small>
-            </div>
+          <div class="em-form-header-stack">
+            <button type="button" class="em-back-btn" (click)="volverAlMenu()">
+              <i class="fas fa-arrow-left"></i>
+              <span>Volver al menú</span>
+            </button>
+            <p class="mb-0 em-form-help">El avance se guarda en este dispositivo hasta finalizar el expediente.</p>
+            <small *ngIf="modoEdicionDesdeHistorial" class="text-muted d-block" style="font-size: 0.8rem;">
+              Basada en {{ folioOrigenEdicion }}. Al finalizar se creará un folio nuevo sin modificar la historia original.
+            </small>
+            <small *ngIf="!modoEdicionDesdeHistorial && editandoHistoriaId" class="text-muted d-block" style="font-size: 0.8rem;">
+              Editando registro existente
+            </small>
           </div>
         </div>
 
@@ -1894,67 +2035,68 @@
       <!-- =====================================================
            VISTA PREVIA: Formato Historia Clínica (tipo Excel)
            ===================================================== -->
-      <div *ngIf="vistaActual === 'preview'" class="preview-wrapper">
+      <div *ngIf="vistaActual === 'preview'" class="preview-wrapper em-view-enter">
         
-        <!-- Controles superiores (no se imprimen) -->
-        <div class="preview-controls no-print">
-          <button type="button"
-                  class="preview-btn preview-btn-back"
-                  (click)="volverAlMenuDesdePreview()"
-                  [title]="origenPreview === 'historial' ? 'Volver al Historial' : 'Salir al menú'"
-                  [attr.aria-label]="origenPreview === 'historial' ? 'Volver al Historial' : 'Salir al menú'">
-            <i class="fas" [ngClass]="origenPreview === 'historial' ? 'fa-arrow-left' : 'fa-home'"></i>
-            <span class="preview-btn-back-text">{{ origenPreview === 'historial' ? 'Historial' : 'Menú' }}</span>
-          </button>
-
-          <div class="preview-actions-group">
-            <button *ngIf="!historiaSoloLecturaDesdeHistorial"
-                    type="button"
-                    class="preview-btn preview-btn-icon preview-btn-finalizar"
-                    (click)="finalizarYSubirDriveYBD()"
-                    title="Finalizar"
-                    aria-label="Finalizar">
-              <i class="fas fa-check"></i>
-            </button>
-
-            <button *ngIf="origenPreview === 'historial' && historiaActualId"
-                    type="button"
-                    class="preview-btn preview-btn-icon preview-btn-edit"
-                    (click)="editarHistoria(historiaActualId)"
-                    title="Editar Historia Clínica"
-                    aria-label="Editar Historia Clínica">
-              <i class="fas fa-edit"></i>
-            </button>
-
+        <!-- Controles superiores (mismo ancho que el documento) -->
+        <div class="preview-stage">
+          <div class="preview-controls no-print">
             <button type="button"
-                    class="preview-btn preview-btn-icon preview-btn-download"
-                    (click)="descargarPDF()"
-                    title="Descargar PDF"
-                    aria-label="Descargar PDF">
-              <i class="fas fa-download"></i>
+                    class="preview-btn preview-btn-back"
+                    (click)="volverAlMenuDesdePreview()"
+                    [title]="origenPreview === 'historial' ? 'Volver al Historial' : 'Salir al menú'"
+                    [attr.aria-label]="origenPreview === 'historial' ? 'Volver al Historial' : 'Salir al menú'">
+              <i class="fas" [ngClass]="origenPreview === 'historial' ? 'fa-arrow-left' : 'fa-home'"></i>
+              <span class="preview-btn-back-text">{{ origenPreview === 'historial' ? 'Historial' : 'Menú' }}</span>
             </button>
 
-            <button type="button"
-                    class="preview-btn preview-btn-icon preview-btn-print"
-                    (click)="imprimirHistoria()"
-                    title="Imprimir"
-                    aria-label="Imprimir">
-              <i class="fas fa-print"></i>
-            </button>
+            <div class="preview-actions-group">
+              <button *ngIf="!historiaSoloLecturaDesdeHistorial"
+                      type="button"
+                      class="preview-btn preview-btn-icon preview-btn-finalizar"
+                      (click)="finalizarYSubirDriveYBD()"
+                      title="Finalizar"
+                      aria-label="Finalizar">
+                <i class="fas fa-check"></i>
+              </button>
 
-            <button *ngIf="origenPreview === 'historial' && historiaActualId && esAdmin"
-                    type="button"
-                    class="preview-btn preview-btn-icon preview-btn-delete"
-                    (click)="eliminarHistoria(historiaActualId)"
-                    title="Eliminar Historia Clínica"
-                    aria-label="Eliminar Historia Clínica">
-              <i class="fas fa-trash-alt"></i>
-            </button>
+              <button *ngIf="origenPreview === 'historial' && historiaActualId"
+                      type="button"
+                      class="preview-btn preview-btn-icon preview-btn-edit"
+                      (click)="editarHistoria(historiaActualId)"
+                      title="Editar Historia Clínica"
+                      aria-label="Editar Historia Clínica">
+                <i class="fas fa-edit"></i>
+              </button>
+
+              <button type="button"
+                      class="preview-btn preview-btn-icon preview-btn-download"
+                      (click)="descargarPDF()"
+                      title="Descargar PDF"
+                      aria-label="Descargar PDF">
+                <i class="fas fa-download"></i>
+              </button>
+
+              <button type="button"
+                      class="preview-btn preview-btn-icon preview-btn-print"
+                      (click)="imprimirHistoria()"
+                      title="Imprimir"
+                      aria-label="Imprimir">
+                <i class="fas fa-print"></i>
+              </button>
+
+              <button *ngIf="origenPreview === 'historial' && historiaActualId && esAdmin"
+                      type="button"
+                      class="preview-btn preview-btn-icon preview-btn-delete"
+                      (click)="eliminarHistoria(historiaActualId)"
+                      title="Eliminar Historia Clínica"
+                      aria-label="Eliminar Historia Clínica">
+                <i class="fas fa-trash-alt"></i>
+              </button>
+            </div>
           </div>
-        </div>
 
-        <!-- ============ DOCUMENTO ============ -->
-        <div class="hc-document" id="historia-clinica-print">
+          <!-- ============ DOCUMENTO ============ -->
+          <div class="hc-document" id="historia-clinica-print">
 
           <!-- ENCABEZADO CON LOGO -->
           <table class="hc-table hc-no-break">
@@ -2228,7 +2370,7 @@
               <td colspan="4" class="hc-cell"><strong>USO DE AUDÍFONOS</strong> <span class="hc-check">{{ problemasAuditivos.negado ? '' : getCheckMark(problemasAuditivos.usoAudifonos) }}</span></td>
             </tr>
             <tr>
-              <td colspan="12" class="hc-cell"><strong>OBSERVACIONES:</strong> {{ observacionesPatologicos }}</td>
+              <td colspan="12" class="hc-cell hc-obs-cerrar"><strong>OBSERVACIONES:</strong> {{ observacionesPatologicos }}</td>
             </tr>
           </table>
 
@@ -2491,7 +2633,7 @@
               <td colspan="8" class="hc-cell">{{ paraclinicos.espirometria || 'Sin resultado' }}</td>
             </tr>
             <tr>
-              <td colspan="12" class="hc-cell"><strong>OBSERVACIONES:</strong> {{ paraclinicos.resultado || 'Sin observaciones' }}</td>
+              <td colspan="12" class="hc-cell hc-obs-cerrar"><strong>OBSERVACIONES:</strong> {{ paraclinicos.resultado || 'Sin observaciones' }}</td>
             </tr>
           </table>
 
@@ -2517,7 +2659,7 @@
               <td colspan="6" class="hc-cell">{{ item.recomendacion }}</td>
             </tr>
             <tr>
-              <td colspan="12" class="hc-cell">
+              <td colspan="12" class="hc-cell hc-obs-cerrar">
                 <strong>OBSERVACIONES:</strong><br>
                 <span style="white-space: pre-line;">{{ observacionesDiagnostico }}</span>
               </td>
@@ -2563,28 +2705,27 @@
             <strong>FOLIO:</strong> {{ folioCompleto }}
           </div>
 
-        </div><!-- fin hc-document -->
+          </div><!-- fin hc-document -->
+        </div><!-- fin preview-stage -->
       </div><!-- fin preview-wrapper -->
 
       <!-- =====================================================
            VISTA HISTORIAL — Registros de Historias Clínicas
            ===================================================== -->
-      <div *ngIf="vistaActual === 'historial'" class="card shadow-lg border-0 em-historial-card" style="border-radius: 15px; overflow: hidden; background-color: #fff;">
+      <div *ngIf="vistaActual === 'historial'" class="card shadow-lg border-0 em-historial-card em-view-enter" style="border-radius: 15px; overflow: hidden; background-color: #fff;">
         
-        <!-- Header consistente (Variant A) -->
-        <div class="card-header border-0 em-historial-card__header" style="padding: 1.5rem 2rem 1rem;">
-          <div class="row align-items-center em-historial-card__title-row">
-            <div class="col em-historial-card__title-col">
-              <button class="btn btn-link p-0 text-muted mb-2" (click)="volverAlMenuDesdeHistorial()" style="font-size: 0.9rem;">
-                <i class="fas fa-arrow-left mr-1"></i> Volver al menú
+        <!-- Header: Volver + acciones en la misma fila -->
+        <div class="card-header border-0 em-historial-card__header" style="padding: 1.5rem 2rem 0.85rem;">
+          <div class="em-historial-toolbar">
+            <div class="em-historial-toolbar__left">
+              <button type="button" class="em-back-btn" (click)="volverAlMenuDesdeHistorial()">
+                <i class="fas fa-arrow-left"></i>
+                <span>Volver al menú</span>
               </button>
-              <h6 class="text-uppercase text-muted ls-1 mb-1" style="font-size: 0.85rem; font-weight: 600; letter-spacing: 1px;">
-                {{ empresaSeleccionada?.nombre_empresa || 'Control y seguimiento' }}
-              </h6>
-              <h2 class="mb-0 em-historial-card__title" style="color: #0f3661; font-weight: 700; font-size: 1.5rem;">Historial de Historias Clínicas</h2>
+              <p class="mb-0 em-form-help">Consulta, filtra y descarga los expedientes médicos de esta empresa.</p>
             </div>
-            <div class="col-auto em-historial-card__action-col">
-              <button class="btn btn-success shadow-sm" 
+            <div class="em-historial-toolbar__actions">
+              <button type="button" class="btn btn-success shadow-sm em-historial-new-btn"
                       style="background: linear-gradient(135deg, #0f3661 0%, #0b6988 100%); border: none; padding: 0.5rem 1.2rem; font-weight: 600; font-size: 0.85rem;"
                       (click)="abrirFormulario()">
                 <i class="fas fa-plus mr-2"></i>Nueva Historia
@@ -2595,86 +2736,94 @@
 
         <div class="card-body em-historial-card__body" style="padding: 0 2rem 2rem;">
 
-          <!-- KPI Bar de estadísticas -->
+          <!-- KPI Bar: total, ingreso/egreso juntos, luego género -->
           <div class="kpi-bar-hist mb-4">
-            <div class="kpi-cell-hist" [style.animation-delay]="'0s'" [style.--kpi-accent]="'#38512F'">
-              <div class="kpi-cell-hist-icon" style="background: linear-gradient(135deg,#38512F,#5a7456)">
+            <div class="kpi-cell-hist" [style.animation-delay]="'0s'" [style.--kpi-accent]="'#0f3661'">
+              <div class="kpi-cell-hist-icon" style="background: linear-gradient(135deg,#0f3661,#1a4a7a)">
                 <i class="fas fa-file-medical"></i>
               </div>
               <div class="kpi-cell-hist-valor">{{ historiasClinicas.length }}</div>
-              <div class="kpi-cell-hist-label">Total registros</div>
-              <div class="kpi-cell-hist-sub"><span class="kpi-cell-hist-dot" style="background:#38512F"></span>En sistema</div>
+              <div class="kpi-cell-hist-label">Total</div>
+              <div class="kpi-cell-hist-sub"><span class="kpi-cell-hist-dot" style="background:#0f3661"></span>Registros</div>
             </div>
 
-            <div class="kpi-cell-hist" [style.animation-delay]="'0.06s'" [style.--kpi-accent]="'#2dce89'">
-              <div class="kpi-cell-hist-icon" style="background: linear-gradient(135deg,#2dce89,#26a96f)">
+            <div class="kpi-cell-hist" [style.animation-delay]="'0.05s'" [style.--kpi-accent]="'#0b6988'">
+              <div class="kpi-cell-hist-icon" style="background: linear-gradient(135deg,#0b6988,#055770)">
                 <i class="fas fa-sign-in-alt"></i>
               </div>
               <div class="kpi-cell-hist-valor">{{ contarPorTipo('ingreso') }}</div>
               <div class="kpi-cell-hist-label">Ingreso</div>
-              <div class="kpi-cell-hist-sub"><span class="kpi-cell-hist-dot" style="background:#2dce89"></span>Examen de ingreso</div>
+              <div class="kpi-cell-hist-sub"><span class="kpi-cell-hist-dot" style="background:#0b6988"></span>Examen de ingreso</div>
             </div>
 
-            <div class="kpi-cell-hist" [style.animation-delay]="'0.12s'" [style.--kpi-accent]="'#5e72e4'">
-              <div class="kpi-cell-hist-icon" style="background: linear-gradient(135deg,#5e72e4,#4860d0)">
-                <i class="fas fa-sync-alt"></i>
-              </div>
-              <div class="kpi-cell-hist-valor">{{ contarPorTipo('periodico') }}</div>
-              <div class="kpi-cell-hist-label">Subsecuente</div>
-              <div class="kpi-cell-hist-sub"><span class="kpi-cell-hist-dot" style="background:#5e72e4"></span>Examen subsecuente</div>
-            </div>
-
-            <div class="kpi-cell-hist" [style.animation-delay]="'0.18s'" [style.--kpi-accent]="'#fb6340'">
-              <div class="kpi-cell-hist-icon" style="background: linear-gradient(135deg,#fb6340,#ea4c2e)">
+            <div class="kpi-cell-hist" [style.animation-delay]="'0.1s'" [style.--kpi-accent]="'#0284c7'">
+              <div class="kpi-cell-hist-icon" style="background: linear-gradient(135deg,#0284c7,#38bdf8)">
                 <i class="fas fa-sign-out-alt"></i>
               </div>
-              <div class="kpi-cell-hist-valor">{{ contarPorTipo('egreso') + contarPorTipo('especial') }}</div>
-              <div class="kpi-cell-hist-label">Egreso / Especial</div>
-              <div class="kpi-cell-hist-sub"><span class="kpi-cell-hist-dot" style="background:#fb6340"></span>Examen de egreso</div>
+              <div class="kpi-cell-hist-valor">{{ contarPorTipo('egreso') }}</div>
+              <div class="kpi-cell-hist-label">Egreso</div>
+              <div class="kpi-cell-hist-sub"><span class="kpi-cell-hist-dot" style="background:#0284c7"></span>Examen de egreso</div>
+            </div>
+
+            <div class="kpi-cell-hist" [style.animation-delay]="'0.15s'" [style.--kpi-accent]="'#2563eb'">
+              <div class="kpi-cell-hist-icon" style="background: linear-gradient(135deg,#2563eb,#1d4ed8)">
+                <i class="fas fa-mars"></i>
+              </div>
+              <div class="kpi-cell-hist-valor">{{ contarPorGenero('masculino') }}</div>
+              <div class="kpi-cell-hist-label">Hombres</div>
+              <div class="kpi-cell-hist-sub"><span class="kpi-cell-hist-dot" style="background:#2563eb"></span>Masculino</div>
+            </div>
+
+            <div class="kpi-cell-hist" [style.animation-delay]="'0.2s'" [style.--kpi-accent]="'#db2777'">
+              <div class="kpi-cell-hist-icon" style="background: linear-gradient(135deg,#db2777,#be185d)">
+                <i class="fas fa-venus"></i>
+              </div>
+              <div class="kpi-cell-hist-valor">{{ contarPorGenero('femenino') }}</div>
+              <div class="kpi-cell-hist-label">Mujeres</div>
+              <div class="kpi-cell-hist-sub"><span class="kpi-cell-hist-dot" style="background:#db2777"></span>Femenino</div>
             </div>
           </div>
 
-          <!-- Barra de filtros y búsqueda -->
+          <!-- Barra de filtros moderna -->
           <div class="filtros-historial mb-4">
-            <div class="row align-items-end">
-              <!-- Búsqueda por texto -->
-              <div class="col-xl-6 col-lg-6 col-md-12 mb-2">
-                <label class="form-control-label text-muted" style="font-size: 0.75rem; font-weight: 600;">
-                  <i class="fas fa-search mr-1"></i>Buscar
+            <div class="filtros-historial__grid">
+              <div class="filtros-historial__field filtros-historial__field--buscar">
+                <label class="filtros-historial__label">
+                  <i class="fas fa-search"></i> Buscar
                 </label>
-                <div class="input-group input-group-alternative shadow-sm rounded">
-                  <div class="input-group-prepend">
-                    <span class="input-group-text bg-white border-0">
-                      <i class="fas fa-search" style="color: #0f3661;"></i>
-                    </span>
-                  </div>
-                  <input class="form-control border-0" type="text" placeholder="Nombre, matrícula o folio (B-HC-26-125)..."
+                <div class="filtros-historial__control filtros-historial__control--search">
+                  <i class="fas fa-search filtros-historial__icon"></i>
+                  <input class="filtros-historial__input" type="text"
+                         placeholder="Nombre, matrícula o folio (B-HC-26-125)..."
                          [(ngModel)]="filtroTexto" (input)="aplicarFiltros()">
                 </div>
               </div>
-              <!-- Filtro por tipo -->
-              <div class="col-xl-3 col-lg-3 col-md-6 mb-2">
-                <label class="form-control-label text-muted" style="font-size: 0.75rem; font-weight: 600;">
-                  <i class="fas fa-filter mr-1"></i>Tipo
+
+              <div class="filtros-historial__field">
+                <label class="filtros-historial__label">
+                  <i class="fas fa-filter"></i> Tipo
                 </label>
-                <select class="form-control form-control-sm" [(ngModel)]="filtroTipo" (change)="aplicarFiltros()"
-                        style="height: 43px; border-radius: 0.375rem;">
-                  <option value="">Todos</option>
-                  <option value="ingreso">Ingreso</option>
-                  <option value="periodico">Subsecuente</option>
-                </select>
+                <div class="filtros-historial__control">
+                  <select class="filtros-historial__input filtros-historial__select"
+                          [(ngModel)]="filtroTipo" (change)="aplicarFiltros()">
+                    <option value="">Todos</option>
+                    <option value="ingreso">Ingreso</option>
+                    <option value="periodico">Subsecuente</option>
+                  </select>
+                </div>
               </div>
-              <!-- Filtro por fecha -->
-              <div class="col-xl-3 col-lg-3 col-md-6 mb-2">
-                <label class="form-control-label text-muted" style="font-size: 0.75rem; font-weight: 600;">
-                  <i class="fas fa-calendar mr-1"></i>Desde
+
+              <div class="filtros-historial__field">
+                <label class="filtros-historial__label">
+                  <i class="fas fa-calendar"></i> Desde
                 </label>
-                <input class="form-control form-control-sm" type="date" 
-                       [(ngModel)]="filtroFechaDesde" (change)="aplicarFiltros()"
-                       style="height: 43px; border-radius: 0.375rem;">
+                <div class="filtros-historial__control">
+                  <input class="filtros-historial__input filtros-historial__date" type="date"
+                         [(ngModel)]="filtroFechaDesde" (change)="aplicarFiltros()">
+                </div>
               </div>
             </div>
-            <!-- Filtros activos y botón limpiar -->
+
             <div class="d-flex justify-content-between align-items-center mt-2" *ngIf="hayFiltrosActivos()">
               <div>
                 <span class="badge badge-pill filtro-activo-badge mr-1" *ngIf="filtroTexto" (click)="filtroTexto = ''; aplicarFiltros()">
@@ -2693,11 +2842,41 @@
             </div>
           </div>
 
-          <!-- Indicador de resultados -->
-          <div class="d-flex justify-content-between align-items-center mb-3" *ngIf="!cargandoHistorial && historiasClinicas.length > 0">
-            <small class="text-muted">
+          <!-- Indicador de resultados + descarga ZIP -->
+          <div class="em-historial-results mb-3" *ngIf="!cargandoHistorial && historiasClinicas.length > 0">
+            <small class="em-historial-count">
               Mostrando <strong>{{ historiasFiltradas.length }}</strong> de <strong>{{ historiasClinicas.length }}</strong> registros
+              <span *ngIf="modoSeleccionZip"> · Seleccionados: <strong>{{ idsZipSeleccionados.length }}</strong></span>
             </small>
+            <div class="em-zip-actions">
+              <button type="button"
+                      class="em-zip-icon-btn"
+                      (click)="descargarZipGeneral()"
+                      [disabled]="descargandoZipExpedientes"
+                      aria-label="Descargar ZIP general">
+                <i class="fas" [ngClass]="descargandoZipExpedientes && !modoSeleccionZip ? 'fa-spinner fa-spin' : 'fa-file-archive'"></i>
+                <span class="em-zip-icon-btn__tip">Descargar todos</span>
+              </button>
+              <button type="button"
+                      class="em-zip-icon-btn"
+                      [class.em-zip-icon-btn--active]="modoSeleccionZip"
+                      (click)="descargarZipEspecificos()"
+                      [disabled]="descargandoZipExpedientes"
+                      aria-label="Descargar ZIP específicos">
+                <i class="fas" [ngClass]="descargandoZipExpedientes && modoSeleccionZip ? 'fa-spinner fa-spin' : (modoSeleccionZip && idsZipSeleccionados.length ? 'fa-download' : 'fa-tasks')"></i>
+                <span class="em-zip-icon-btn__tip">
+                  {{ modoSeleccionZip
+                    ? (idsZipSeleccionados.length ? ('Descargar (' + idsZipSeleccionados.length + ')') : 'Elegir y descargar')
+                    : 'Elegir expedientes' }}
+                </span>
+              </button>
+              <button *ngIf="modoSeleccionZip"
+                      type="button"
+                      class="em-zip-cancel"
+                      (click)="cancelarSeleccionZip()">
+                Cancelar
+              </button>
+            </div>
           </div>
 
           <!-- Tabla de registros -->
@@ -2705,6 +2884,12 @@
             <table class="table align-items-center table-flush table-hover mb-0 historial-table">
               <thead class="thead-light">
                 <tr>
+                  <th class="historial-th historial-th-check" *ngIf="modoSeleccionZip">
+                    <input type="checkbox"
+                           [checked]="todosZipSeleccionados()"
+                           (change)="toggleTodosZip($event)"
+                           title="Seleccionar todos">
+                  </th>
                   <th class="historial-th historial-th-num">#</th>
                   <th class="historial-th historial-th-paciente" (click)="ordenarPor('nombre'); $event.stopPropagation()" style="cursor: pointer;">
                     Paciente
@@ -2728,20 +2913,20 @@
               <tbody>
                 <!-- Loading state (dentro de la tabla) -->
                 <tr *ngIf="cargandoHistorial">
-                  <td colspan="6" class="text-center py-5">
+                  <td [attr.colspan]="modoSeleccionZip ? 7 : 6" class="text-center py-5">
                     <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
                     <p class="text-muted mt-2 mb-0">Cargando historias clínicas...</p>
                   </td>
                 </tr>
                 <!-- Empty state -->
                 <tr *ngIf="!cargandoHistorial && historiasFiltradas.length === 0 && historiasClinicas.length > 0">
-                  <td colspan="6" class="text-center py-5">
+                  <td [attr.colspan]="modoSeleccionZip ? 7 : 6" class="text-center py-5">
                     <i class="fas fa-search fa-2x text-muted"></i>
                     <p class="text-muted mt-2 mb-0">{{ getMensajeSinResultadosHistorial() }}</p>
                   </td>
                 </tr>
                 <tr *ngIf="!cargandoHistorial && historiasClinicas.length === 0">
-                  <td colspan="6" class="text-center py-5">
+                  <td [attr.colspan]="modoSeleccionZip ? 7 : 6" class="text-center py-5">
                     <i class="fas fa-folder-open fa-2x text-muted"></i>
                     <p class="text-muted mt-2 mb-0">No hay historias clínicas registradas.</p>
                     <button class="btn btn-sm mt-3" style="color: #0f3661; border: 1px solid #0f3661;" (click)="abrirFormulario()">
@@ -2751,9 +2936,15 @@
                 </tr>
                 <!-- Filas de datos -->
                 <tr *ngFor="let h of historiasFiltradas; let i = index"
-                    class="historial-row historial-row-clickable"
-                    (click)="verDetalleHistoria(h.id)"
-                    title="Ver historia clínica">
+                    class="historial-row"
+                    [class.historial-row-clickable]="!modoSeleccionZip"
+                    (click)="modoSeleccionZip ? null : verDetalleHistoria(h.id)"
+                    [title]="modoSeleccionZip ? 'Seleccionar expediente' : 'Ver historia clínica'">
+                  <td class="historial-td historial-td-check" *ngIf="modoSeleccionZip" (click)="$event.stopPropagation()">
+                    <input type="checkbox"
+                           [checked]="estaZipSeleccionado(h.id)"
+                           (change)="toggleZipSeleccionado(h.id, $event)">
+                  </td>
                   <td class="historial-td historial-td-num">
                     <span class="text-muted historial-num">{{ i + 1 }}</span>
                   </td>

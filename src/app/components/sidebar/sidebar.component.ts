@@ -93,7 +93,7 @@ export const ROUTES: RouteInfo[] = [
     { path: '/sistema-gestion-calidad/solicitud-documentos', title: 'Solicitud de\nDocumentos', icon: '', iconFa: 'fa-file-signature', class: '', roles: ['root'] },
     { path: '/seguridad/normativas', title: 'Normativas', icon: '', iconFa: 'fa-clipboard-check', class: '' },
     { path: '/seguridad/asignacion', title: 'Asignación de\nnormativas', icon: '', iconFa: 'fa-tasks', class: '' },
-    { path: '/seguridad/gestion', title: 'Gestión de\nnormativas', icon: '', iconFa: 'fa-folder-open', class: '' },
+    { path: '/seguridad/gestion', title: 'Gestión de\nnormativas', icon: '', iconFa: 'fa-clipboard-check', class: '' },
     { path: '/recursos-humanos/residentes', title: 'Residentes', icon: '', iconFa: 'fa-user-friends', class: '', roles: ['root', 'administrador', 'rrhh'] },
     // Organigrama: todos excepto empresa (filtro en filterMenuByRole); expediente solo RRHH/admin
     { path: '/recursos-humanos/colaboradores', title: 'Colaboradores', icon: '', iconFa: 'fa-id-badge', class: '' },

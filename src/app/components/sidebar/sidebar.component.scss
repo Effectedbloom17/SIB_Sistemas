@@ -607,6 +607,7 @@
 }
 
 // SEGURIDAD — tonos carmesí / rojo
+// SEGURIDAD · catálogo de normativas — crimson
 .nav-link.seguridad-normativas-link {
   &:hover:not(.active) {
     background: linear-gradient(135deg, rgba(127, 29, 29, 0.12) 0%, rgba(185, 28, 28, 0.18) 100%) !important;
@@ -642,6 +643,35 @@
       color: #fff !important;
       font-weight: 600;
     }
+
+    &:hover {
+      background: linear-gradient(135deg, #991b1b 0%, #dc2626 100%) !important;
+      transform: translateX(3px);
+    }
+  }
+}
+
+// SEGURIDAD · Selección / Asignación y Gestión — mismo crimson Seguridad
+.nav-link.seguridad-asignacion-link,
+.nav-link.seguridad-gestion-link {
+  &:hover:not(.active) {
+    background: linear-gradient(135deg, rgba(127, 29, 29, 0.12) 0%, rgba(185, 28, 28, 0.18) 100%) !important;
+    color: #991b1b !important;
+    transform: translateX(5px);
+    box-shadow: 0 2px 8px rgba(127, 29, 29, 0.15) !important;
+
+    i, .nav-link-text { color: #991b1b !important; }
+    i { transform: scale(1.15); }
+  }
+
+  &.active {
+    background: linear-gradient(135deg, #7f1d1d 0%, #b91c1c 55%, #dc2626 100%) !important;
+    color: #fff !important;
+    box-shadow: 0 4px 15px rgba(127, 29, 29, 0.35) !important;
+
+    &::after { background: #fff !important; }
+    i, .nav-link-text { color: #fff !important; }
+    .nav-link-text { font-weight: 600; }
 
     &:hover {
       background: linear-gradient(135deg, #991b1b 0%, #dc2626 100%) !important;

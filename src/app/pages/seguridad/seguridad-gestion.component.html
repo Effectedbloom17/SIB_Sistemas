@@ -1,11 +1,12 @@
-<div class="header header-bg-image seg-hero pb-5 pt-4 pt-md-5 d-flex align-items-center position-relative overflow-hidden">
+<div class="header header-bg-image seg-hero seg-hero--gestion pb-5 pt-4 pt-md-5 d-flex align-items-center position-relative overflow-hidden">
   <div class="container-fluid d-flex align-items-center justify-content-center position-relative seg-hero__inner">
     <div class="row w-100 text-center">
       <div class="col-12">
         <div class="d-flex flex-column align-items-center justify-content-center">
           <div class="seg-hero-icon icon icon-shape text-white rounded-circle shadow mb-2">
-            <i class="fas fa-folder-open" aria-hidden="true"></i>
+            <i class="fas fa-clipboard-check" aria-hidden="true"></i>
           </div>
+          <span class="seg-hero-mode seg-hero-mode--gestion">Modo gestión</span>
           <p class="text-white mb-1 seg-hero-tagline">Seguridad e Higiene</p>
           <h1 class="text-white mb-0 seg-hero-title">Gestión de Normativas</h1>
         </div>
@@ -17,11 +18,12 @@
 <div class="container-fluid seg-main-wrap mt--5 ges-shell">
 
   <!-- ═══ NIVEL 1: Empresas ═══ -->
-  <div class="seg-panel ges-panel ges-view" *ngIf="vista === 'empresas'">
+  <div class="seg-panel ges-panel ges-panel--gestion ges-view" *ngIf="vista === 'empresas'">
     <div class="ges-strip">
       <div class="ges-strip__lead">
+        <span class="ges-mode-chip"><i class="fas fa-clipboard-check" aria-hidden="true"></i> Gestión</span>
         <h2>Empresas</h2>
-        <p>Avance de evidencias por empresa y grupo de normativas</p>
+        <p>Abra una empresa para revisar avance y cargar evidencias</p>
       </div>
       <div class="ges-strip__stats" *ngIf="!cargando && empresas.length">
         <div class="ges-kpi"><span>{{ totalesEmpresas.empresas }}</span><em>Empresas</em></div>
@@ -48,56 +50,71 @@
                  placeholder="Buscar empresa…" aria-label="Buscar empresas">
         </div>
         <p class="ges-board-hint" *ngIf="!empresaSeleccionada">
-          Pasa el mouse para ver avance por grupo · Clic para ver el detalle · Usa «Gestionar normativas» para abrir la empresa
+          Clic en una empresa para ver normativas y gestionar evidencias
         </p>
       </div>
 
       <div class="ges-emp-board" [class.has-selection]="!!empresaSeleccionada">
 
-        <!-- Sin selección: rejilla completa -->
-        <div class="ges-emp-grid ges-emp-grid--board" *ngIf="!empresaSeleccionada">
-          <article class="ges-emp-card ges-emp-card--board ges-enter"
+        <!-- Cards compactas (diseño principal) -->
+        <div class="ges-board-grid" *ngIf="!empresaSeleccionada">
+          <article class="ges-board-tile ges-board-tile--enter"
                    *ngFor="let emp of empresasFiltradas; let i = index; trackBy: trackByEmpresaId"
                    [class.is-off]="!!emp.desactivada"
-                   [style.animation-delay]="retrasoEntrada(i)"
+                   [style.animation-delay]="retrasoEntrada(i, 55)"
                    (click)="seleccionarEmpresaTablero(emp)">
-            <div class="ges-emp-card__top">
-              <span class="ges-emp-card__logo ges-emp-card__logo--lg" [class.has-logo]="!!logoEmpresa(emp.empresa_id)">
+            <span class="ges-board-tile__glow" aria-hidden="true"></span>
+
+            <div class="ges-board-tile__top">
+              <span class="ges-board-tile__logo" [class.has-logo]="!!logoEmpresa(emp.empresa_id)">
                 <img *ngIf="logoEmpresa(emp.empresa_id) as logo" [src]="logo" [alt]="emp.empresa_nombre">
                 <span *ngIf="!logoEmpresa(emp.empresa_id)">{{ inicialesEmpresa(emp.empresa_nombre) }}</span>
               </span>
-              <div class="ges-emp-card__brand-text">
-                <h3>{{ emp.empresa_nombre }}</h3>
-                <small *ngIf="emp.desactivada" class="ges-emp-card__off-tag">Desactivada</small>
-                <small *ngIf="!emp.desactivada" title="Último cambio en gestión de normativas">
-                  <i class="far fa-calendar-alt" aria-hidden="true"></i>
-                  {{ fechaGestionEmpresa(emp) }}
-                </small>
+
+              <div class="ges-board-tile__identity">
+                <h3 [title]="emp.empresa_nombre">{{ emp.empresa_nombre }}</h3>
+                <span *ngIf="emp.desactivada" class="ges-board-tile__off">Desactivada</span>
+                <p *ngIf="!emp.desactivada" class="ges-board-tile__sub">
+                  {{ emp.puntos_con_evidencia }}/{{ emp.puntos_asignados }} puntos con evidencia
+                </p>
               </div>
-              <div class="ges-ring ges-ring--md" [ngStyle]="anilloStyle(emp.avance)" [attr.data-tone]="colorAvance(emp.avance)">
+
+              <div class="ges-ring ges-ring--md ges-board-tile__ring"
+                   [ngStyle]="anilloStyle(emp.avance)"
+                   [attr.aria-label]="'Avance ' + emp.avance + '%'">
                 <span>{{ emp.avance }}%</span>
               </div>
             </div>
-            <div class="ges-emp-card__meta">
-              <span><strong>{{ emp.normativas }}</strong> normativas</span>
-              <span><strong>{{ emp.puntos_con_evidencia }}/{{ emp.puntos_asignados }}</strong> pts</span>
-              <span><strong>{{ emp.documentos }}</strong> archivos</span>
+
+            <div class="ges-board-tile__progress" aria-hidden="true">
+              <span class="ges-board-tile__bar">
+                <span class="ges-board-tile__bar-fill" [style.width.%]="emp.avance"></span>
+              </span>
             </div>
-            <div class="ges-emp-card__hover-panel" *ngIf="emp.categorias.length">
-              <h4>Avance por grupo</h4>
-              <ul class="ges-bars">
-                <li *ngFor="let cat of emp.categorias">
-                  <span class="ges-bars__label">{{ cat.prefijo }}</span>
-                  <span class="ges-bars__track"><span class="ges-bar-fill" [style.width.%]="cat.avance" [attr.data-tone]="colorAvance(cat.avance)"></span></span>
-                  <span class="ges-bars__pct">{{ cat.avance }}%</span>
-                </li>
-              </ul>
+
+            <div class="ges-board-tile__foot">
+              <div class="ges-board-tile__metrics">
+                <span class="ges-board-tile__metric ges-board-tile__metric--norm">
+                  <i class="fas fa-book" aria-hidden="true"></i>
+                  <b>{{ emp.normativas }}</b>
+                  <em>normativas</em>
+                </span>
+                <span class="ges-board-tile__metric">
+                  <i class="fas fa-user-check" aria-hidden="true"></i>
+                  <b>{{ emp.responsables || 0 }}</b>
+                  <em>responsables</em>
+                </span>
+              </div>
+
+              <span class="ges-board-tile__cta">
+                Gestionar
+                <i class="fas fa-arrow-right" aria-hidden="true"></i>
+              </span>
             </div>
-            <span class="ges-emp-card__hint">Clic para ver detalle</span>
           </article>
         </div>
 
-        <!-- Con selección: filas alrededor + panel insertado -->
+        <!-- Detalle al seleccionar una empresa -->
         <ng-container *ngIf="empresaSeleccionada as sel">
           <div class="ges-emp-grid ges-emp-grid--board" *ngIf="empresasAntesFila.length">
             <article class="ges-emp-card ges-emp-card--board is-dimmed ges-enter"
@@ -434,7 +451,7 @@
   </div>
 
   <!-- ═══ NIVEL 2: Empresa ═══ -->
-  <div class="seg-panel ges-panel ges-view" *ngIf="vista === 'empresa'">
+  <div class="seg-panel ges-panel ges-panel--gestion ges-view" *ngIf="vista === 'empresa'">
     <div class="ges-loading ges-loading--pulse" *ngIf="cargando"><i class="fas fa-spinner fa-spin"></i> Cargando empresa…</div>
     <p class="ges-empty ges-empty--card" *ngIf="error && !cargando">{{ error }}</p>
 
@@ -618,7 +635,7 @@
   </div>
 
   <!-- ═══ NIVEL 3: Normativa ═══ -->
-  <div class="seg-panel ges-panel ges-view" *ngIf="vista === 'normativa'">
+  <div class="seg-panel ges-panel ges-panel--gestion ges-view" *ngIf="vista === 'normativa'">
     <div class="ges-loading ges-loading--pulse" *ngIf="cargandoDetalle"><i class="fas fa-spinner fa-spin"></i> Abriendo normativa…</div>
     <p class="ges-empty ges-empty--card" *ngIf="error && !cargandoDetalle && !detalle">{{ error }}</p>
 
@@ -760,7 +777,7 @@
   </div>
 
   <!-- ═══ NIVEL 4: Punto ═══ -->
-  <div class="seg-panel ges-panel ges-view" *ngIf="vista === 'punto'">
+  <div class="seg-panel ges-panel ges-panel--gestion ges-view" *ngIf="vista === 'punto'">
     <div class="ges-loading ges-loading--pulse" *ngIf="cargandoDetalle"><i class="fas fa-spinner fa-spin"></i> Abriendo punto…</div>
     <p class="ges-empty ges-empty--card" *ngIf="error && !cargandoDetalle">{{ error }}</p>
 

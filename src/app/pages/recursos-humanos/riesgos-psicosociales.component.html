@@ -95,18 +95,45 @@
               </div>
 
               <div class="rp-kpi-row">
-                <article class="rp-kpi" style="--kpi-accent:#9d174d">
-                  <div class="rp-kpi__value">{{ resumen.personal_evaluado ?? individuales.length }}</div>
-                  <div class="rp-kpi__label">Personal evaluado</div>
+                <article class="rp-stat" style="--stat-accent:#9d174d">
+                  <div class="rp-stat__icon" aria-hidden="true"><i class="fas fa-users"></i></div>
+                  <div class="rp-stat__body">
+                    <span class="rp-stat__eyebrow">Cobertura</span>
+                    <strong class="rp-stat__value">{{ resumen.personal_evaluado ?? individuales.length }}</strong>
+                    <span class="rp-stat__label">Personal evaluado</span>
+                  </div>
                 </article>
-                <article class="rp-kpi" style="--kpi-accent:#db2777">
-                  <div class="rp-kpi__value">{{ resumen.calificacion_promedio ?? '—' }}</div>
-                  <div class="rp-kpi__label">Calificación promedio</div>
+                <article class="rp-stat" style="--stat-accent:#db2777">
+                  <div class="rp-stat__icon" aria-hidden="true"><i class="fas fa-chart-line"></i></div>
+                  <div class="rp-stat__body">
+                    <span class="rp-stat__eyebrow">Puntaje</span>
+                    <strong class="rp-stat__value">{{ resumen.calificacion_promedio ?? '—' }}</strong>
+                    <span class="rp-stat__label">Calificación promedio</span>
+                  </div>
                 </article>
-                <article class="rp-kpi" [style.--kpi-accent]="colorNivel(resumen.nivel_riesgo)">
-                  <div class="rp-kpi__value" [style.color]="colorNivel(resumen.nivel_riesgo)">{{ resumen.nivel_riesgo || '—' }}</div>
-                  <div class="rp-kpi__label">Nivel de riesgo</div>
+                <article class="rp-stat" [style.--stat-accent]="colorNivel(resumen.nivel_riesgo)">
+                  <div class="rp-stat__icon" aria-hidden="true"><i class="fas fa-shield-alt"></i></div>
+                  <div class="rp-stat__body">
+                    <span class="rp-stat__eyebrow">Resultado</span>
+                    <strong class="rp-stat__value rp-stat__value--pill" [style.background]="colorNivel(resumen.nivel_riesgo)">
+                      {{ resumen.nivel_riesgo || '—' }}
+                    </strong>
+                    <span class="rp-stat__label">Nivel de riesgo</span>
+                  </div>
                 </article>
+              </div>
+
+              <div class="rp-card rp-ref">
+                <div class="rp-ref__head">
+                  <h3>Niveles de riesgo y rangos (referencia)</h3>
+                  <small>Rangos de calificación final NOM-035</small>
+                </div>
+                <div class="rp-ref__chips">
+                  <div class="rp-ref-chip" *ngFor="let r of rangosRef" [style.--chip]="colorNivel(r.nivel)">
+                    <span class="rp-ref-chip__level">{{ r.nivel }}</span>
+                    <span class="rp-ref-chip__range">{{ textoRango(r) }}</span>
+                  </div>
+                </div>
               </div>
 
               <div class="rp-grid-2">
@@ -200,17 +227,31 @@
               </div>
 
               <div class="rp-kpi-row">
-                <article class="rp-kpi" style="--kpi-accent:#9d174d">
-                  <div class="rp-kpi__value">{{ grupales.length }}</div>
-                  <div class="rp-kpi__label">Grupos / departamentos</div>
+                <article class="rp-stat" style="--stat-accent:#9d174d">
+                  <div class="rp-stat__icon" aria-hidden="true"><i class="fas fa-sitemap"></i></div>
+                  <div class="rp-stat__body">
+                    <span class="rp-stat__eyebrow">Estructura</span>
+                    <strong class="rp-stat__value">{{ grupales.length }}</strong>
+                    <span class="rp-stat__label">Grupos / departamentos</span>
+                  </div>
                 </article>
-                <article class="rp-kpi" style="--kpi-accent:#db2777">
-                  <div class="rp-kpi__value">{{ resumen.personal_evaluado ?? individuales.length }}</div>
-                  <div class="rp-kpi__label">Personal total</div>
+                <article class="rp-stat" style="--stat-accent:#db2777">
+                  <div class="rp-stat__icon" aria-hidden="true"><i class="fas fa-users"></i></div>
+                  <div class="rp-stat__body">
+                    <span class="rp-stat__eyebrow">Cobertura</span>
+                    <strong class="rp-stat__value">{{ resumen.personal_evaluado ?? individuales.length }}</strong>
+                    <span class="rp-stat__label">Personal total</span>
+                  </div>
                 </article>
-                <article class="rp-kpi" [style.--kpi-accent]="colorNivel(resumen.nivel_riesgo)">
-                  <div class="rp-kpi__value" [style.color]="colorNivel(resumen.nivel_riesgo)">{{ resumen.nivel_riesgo || '—' }}</div>
-                  <div class="rp-kpi__label">Nivel promedio</div>
+                <article class="rp-stat" [style.--stat-accent]="colorNivel(resumen.nivel_riesgo)">
+                  <div class="rp-stat__icon" aria-hidden="true"><i class="fas fa-shield-alt"></i></div>
+                  <div class="rp-stat__body">
+                    <span class="rp-stat__eyebrow">Resultado</span>
+                    <strong class="rp-stat__value rp-stat__value--pill" [style.background]="colorNivel(resumen.nivel_riesgo)">
+                      {{ resumen.nivel_riesgo || '—' }}
+                    </strong>
+                    <span class="rp-stat__label">Nivel promedio</span>
+                  </div>
                 </article>
               </div>
 
@@ -275,13 +316,39 @@
                 </div>
               </div>
 
-              <div class="rp-card">
-                <h3>Rangos de calificación (referencia)</h3>
-                <div class="rp-ranges">
-                  <div class="rp-range" *ngFor="let r of rangosRef" [style.borderColor]="colorNivel(r.nivel)">
-                    <strong [style.color]="colorNivel(r.nivel)">{{ r.nivel }}</strong>
-                    <span *ngIf="r.max != null">{{ r.min }} – {{ r.max }}</span>
-                    <span *ngIf="r.max == null">Mayor de {{ r.min }}</span>
+              <div class="rp-card rp-ref">
+                <div class="rp-ref__head">
+                  <h3>Niveles de riesgo y acciones requeridas</h3>
+                  <small>Referencia NOM-035 · rangos y necesidad de acción</small>
+                </div>
+                <div class="table-responsive">
+                  <table class="rp-table rp-table--niveles">
+                    <thead>
+                      <tr>
+                        <th style="width:140px">Nivel de riesgo</th>
+                        <th style="width:130px">Rango</th>
+                        <th>Necesidad de acción</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr *ngFor="let n of nivelesRef">
+                        <td>
+                          <span class="rp-level" [style.background]="n.color || colorNivel(n.etiqueta)">
+                            {{ n.etiqueta }}
+                          </span>
+                        </td>
+                        <td><strong>{{ rangoDeNivel(n.etiqueta) }}</strong></td>
+                        <td class="rp-nivel-row__accion">
+                          <span>{{ n.accion }}</span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="rp-ref__chips rp-ref__chips--mt">
+                  <div class="rp-ref-chip" *ngFor="let r of rangosRef" [style.--chip]="colorNivel(r.nivel)">
+                    <span class="rp-ref-chip__level">{{ r.nivel }}</span>
+                    <span class="rp-ref-chip__range">{{ textoRango(r) }}</span>
                   </div>
                 </div>
               </div>
@@ -389,17 +456,31 @@
             </div>
             <ng-template #compContent>
               <div class="rp-kpi-row">
-                <article class="rp-kpi" style="--kpi-accent:#9d174d">
-                  <div class="rp-kpi__value">{{ comparativas.periodos.length }}</div>
-                  <div class="rp-kpi__label">Periodos registrados</div>
+                <article class="rp-stat" style="--stat-accent:#9d174d">
+                  <div class="rp-stat__icon" aria-hidden="true"><i class="fas fa-history"></i></div>
+                  <div class="rp-stat__body">
+                    <span class="rp-stat__eyebrow">Historial</span>
+                    <strong class="rp-stat__value">{{ comparativas.periodos.length }}</strong>
+                    <span class="rp-stat__label">Periodos registrados</span>
+                  </div>
                 </article>
-                <article class="rp-kpi" style="--kpi-accent:#db2777">
-                  <div class="rp-kpi__value">{{ resumen.calificacion_promedio ?? '—' }}</div>
-                  <div class="rp-kpi__label">Último promedio</div>
+                <article class="rp-stat" style="--stat-accent:#db2777">
+                  <div class="rp-stat__icon" aria-hidden="true"><i class="fas fa-chart-line"></i></div>
+                  <div class="rp-stat__body">
+                    <span class="rp-stat__eyebrow">Último</span>
+                    <strong class="rp-stat__value">{{ resumen.calificacion_promedio ?? '—' }}</strong>
+                    <span class="rp-stat__label">Calificación promedio</span>
+                  </div>
                 </article>
-                <article class="rp-kpi" [style.--kpi-accent]="colorNivel(resumen.nivel_riesgo)">
-                  <div class="rp-kpi__value" [style.color]="colorNivel(resumen.nivel_riesgo)">{{ resumen.nivel_riesgo || '—' }}</div>
-                  <div class="rp-kpi__label">Último nivel</div>
+                <article class="rp-stat" [style.--stat-accent]="colorNivel(resumen.nivel_riesgo)">
+                  <div class="rp-stat__icon" aria-hidden="true"><i class="fas fa-shield-alt"></i></div>
+                  <div class="rp-stat__body">
+                    <span class="rp-stat__eyebrow">Último</span>
+                    <strong class="rp-stat__value rp-stat__value--pill" [style.background]="colorNivel(resumen.nivel_riesgo)">
+                      {{ resumen.nivel_riesgo || '—' }}
+                    </strong>
+                    <span class="rp-stat__label">Nivel de riesgo</span>
+                  </div>
                 </article>
               </div>
 

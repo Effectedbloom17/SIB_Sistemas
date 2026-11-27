@@ -275,6 +275,12 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
   donutSem2CentroPct = 0;
   proveedoresF29: any = null;
   proveedoresF29Expandido: string | null = null;
+  riesgosPsicosociales: {
+    calificacion_promedio?: number | null;
+    nivel_riesgo?: string | null;
+    personal_evaluado?: number | null;
+    periodo?: string | null;
+  } | null = null;
   vistaProveedoresF29: VistaProveedoresF29 = 'actual';
   criteriosProveedoresF29List: Array<{ label: string; valor: number }> = [];
   areasProveedoresF29List: Array<{ clave: string; label: string; valor: number; color: string; total: number }> = [];
@@ -635,6 +641,9 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
           && this.vistaProveedoresF29 === 'mensual') {
         this.vistaProveedoresF29 = 'actual';
       }
+    }
+    if (res.riesgosPsicosociales !== undefined) {
+      this.riesgosPsicosociales = res.riesgosPsicosociales || null;
     }
     if (res.eficacia != null) {
       this.eficacia = res.eficacia;
@@ -1959,6 +1968,14 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
       }
     ];
 
+    const rp = this.riesgosPsicosociales || {};
+    const puntajeRaw = rp.calificacion_promedio;
+    const puntajeNom = puntajeRaw != null && Number.isFinite(Number(puntajeRaw))
+      ? Number(puntajeRaw)
+      : null;
+    const nivelNom = String(rp.nivel_riesgo || '').trim();
+    const personalNom = Number(rp.personal_evaluado || 0);
+
     this.kpiCardsInferiores = [
       {
         titulo: 'Satisfacción de la capacitación',
@@ -1986,6 +2003,16 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
         icono: 'fa-truck',
         color: this.palette.morado,
         gradiente: `linear-gradient(135deg, #6d28d9 0%, #a78bfa 100%)`
+      },
+      {
+        titulo: 'Puntaje',
+        valor: puntajeNom != null && Number.isFinite(puntajeNom) ? `${puntajeNom}` : '—',
+        subtitulo: nivelNom
+          ? `Calificación promedio · ${nivelNom}${personalNom ? ` · ${personalNom} pers.` : ''}`
+          : 'Calificación promedio · NOM-035',
+        icono: 'fa-brain',
+        color: '#db2777',
+        gradiente: 'linear-gradient(135deg, #9d174d 0%, #f472b6 100%)'
       }
     ];
   }
